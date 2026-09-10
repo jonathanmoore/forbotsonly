@@ -460,7 +460,12 @@ async function handleWebhook(req: Request): Promise<Response> {
               attributes: product.attributes,
               assets: [
                 {
-                  printArea: 'front',
+                  printArea: 'front', // Required - no pocket/leftChest in Prodigi API
+                  // TODO: Replace with real baked front canvas URL
+                  // Specs: 600x600px mark on 2480x3507px (or larger) transparent canvas
+                  // Mark: pocket-grok-bot-hexagon-orange.svg rasterized for 300dpi
+                  // Placement: left chest (right half of front canvas), 2.5-4" below HPS
+                  // See PRODUCT_IMAGERY.md for full bake specifications
                   url: 'https://example.com/artwork.png',
                 },
               ],
