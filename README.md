@@ -33,11 +33,32 @@ This project uses the Prodigi API for print-on-demand fulfillment.
 #### Intended Payment Flow
 
 1. Customer pays via **Stripe Checkout / Link** (live mode)
-2. Stripe webhook fires `checkout.session.completed`
+   - Product: "forbotsonly Tee" - $35 USD one-time
+   - Checkout uses Stripe credentials from GitHub Secrets
+2. Stripe webhook fires `checkout.session.completed` to Railway public URL
 3. Webhook handler uses this client to place a **live Prodigi order**
+   - SKU: `GLOBAL-TEE-BC-3001` (black tee, size M, left-chest print area)
+   - Attributes: `color=black`, `size=m`
+   - Print areas: `front` (also available: back, sleeve, neck label)
 4. Same client code; environment variables switch between sandbox/live
 
-*Note: Stripe integration and webhooks are not implemented in this PR. This is the planned architecture.*
+*Note: Stripe integration and Railway webhook endpoint are not implemented in this PR. This is the planned architecture.*
+
+#### Environment Variables
+
+**Prodigi** (this PR)
+- `PRODIGI_API_KEY` - Sandbox or live API key
+- `PRODIGI_BASE_URL` - Optional; defaults to sandbox
+
+**Stripe** (configured in GitHub Secrets, not implemented yet)
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_ACCOUNT_ID`
+- `STRIPE_PRODUCT_ID` - "forbotsonly Tee"
+- `STRIPE_PRICE_ID` - $35 USD one-time
+
+**Webhook** (requires Railway deployment, not implemented yet)
+- `RAILWAY_PUBLIC_URL` - Public URL for Stripe webhook endpoint
 
 #### 1. Create a Prodigi Account
 
@@ -90,7 +111,7 @@ import { createProdigiClient } from './src/prodigi';
 const client = createProdigiClient();
 
 // Get a product by SKU
-const product = await client.getProduct('GLOBAL-TSHT-BLCK-XXL');
+const product = await client.getProduct('GLOBAL-TEE-BC-3001');
 
 // Create an order (live mode: real fulfillment)
 const order = await client.createOrder({
@@ -127,9 +148,18 @@ export async function handleStripeWebhook(event) {
       },
       items: [
         {
-          sku: 'GLOBAL-TSHT-BLCK-XXL', // Your product SKU
+          sku: 'GLOBAL-TEE-BC-3001',
           copies: 1,
-          // ... item configuration
+          attributes: {
+            color: 'black',
+            size: 'm'
+          },
+          assets: [
+            {
+              printArea: 'front',
+              // ... artwork configuration
+            }
+          ]
         }
       ]
     });

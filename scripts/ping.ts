@@ -21,8 +21,11 @@
 
 import { createProdigiClient } from '../src/prodigi';
 
-// TODO: Jonathan will update this with a real black tee / left-chest SKU from the Prodigi dashboard
-const PLACEHOLDER_SKU = 'GLOBAL-TSHT-BLCK-XXL';
+// Prodigi product: Black tee with left-chest print area
+// SKU: GLOBAL-TEE-BC-3001
+// Attributes: color=black, size=m
+// Print areas: front (also available: back, sleeve, neck label)
+const PRODUCT_SKU = 'GLOBAL-TEE-BC-3001';
 
 async function ping() {
   const baseUrl = process.env.PRODIGI_BASE_URL || 'https://api.sandbox.prodigi.com';
@@ -34,8 +37,8 @@ async function ping() {
   try {
     const client = createProdigiClient();
     
-    console.log(`📦 Fetching product: ${PLACEHOLDER_SKU}`);
-    const product = await client.getProduct(PLACEHOLDER_SKU);
+    console.log(`📦 Fetching product: ${PRODUCT_SKU}`);
+    const product = await client.getProduct(PRODUCT_SKU);
     
     console.log('✅ Success! Product retrieved:\n');
     console.log(JSON.stringify(product, null, 2));
