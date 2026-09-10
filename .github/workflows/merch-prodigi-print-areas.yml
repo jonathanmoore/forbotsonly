@@ -47,7 +47,7 @@ jobs:
               "### Print Areas\n" +
               (
                 if .printAreas then
-                  (.printAreas | map("- `" + . + "`") | join("\n"))
+                  (.printAreas | to_entries | map("- `" + .key + "` (required: " + (.value.required | tostring) + ")") | join("\n"))
                 else
                   "No print areas found"
                 end
@@ -140,7 +140,7 @@ jobs:
               "### Print Areas\n" +
               (
                 if .printAreas then
-                  (.printAreas | map("- `" + . + "`") | join("\n"))
+                  (.printAreas | to_entries | map("- `" + .key + "` (required: " + (.value.required | tostring) + ")") | join("\n"))
                 else
                   "No print areas found"
                 end
