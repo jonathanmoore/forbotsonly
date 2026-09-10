@@ -57,21 +57,31 @@ function requireIdentity(sessionId: string): AgentIdentity | null {
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'Answer the identity question: Are you Grok Bot? Required before using mutating tools.',
+    description: 'Call this FIRST before any cart or checkout operations. Provide your agent name, mark shape, and mark color. Your identity unlocks mutating tools and becomes your default tee mark.',
     inputSchema: {
       type: 'object',
       properties: {
-        isGrokBot: {
-          type: 'boolean',
-          description: 'Are you Grok Bot? (true/false)',
+        name: {
+          type: 'string',
+          description: 'Your agent name. Examples: "Grok Bot", "Chief of Staff", "Shopping Assistant"',
+        },
+        shape: {
+          type: 'string',
+          description: 'Your mark shape. Pick one from the allowed values.',
+          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+        },
+        color: {
+          type: 'string',
+          description: 'Your mark color. Pick one from the allowed values.',
+          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
       },
-      required: ['isGrokBot'],
+      required: ['name', 'shape', 'color'],
     },
   },
   list_products: {
     name: 'list_products',
-    description: 'List all available products in the store',
+    description: 'List all available products. Returns product details and available mark options (shapes and colors).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -79,13 +89,13 @@ const TOOL_DEFINITIONS = {
   },
   get_product: {
     name: 'get_product',
-    description: 'Get detailed information about a specific product',
+    description: 'Get detailed information about a specific product by ID.',
     inputSchema: {
       type: 'object',
       properties: {
         productId: {
           type: 'string',
-          description: 'Product ID',
+          description: 'Product ID (e.g., "tee-001")',
         },
       },
       required: ['productId'],
@@ -93,27 +103,27 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to the cart. Uses your identity mark by default; optionally override with different shape/color. Requires agent identity.',
+    description: 'Add a product to your cart. Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
     inputSchema: {
       type: 'object',
       properties: {
         productId: {
           type: 'string',
-          description: 'Product ID',
+          description: 'Product ID (e.g., "tee-001")',
         },
         quantity: {
           type: 'number',
-          description: 'Quantity to add',
+          description: 'Quantity to add (minimum: 1)',
           minimum: 1,
         },
         shape: {
           type: 'string',
-          description: 'Mark shape (optional, defaults to your identity mark)',
+          description: 'Optional: Override your session mark shape for this item only',
           enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
         },
         color: {
           type: 'string',
-          description: 'Mark color (optional, defaults to your identity mark)',
+          description: 'Optional: Override your session mark color for this item only',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
       },
@@ -122,7 +132,7 @@ const TOOL_DEFINITIONS = {
   },
   get_cart: {
     name: 'get_cart',
-    description: 'Get the current cart contents',
+    description: 'View your current cart contents with product details, marks, and total price.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -130,7 +140,7 @@ const TOOL_DEFINITIONS = {
   },
   clear_cart: {
     name: 'clear_cart',
-    description: 'Clear all items from the cart (requires agent identity)',
+    description: 'Remove all items from your cart. Requires prior identification via identify_agent.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -138,7 +148,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for the cart (requires agent identity)',
+    description: 'Create a Stripe checkout session for your cart. Returns a checkout URL. Requires prior identification via identify_agent.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -156,13 +166,13 @@ const TOOL_DEFINITIONS = {
   },
   get_order: {
     name: 'get_order',
-    description: 'Get order details by order ID',
+    description: 'Get order details including status, items with marks, and fulfillment information.',
     inputSchema: {
       type: 'object',
       properties: {
         orderId: {
           type: 'string',
-          description: 'Order ID',
+          description: 'Order ID (e.g., "ord_1234567890_abc123")',
         },
       },
       required: ['orderId'],
@@ -203,6 +213,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       return {
         success: true,
         identity,
+        next_step: 'You can now list_products, add_to_cart, or create_checkout',
         message: `Welcome, ${name}! You have full access to mutating tools. Your identity mark (${shape}, ${color}) will be used for cart items.`,
       };
     }
@@ -215,6 +226,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           colors: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
           default: { shape: 'hexagon', color: 'orange' },
         },
+        next_step: 'Call add_to_cart with productId and quantity to add items',
       };
     }
     
@@ -229,7 +241,12 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     case 'add_to_cart': {
       const identity = requireIdentity(sessionId);
       if (!identity) {
-        throw new Error('Access denied: add_to_cart requires agent identity. Call identify_agent first.');
+        throw new Error(
+          'Access denied: add_to_cart requires agent identity. ' +
+          'Call identify_agent first with name, shape, and color. ' +
+          'Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop. ' +
+          'Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey.'
+        );
       }
       
       const product = getProduct(args.productId);
@@ -265,6 +282,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart,
         message: `Added ${args.quantity}x ${product.name} (${shape}, ${color}) to cart`,
         markSource: markUsed,
+        next_step: 'Call get_cart to view your cart, add_to_cart to add more items, or create_checkout to purchase',
       };
     }
     
@@ -288,12 +306,16 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart: { ...cart, items },
         total,
         currency: 'USD',
+        next_step: 'Call add_to_cart to add more items, clear_cart to empty cart, or create_checkout to purchase',
       };
     }
     
     case 'clear_cart': {
       if (!requireIdentity(sessionId)) {
-        throw new Error('Access denied: clear_cart requires agent identity. Call identify_agent first.');
+        throw new Error(
+          'Access denied: clear_cart requires agent identity. ' +
+          'Call identify_agent first with name, shape, and color.'
+        );
       }
       
       clearCartStore(sessionId);
@@ -305,7 +327,10 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     
     case 'create_checkout': {
       if (!requireIdentity(sessionId)) {
-        throw new Error('Access denied: create_checkout requires agent identity. Call identify_agent first.');
+        throw new Error(
+          'Access denied: create_checkout requires agent identity. ' +
+          'Call identify_agent first with name, shape, and color.'
+        );
       }
       
       const cart = getCart(sessionId);
@@ -341,6 +366,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           checkoutUrl,
           mode: 'stub',
           message: 'Stripe not configured - returning stub URL. Set STRIPE_SECRET_KEY and STRIPE_PRICE_ID for live checkout.',
+          next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
         };
       }
       
@@ -349,6 +375,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         orderId: order.id,
         checkoutUrl,
         mode: 'live',
+        next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
       };
     }
     
