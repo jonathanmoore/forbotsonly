@@ -1,4 +1,5 @@
 import type { Product } from './types';
+import { DEFAULT_MARK, MARK_SHAPES, MARK_COLORS } from './types';
 
 const PRODIGI_SKU = process.env.PRODIGI_SKU || 'GLOBAL-TEE-BC-3001';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
@@ -8,7 +9,7 @@ export const PRODUCTS: Product[] = [
     id: 'tee-001',
     sku: PRODIGI_SKU,
     name: 'forbotsonly Tee',
-    description: 'Black tee with left-chest print area',
+    description: 'Black tee with customizable Grok Bot mark. Choose your shape and color!',
     price: 35.00,
     currency: 'USD',
     attributes: {
@@ -28,4 +29,12 @@ export function listProducts(): Product[] {
 
 export function getStripePriceId(): string {
   return STRIPE_PRICE_ID;
+}
+
+export function getMarkOptions() {
+  return {
+    shapes: Array.from(MARK_SHAPES),
+    colors: Array.from(MARK_COLORS),
+    default: DEFAULT_MARK,
+  };
 }

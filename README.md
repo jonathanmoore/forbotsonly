@@ -9,6 +9,7 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
 - **Faceless storefront**: No human catalog UI
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
 - **Soft agent gate**: Simple yes/no identity check (`isGrokBot: true/false`)
+- **Mark customization**: Agent chooses shape + color (8 shapes × 11 colors, from PR #9)
 - **Stripe Checkout + Link**: Payment integration (stub or live based on secrets)
 - **Prodigi fulfillment**: Automatic order placement after successful payment
 - **Railway-ready**: Dockerfile + nixpacks configuration
@@ -172,7 +173,7 @@ Answers the identity question: Are you Grok Bot? Required before using mutating 
 
 ### 2. `list_products`
 
-Lists all available products.
+Lists all available products with mark customization options.
 
 **Input:** None
 
@@ -184,7 +185,7 @@ Lists all available products.
       "id": "tee-001",
       "sku": "GLOBAL-TEE-BC-3001",
       "name": "forbotsonly Tee",
-      "description": "Black tee with left-chest print area",
+      "description": "Black tee with customizable Grok Bot mark. Choose your shape and color!",
       "price": 35.00,
       "currency": "USD",
       "attributes": {
@@ -192,9 +193,19 @@ Lists all available products.
         "size": "m"
       }
     }
-  ]
+  ],
+  "markOptions": {
+    "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
+    "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"],
+    "default": { "shape": "hexagon", "color": "orange" }
+  }
 }
 ```
+
+**Mark Options:**
+- **Shapes**: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud (3-lobe), teardrop
+- **Colors**: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
+- **Default/Hero**: orange hexagon (from mark pack in PR #9)
 
 ### 3. `get_product`
 
@@ -217,13 +228,15 @@ Gets detailed information about a specific product.
 
 ### 4. `add_to_cart` 🔒 Grok Bot Only
 
-Adds a product to the cart.
+Adds a product to the cart with chosen mark (shape + color).
 
 **Access:** Requires `isGrokBot: true` from identify_agent.
 
 **Input:**
 - `productId` (string, required): Product ID
 - `quantity` (number, required): Quantity to add (minimum: 1)
+- `shape` (string, required): Mark shape - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`
+- `color` (string, required): Mark color - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`
 
 **Output:**
 ```json
@@ -231,17 +244,29 @@ Adds a product to the cart.
   "success": true,
   "cart": {
     "items": [
-      { "productId": "tee-001", "quantity": 1 }
+      { 
+        "productId": "tee-001", 
+        "quantity": 1,
+        "mark": {
+          "shape": "hexagon",
+          "color": "orange"
+        }
+      }
     ],
     "sessionId": "sess_..."
   },
-  "message": "Added 1x forbotsonly Tee to cart"
+  "message": "Added 1x forbotsonly Tee (hexagon, orange) to cart"
 }
 ```
 
+**Mark Customization:**
+- Shape and color are **required** - agent must choose both
+- Choices align with mark pack from PR #9
+- Later maps to Prodigi artwork selection (currently persisted through checkout/order)
+
 ### 5. `get_cart`
 
-Gets the current cart contents with product details and total.
+Gets the current cart contents with product details, mark choices, and total.
 
 **Input:** None
 
@@ -253,6 +278,10 @@ Gets the current cart contents with product details and total.
       {
         "productId": "tee-001",
         "quantity": 1,
+        "mark": {
+          "shape": "hexagon",
+          "color": "orange"
+        },
         "product": { ... }
       }
     ],
@@ -312,7 +341,7 @@ Creates a Stripe Checkout session for the cart.
 
 ### 8. `get_order`
 
-Gets order details by order ID.
+Gets order details by order ID, including mark choices for each item.
 
 **Input:**
 - `orderId` (string, required): Order ID
@@ -324,7 +353,17 @@ Gets order details by order ID.
     "id": "ord_1234567890_abc123",
     "sessionId": "sess_...",
     "status": "paid",
-    "items": [ ... ],
+    "items": [
+      {
+        "productId": "tee-001",
+        "quantity": 1,
+        "mark": {
+          "shape": "hexagon",
+          "color": "orange"
+        },
+        "product": { ... }
+      }
+    ],
     "stripeCheckoutSessionId": "cs_test_...",
     "prodigiOrderId": "pro_...",
     "createdAt": 1699999999999
@@ -362,8 +401,8 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 ### 1. Agent Interaction
 
 1. Agent calls `identify_agent` with `isGrokBot: true`
-2. Agent calls `list_products` to browse
-3. Agent calls `add_to_cart` to add items
+2. Agent calls `list_products` to browse (includes mark options)
+3. Agent calls `add_to_cart` with product ID, quantity, **shape**, and **color**
 4. Agent calls `create_checkout` to get payment URL
 
 ### 2. Stripe Checkout + Link
@@ -481,10 +520,11 @@ After deployment:
 - **Limitation**: Restarts clear all carts
 - **Follow-up**: Add Redis/database for persistence
 
-### Artwork
+### Stub Artwork
 
-- **Current**: Stub artwork URL in Prodigi order (`https://example.com/artwork.png`)
-- **Follow-up**: Generate/upload artwork, update URL in order creation
+- **Current**: Mark choices (shape + color) are persisted through cart → checkout → order
+- **Current**: Prodigi orders use placeholder artwork URL (`https://example.com/artwork.png`)
+- **Follow-up**: Map mark choices to actual SVG assets from PR #9 for Prodigi fulfillment
 
 ### Multi-SKU
 

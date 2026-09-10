@@ -17,6 +17,7 @@ import {
 import { getProduct, listProducts, getStripePriceId } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
+import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -91,7 +92,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to the cart (requires isGrokBot: true)',
+    description: 'Add a product to the cart with chosen mark (shape + color). Requires isGrokBot: true',
     inputSchema: {
       type: 'object',
       properties: {
@@ -104,8 +105,18 @@ const TOOL_DEFINITIONS = {
           description: 'Quantity to add',
           minimum: 1,
         },
+        shape: {
+          type: 'string',
+          description: 'Mark shape',
+          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+        },
+        color: {
+          type: 'string',
+          description: 'Mark color',
+          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+        },
       },
-      required: ['productId', 'quantity'],
+      required: ['productId', 'quantity', 'shape', 'color'],
     },
   },
   get_cart: {
@@ -179,6 +190,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     case 'list_products': {
       return {
         products: listProducts(),
+        markOptions: {
+          shapes: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+          colors: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+          default: { shape: 'hexagon', color: 'orange' },
+        },
       };
     }
     
@@ -195,16 +211,36 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Access denied: add_to_cart requires Grok Bot identity (isGrokBot: true)');
       }
       
+      if (!args.shape || !args.color) {
+        throw new Error('Missing required mark configuration: shape and color must be specified');
+      }
+      
+      if (!isValidMarkShape(args.shape)) {
+        throw new Error(
+          `Invalid shape: ${args.shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
+        );
+      }
+      
+      if (!isValidMarkColor(args.color)) {
+        throw new Error(
+          `Invalid color: ${args.color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
+        );
+      }
+      
       const product = getProduct(args.productId);
       if (!product) {
         throw new Error('Product not found');
       }
       
-      const cart = addToCartStore(sessionId, args.productId, args.quantity);
+      const cart = addToCartStore(sessionId, args.productId, args.quantity, {
+        shape: args.shape,
+        color: args.color,
+      });
+      
       return {
         success: true,
         cart,
-        message: `Added ${args.quantity}x ${product.name} to cart`,
+        message: `Added ${args.quantity}x ${product.name} (${args.shape}, ${args.color}) to cart`,
       };
     }
     
@@ -215,6 +251,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         return {
           productId: item.productId,
           quantity: item.quantity,
+          mark: item.mark,
           product,
         };
       });
@@ -302,6 +339,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         return {
           productId: item.productId,
           quantity: item.quantity,
+          mark: item.mark,
           product,
         };
       });
