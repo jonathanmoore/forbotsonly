@@ -52,12 +52,12 @@ Format: `pocket-grok-bot-{shape}-{color}.svg`
 
 **Hero/Default:** `pocket-grok-bot-hexagon-orange.svg`
 
-Optimized for pocket or small chest prints on apparel:
-- **Intended print size:** ~2 inches (2" × 2")
+Optimized for apparel printing:
+- **SVG canvas:** `width="192" height="192"` (native asset size)
 - **ViewBox:** `-15 -15 259 259` (same padded viewBox as standard marks)
-- **Canvas:** `width="192" height="192"` (scales to ~2" @ 96dpi)
+- **Prodigi print placement:** ~1.2 inches (~360px @ 300dpi front placement target)
 - **Print recommendation:** Works best on dark backgrounds (black, navy, charcoal)
-- Vector format scales to any size, but sweet spot is 1.5"–3" for detail visibility
+- Vector format scales to any size; pocket assets can be printed at various sizes (1"–3" range works well)
 
 ## Hero Mark (Chief of Staff Default)
 
@@ -117,7 +117,8 @@ The overflow eyes are the **defining characteristic** of the Grok Bot mark:
 
 ### Print Specifications
 - **Standard marks**: 229×229 canvas, padded viewBox
-- **Pocket-print marks**: 192×192 canvas (same viewBox), optimized for ~2" physical print
+- **Pocket-print marks**: 192×192 canvas (same viewBox), native asset size
+- **Prodigi front placement**: ~1.2" (~360px @ 300dpi) — pocket assets scale to this target
 - **Format**: SVG (vector, resolution-independent)
 - **Color mode**: Flat fills, no gradients (DTG and screen-print friendly)
 - **Print methods**: Compatible with DTG (direct-to-garment), screen printing, heat transfer
@@ -125,11 +126,13 @@ The overflow eyes are the **defining characteristic** of the Grok Bot mark:
 ## Usage Guidelines
 
 ### Apparel Printing
-- Use pocket-print variants for chest/pocket placement (1.5"–3" recommended)
+- Use pocket-print variants for chest/pocket placement
+- **Prodigi placement**: Front placement targets ~1.2" (~360px @ 300dpi)
 - Orange marks work best on dark fabrics (black, navy, charcoal, dark grey)
 - White/light-green marks work on dark fabrics
 - For light fabrics, use darker color marks (blue, purple, brown, red)
 - Ensure printer supports vector overflow (eyes extend past body bbox)
+- Vector assets scale to any print size; 1"–3" range works well for detail visibility
 
 ### Digital Use
 - Use standard marks (229×229) for web, apps, avatars
