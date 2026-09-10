@@ -175,15 +175,14 @@ function generateMark(
   const eyeColor = color === 'white' ? EYE_COLOR_ON_WHITE : EYE_COLOR;
   const eyes = EYE_LAYOUTS[eyeLayout];
   
-  // For pocket print, optimize for ~2 inch print (96 DPI = ~192px)
-  const viewBox = pocketPrint ? '0 0 192 192' : '0 0 100 100';
-  const scale = pocketPrint ? 1.92 : 1;
-  
-  const shapeTransform = pocketPrint ? ` transform="scale(${scale}) translate(${-50 * (scale - 1)}, ${-50 * (scale - 1)})"` : '';
+  // For pocket print, use same centered 100×100 viewBox but scale to 192px (~2" @ 96dpi)
+  const svgWidth = pocketPrint ? 192 : width;
+  const svgHeight = pocketPrint ? 192 : height;
+  const comment = pocketPrint ? '\n  <!-- Centered mark; viewBox 100 maps to 192px (~2" @ 96dpi). Do NOT use broken translate(-46,-46) scale. -->' : '';
   
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="${width}" height="${height}" viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg">
-  <g id="mark"${shapeTransform}>
+<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${comment}
+  <g id="mark">
     <g id="shape" fill="${fillColor}" stroke="${fillColor}">
       ${SHAPES[shape]()}
     </g>

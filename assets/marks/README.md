@@ -56,7 +56,8 @@ Format: `pocket-grok-bot-{shape}-{color}.svg`
 
 Optimized for pocket or small chest prints on apparel:
 - **Intended print size:** ~2 inches (2" × 2")
-- **ViewBox:** 192 × 192 (96 DPI × 2 inches)
+- **ViewBox:** `0 0 100 100` (same centered artwork as standard marks)
+- **Canvas:** `width="192" height="192"` (maps 100 viewBox to 192px = ~2" @ 96dpi)
 - **Print recommendation:** Works best on dark backgrounds (black, navy, charcoal)
 - Vector format scales to any size, but sweet spot is 1.5"–3" for detail visibility
 
