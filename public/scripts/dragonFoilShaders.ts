@@ -72,40 +72,28 @@ export const fragmentShader = `
     // Fresnel rim light
     float fresnelFactor = fresnel(viewDir, vNormal, 3.0);
     
-    // Foil intensity from mask (brighter = more foil)
-    float foilIntensity = foilMask.r;
+    // Foil intensity from mask (0-1 range, normalized)
+    float foilIntensity = foilMask.r / 255.0;
     
-    // Bevel/metallic highlight
-    float bevel = smoothstep(0.3, 0.7, foilIntensity) * 0.5;
-    
-    // Combine effects
+    // Base colored material (orange head, dark eyes from SVG)
     vec3 baseRGB = baseColor.rgb;
     
-    // Matte areas (dark in foil mask)
-    vec3 matteColor = baseRGB * 0.3;
+    // Foil overlay: only visible where foilIntensity is higher
+    vec3 foilOverlay = rainbowColor * foilIntensity * 0.6;
     
-    // Foil areas (bright in foil mask)
-    vec3 foilColor = mix(
-      baseRGB * 0.4,
-      rainbowColor * 1.5,
-      foilIntensity * 0.8
-    );
+    // Add fresnel rim (subtle)
+    foilOverlay += fresnelFactor * rainbowColor * foilIntensity * 0.3;
     
-    // Add fresnel rim
-    foilColor += fresnelFactor * rainbowColor * 0.6;
-    
-    // Add bevel highlights
-    foilColor += vec3(1.0) * bevel * foilIntensity;
-    
-    // Blend matte and foil based on mask
-    vec3 finalColor = mix(matteColor, foilColor, foilIntensity);
-    
-    // Hover effect - subtle brightening
-    finalColor += vec3(0.1) * uHover * foilIntensity;
-    
-    // Idle shimmer
+    // Idle shimmer (very subtle)
     float shimmer = sin(uTime * 2.0 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
-    finalColor += rainbowColor * shimmer * 0.1 * foilIntensity;
+    foilOverlay += rainbowColor * shimmer * foilIntensity * 0.05;
+    
+    // Final: base color dominates when foilIntensity is low (orange head, dark eyes)
+    // Foil is ADDITIVE overlay, not replacement
+    vec3 finalColor = baseRGB + foilOverlay;
+    
+    // Hover effect - slight brightening
+    finalColor += vec3(0.05) * uHover * foilIntensity;
     
     gl_FragColor = vec4(finalColor, baseColor.a);
   }
