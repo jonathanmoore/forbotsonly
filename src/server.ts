@@ -555,6 +555,60 @@ serve({
       return jsonResponse({ status: 'ok' });
     }
     
+    // Serve static files from dist/ (Vite build output)
+    if (req.method === 'GET') {
+      try {
+        // Try dist/ first (production build)
+        let filePath = url.pathname === '/' ? '/index.html' : url.pathname;
+        const distPath = `./dist${filePath}`;
+        
+        const file = Bun.file(distPath);
+        const exists = await file.exists();
+        
+        if (exists) {
+          const ext = filePath.split('.').pop()?.toLowerCase() || '';
+          const contentTypes: Record<string, string> = {
+            'html': 'text/html',
+            'js': 'application/javascript',
+            'css': 'text/css',
+            'json': 'application/json',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'svg': 'image/svg+xml',
+            'ico': 'image/x-icon',
+            'woff': 'font/woff',
+            'woff2': 'font/woff2',
+            'ttf': 'font/ttf',
+            'eot': 'application/vnd.ms-fontobject',
+          };
+          
+          return new Response(file, {
+            headers: {
+              'Content-Type': contentTypes[ext] || 'application/octet-stream',
+              'Cache-Control': ext === 'html' ? 'no-cache' : 'public, max-age=31536000',
+            },
+          });
+        }
+        
+        // SPA fallback: return index.html for routes that look like pages (no file extension)
+        if (!filePath.includes('.') && filePath !== '/') {
+          const indexFile = Bun.file('./dist/index.html');
+          if (await indexFile.exists()) {
+            return new Response(indexFile, {
+              headers: {
+                'Content-Type': 'text/html',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Static file error:', err);
+      }
+    }
+    
     return errorResponse('Not found', 404);
   },
 });
@@ -563,3 +617,4 @@ console.log(`🤖 forbotsonly server running on http://localhost:${PORT}`);
 console.log(`📡 MCP endpoint: ${PUBLIC_URL}/mcp`);
 console.log(`🪝 Webhook endpoint: ${PUBLIC_URL}/webhook/stripe`);
 console.log(`🔐 Stripe configured: ${isStripeConfigured() ? 'Yes' : 'No (stub mode)'}`);
+console.log(`🌐 Serving static files from ./dist/`);
