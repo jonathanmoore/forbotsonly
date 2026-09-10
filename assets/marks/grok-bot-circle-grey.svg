@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
-  <!-- Grok Bot mark: dark slanted pill eyes, per-shape placement -->
-  <g class="grok-bot-mark">
+  <!-- Grok Bot mark: face layout computation (product ID: egg) -->
+  <!-- Recipe weight: 0.96 | App picker: circle -->
+  <g class="grok-bot-mark" data-product-id="egg" data-picker-shape="circle">
     <path class="grok-bot-mark__head" d="M 19.2705,114.2705 A 95,95 0 1,1 209.2705,114.2705 A 95,95 0 1,1 19.2705,114.2705 Z" fill="#9E9E9E"/>
     <g class="grok-bot-mark__eyes">
-      <ellipse cx="88" cy="68" rx="7" ry="14" fill="#0A0A0A" transform="rotate(-20 88 68)"/>
-    <ellipse cx="127" cy="62" rx="7" ry="14" fill="#0A0A0A" transform="rotate(-20 127 62)"/>
+      <ellipse cx="84.50" cy="68.00" rx="7.01" ry="13.92" fill="#0A0A0A" transform="rotate(-20 84.50 68.00)"/>
+    <ellipse cx="131.50" cy="62.00" rx="7.01" ry="13.92" fill="#0A0A0A" transform="rotate(-20 131.50 62.00)"/>
     </g>
   </g>
 </svg>

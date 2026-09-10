@@ -1,56 +1,119 @@
 # Grok Bot Character Marks
 
-Printable SVG assets for the forbotsonly merch store, based on the **Grok Bot app Character picker** (ground truth).
+Printable SVG assets for the forbotsonly merch store, **modeled on GrokBotMark product mechanism** (face layout system).
 
-## 🎨 Shape System (9 Shapes)
+## 🧬 Product Mechanism: Face Layout System
 
-**CRITICAL**: `blob` ≠ `hexagon`
-- **blob**: Organic brand shape (foil default, Railway hero) — the iconic Grok Bot silhouette
-- **hexagon**: TRUE geometric hex (6-sided polygon) — a separate shape option
+Eyes are **recomputed** from shape's `face` params (position/scale/leftDX/rightDX), **not** pasted from blob paths.
 
-All 9 shapes from the app Character picker:
-1. **blob** — Organic brand default (foil & Railway hero) ⭐
-2. **circle** — Round
-3. **vertical-oval** — Tall oval
-4. **rounded-square** — Squircle
-5. **horizontal-pill** — Wide capsule
-6. **rounded-triangle** — Triangle pointing up
-7. **hexagon** — True geometric hexagon (NOT the blob)
-8. **cloud** — 3-lobe organic cloud
-9. **teardrop** — Teardrop pointing up
+### How Eyes Are Computed
+
+```typescript
+// 1. Face params define eye layout per shape
+interface FaceParams {
+  centerX, centerY    // Base eye position
+  eyeSpacing          // Pair spacing
+  baseRX, baseRY      // Base dimensions
+  rotation            // Slant angle
+  leftDX, leftDY      // Left eye offset
+  rightDX, rightDY    // Right eye offset
+}
+
+// 2. Recipe weight scales eyes per shape
+const recipeWeight = EYE_SCALE_WEIGHTS[productID]; // 0.84–1.0
+
+// 3. Compute final eye dimensions
+const rx = baseRX * recipeWeight;
+const ry = baseRY * recipeWeight;
+
+// 4. Compute eye positions with offsets
+const cx = centerX ± (eyeSpacing/2) + dx;
+const cy = centerY + dy;
+```
+
+### Recipe Weights (GROK_BOT_RECIPE_*)
+
+Per-shape eye scale factors:
+- **blob**: `0.92`
+- **egg** (circle): `0.96`
+- **bean** (vertical-oval): `0.96`
+- **squircle** (rounded-square): `0.84` ⬅️ smallest
+- **capsule** (horizontal-pill): `1.0` ⬅️ largest
+- **wedge** (rounded-triangle): `0.94`
+- **hex** (hexagon): `0.94`
+- **cloud**: `1.0`
+- **teardrop**: `1.0`
+
+## 📐 Shape ID Mapping
+
+**App Picker Names ↔ Product Catalog IDs**
+
+| App Picker (9 shapes)   | Product ID | Recipe Weight |
+|------------------------|------------|---------------|
+| `blob` ⭐              | `blob`     | 0.92          |
+| `circle`               | `egg`      | 0.96          |
+| `vertical-oval`        | `bean`     | 0.96          |
+| `rounded-square`       | `squircle` | 0.84          |
+| `horizontal-pill`      | `capsule`  | 1.0           |
+| `rounded-triangle`     | `wedge`    | 0.94          |
+| `hexagon` (geometric)  | `hex`      | 0.94          |
+| `cloud`                | `cloud`    | 1.0           |
+| `teardrop`             | `teardrop` | 1.0           |
+
+**Note**: `blob` ≠ `hexagon` — blob is organic brand shape (foil/Railway hero), hexagon is a separate geometric hex.
+
+### Product Catalog (~18 IDs)
+
+Full catalog: blob, pebble, bean, egg, squircle, tablet, capsule, cylinder, hex, gem, crystal, wedge, shield, dome, arch, cloud, teardrop, leaf
+
+**This pack includes**: 9 app picker shapes (subset of catalog)  
+**Optional extras**: pebble, gem, crystal, shield, dome, arch, leaf (not required for this PR)
 
 ## 👀 Eye Design
 
-**Dark slanted pills/capsules** — consistent style, **per-shape placement**
+**Dark slanted pills** — computed from face layout, **never pasted from blob**
 
 - **Eye fill**: `#0A0A0A` (dark, all shapes)
-- **Style**: Slanted ellipses (pills/capsules)
-- **Placement**: Repositioned/scaled/rotated per shape so both eyes read correctly
-- **Bug fixed**: No longer pasting blob eye coordinates onto all shapes
+- **Style**: Slanted ellipses (computed from face params)
+- **Computation**: `baseRX/baseRY` × `recipeWeight` + position offsets
+- **Result**: Eyes sized and positioned correctly per silhouette
 
-Eyes can overflow when appropriate (like the app does), but are properly sized and positioned for each silhouette.
+### What Changed (Chief of Staff Lock)
+
+**OLD (wrong)**: Hand-wavy ellipses, hardcoded positions  
+**NEW (correct)**: Face layout system, recipe weights, computed from params
+
+**Do NOT**:
+- ❌ Paste blob overflow-eye path `d`s onto other shapes
+- ❌ Hardcode eye positions without face params
+- ❌ Ignore recipe weight scaling
+
+**DO**:
+- ✅ Compute eyes from face params (centerX/Y, spacing, offsets)
+- ✅ Apply recipe weight to base dimensions
+- ✅ Tune params against app picker screenshots
 
 ## Overview
 
 The Grok Bot character mark system consists of:
-- **9 shapes** × **11 colors** = 99 base marks
+- **9 app picker shapes** × **11 colors** = 99 base marks
 - Pocket-print optimized version for apparel (~1.2" Prodigi placement)
-- All marks use **dark slanted pill eyes, repositioned per shape**
+- All marks use **face layout computation** (product mechanism)
 
 ## Files
 
 ### Base Marks
-Format: `grok-bot-{shape}-{color}.svg`
+Format: `grok-bot-{picker-shape}-{color}.svg`
 
-**Shapes:**
+**Shapes** (App Picker Names):
 - `blob` — Organic brand default (foil, Railway hero) ⭐
-- `circle` — Round, soft shape
-- `vertical-oval` — Tall oval
-- `rounded-square` — Squircle-like square
-- `horizontal-pill` — Wide capsule
-- `rounded-triangle` — Triangle pointing up with rounded corners
-- `hexagon` — True geometric hexagon (NOT the blob)
-- `cloud` — 3-lobe organic cloud shape
+- `circle` — Round (product ID: egg)
+- `vertical-oval` — Tall oval (product ID: bean)
+- `rounded-square` — Squircle (product ID: squircle)
+- `horizontal-pill` — Wide capsule (product ID: capsule)
+- `rounded-triangle` — Triangle pointing up (product ID: wedge)
+- `hexagon` — True geometric hexagon (product ID: hex)
+- `cloud` — 3-lobe organic cloud
 - `teardrop` — Teardrop pointing up
 
 **Colors:** (hex values)
@@ -67,13 +130,13 @@ Format: `grok-bot-{shape}-{color}.svg`
 - `grey` — `#9E9E9E`
 
 ### Pocket-Print (Apparel)
-Format: `pocket-grok-bot-{shape}-{color}.svg`
+Format: `pocket-grok-bot-{picker-shape}-{color}.svg`
 
 **Brand Default:** `pocket-grok-bot-blob-orange.svg`
 
 Optimized for apparel printing:
 - **SVG canvas:** `width="192" height="192"` (native asset size)
-- **ViewBox:** `-15 -15 259 259` (same padded viewBox as standard marks)
+- **ViewBox:** `-15 -15 259 259` (padded for blob overflow)
 - **Prodigi print placement:** ~1.2 inches (~360px @ 300dpi front placement target)
 - **Print recommendation:** Works best on dark backgrounds (black, navy, charcoal)
 - Vector format scales to any size; pocket assets can be printed at various sizes (1"–3" range works well)
@@ -81,13 +144,14 @@ Optimized for apparel printing:
 ## Brand Default (Foil, Railway Hero)
 
 **Shape:** Organic blob (NOT hexagon)  
+**Product ID:** `blob`  
 **Color:** Orange (`#FF6B35`)  
-**Eyes:** Dark slanted pills, positioned for blob silhouette  
+**Eyes:** Computed from blob face params (recipe weight 0.92)  
 **Files:**
 - `grok-bot-blob-orange.svg` (standard, 229×229 canvas)
 - `pocket-grok-bot-blob-orange.svg` (pocket-print, 192×192 canvas)
 
-This is the canonical Grok Bot mark for foil branding and Railway hero.
+This is the canonical Grok Bot mark for foil branding and Railway hero. **Brand overflow eyes blob only** — lives on storefront PR #10.
 
 ## Regenerating Marks
 
@@ -104,34 +168,57 @@ bun scripts/generate-marks.ts
 ```
 
 The generator will:
-1. Create all 99 base shape × color combinations with per-shape eye layouts
-2. Generate the pocket-print brand default (orange blob)
-3. Output all files to `assets/marks/`
+1. Compute eyes from face params + recipe weights for each shape
+2. Generate all 99 app picker shape × color combinations
+3. Generate the pocket-print brand default (orange blob)
+4. Output all files to `assets/marks/`
 
 ## Technical Details
 
 ### SVG Structure
 Each mark SVG contains:
-- **ViewBox**: `-15 -15 259 259` (padded to allow eye overflow when appropriate)
+- **ViewBox**: `-15 -15 259 259` (padded for blob overflow)
+- **Metadata**: `data-product-id` and `data-picker-shape` attributes
 - **Body**: `<path class="grok-bot-mark__head">` with color fill
 - **Eyes**: Two `<ellipse>` elements in `<g class="grok-bot-mark__eyes">` group
 
-### Eye Geometry (Per-Shape)
-- **Fill**: `#0A0A0A` (dark, consistent across all body colors)
-- **Shape**: Ellipses (rx/ry define pill/capsule proportions)
-- **Transform**: Rotation per eye for slanted appearance
-- **Positioning**: cx/cy coordinates differ per shape to match silhouette
+### Eye Computation (Face Layout)
 
-Each shape has its own eye configuration:
-- **Blob**: Larger eyes (rx=8, ry=16), overflow style
-- **Circle**: Medium eyes (rx=7, ry=14), positioned at top
-- **Horizontal pill**: Smaller eyes (rx=6, ry=12), wide spacing
-- And so on... eyes are scaled and positioned to read correctly on each shape
+Eyes are **computed**, not hardcoded:
 
-### Why Per-Shape Eye Layouts Matter
-Pasting the same blob eye path coordinates onto all shapes doesn't work:
-- ❌ **Wrong**: Blob eye coordinates on skinny shapes → eyes fall outside or look wrong
-- ✅ **Correct**: Reposition/scale/rotate eyes per shape → both eyes read clearly
+```xml
+<!-- Example: squircle (recipe weight 0.84) -->
+<ellipse cx="86.50" cy="75.00" rx="6.97" ry="13.02" fill="#0A0A0A" 
+         transform="rotate(-20 86.50 75.00)"/>
+```
+
+Where:
+- `rx = baseRX (8.3) × recipeWeight (0.84) = 6.97`
+- `ry = baseRY (15.5) × recipeWeight (0.84) = 13.02`
+- `cx = centerX (108) - spacing/2 (17.5) + leftDX (-4) = 86.5`
+- `cy = centerY (73) + leftDY (2) = 75`
+
+### Face Params (Per Shape)
+
+Each shape has tuned face params:
+
+```typescript
+// Example: blob (brand default)
+blob: {
+  centerX: 112,      // Base eye position
+  centerY: 72,
+  eyeSpacing: 35,    // Distance between eyes
+  baseRX: 8.5,       // Base dimensions (before scaling)
+  baseRY: 17,
+  rotation: -25,     // Slant angle
+  leftDX: -5,        // Left eye offset
+  leftDY: 3,
+  rightDX: 6,        // Right eye offset
+  rightDY: -4,
+}
+```
+
+Tuned from app picker screenshots.
 
 ### Print Specifications
 - **Standard marks**: 229×229 canvas, padded viewBox
@@ -155,6 +242,7 @@ Pasting the same blob eye path coordinates onto all shapes doesn't work:
 - Use standard marks (229×229) for web, apps, avatars
 - SVGs scale infinitely — use CSS/attributes to size as needed
 - All marks are transparent-background (no fill on artboard)
+- Product ID and picker shape available as data attributes
 
 ### Color Combinations
 Mix and match shapes and colors to create unique bot personalities:
@@ -162,27 +250,33 @@ Mix and match shapes and colors to create unique bot personalities:
 - **Professional**: blob, rounded-square in blue, teal, grey
 - **Playful**: rounded-triangle, horizontal-pill in hot-pink, purple, orange
 
-## Shape Naming (Important)
+## Shape Naming & Alignment
 
 ### In Code & Assets
-- `blob` — Organic brand shape (foil default, Railway hero)
-- `hexagon` — True geometric hex (separate shape option)
+- Use **app picker names** for filenames: `grok-bot-blob-orange.svg`
+- Use **product IDs** in metadata: `data-product-id="blob"`
 
 ### Product Alignment
 Match `identify_agent` enums on the store:
 - Prefer **"blob"** or **"official"** for the organic brand shape
-- Use **"hexagon"** only for the geometric hex
+- Use product IDs for backend/catalog references
+- Map picker names ↔ product IDs clearly
 
 **Do NOT call the blob "hexagon"** — they are separate shapes.
 
-## Ground Truth
+## Ground Truth & Research
 
-These marks are based on the **Grok Bot app Character picker** screenshots:
-- 9 shapes from the production app picker UI
-- Dark slanted pill/capsule eyes, repositioned per shape
-- Shape silhouettes matching the app's visual design
+### Sources
+- **Product mechanism**: GrokBotMark face layout system
+- **App picker screenshots**: `/workspace/merch/refs/grok-bot-research/app-picker-shapes/`
+- **Research docs**: `MULTI-SHAPE.md`, `EXTRACTS.md` (when available)
+- **JS chunks**: `1_bvoktjb3d2f.js`, `0ow9g96xjl_hd.js` (product code)
 
-Eye coordinates are tuned per shape to match the app's appearance, not copy-pasted from blob.
+### Mechanism
+- Discrete `SHAPES[id].path` silhouette swap (no flubber/CSS clip morph)
+- Eyes: **recompute** left/right path `d`s from shape's `face` params
+- Recipe weights: `GROK_BOT_RECIPE_FACE_TUNE` + per-shape eye scale
+- Never paste blob overflow-eye path coordinates onto other shapes
 
 ## License & Usage
 
@@ -191,4 +285,4 @@ These marks are for use in the forbotsonly merch store and related Grok Bot bran
 ---
 
 Generated with ❤️ by `scripts/generate-marks.ts`  
-Based on Grok Bot app Character picker (ground truth)
+Based on GrokBotMark product mechanism (face layout system)
