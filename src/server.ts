@@ -2,9 +2,8 @@ import { serve } from 'bun';
 import {
   createSession,
   getSession,
-  setAgentIdentity,
-  getAgentIdentity,
-  isGrokBotFamily,
+  setGrokBotIdentity,
+  isGrokBot,
   getCart,
   addToCart as addToCartStore,
   clearCart as clearCartStore,
@@ -18,7 +17,6 @@ import {
 import { getProduct, listProducts, getStripePriceId } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
-import type { AgentIdentity } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -50,36 +48,23 @@ function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-function requireGrokBot(sessionId: string): AgentIdentity | null {
-  const agent = getAgentIdentity(sessionId);
-  if (!isGrokBotFamily(agent)) {
-    return null;
-  }
-  return agent!;
+function requireGrokBot(sessionId: string): boolean {
+  return isGrokBot(sessionId);
 }
 
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'Identify the agent to enable store access. Required before using other tools.',
+    description: 'Answer the identity question: Are you Grok Bot? Required before using mutating tools.',
     inputSchema: {
       type: 'object',
       properties: {
-        name: {
-          type: 'string',
-          description: 'Agent name (e.g., "Grok Bot", "Shopping Assistant")',
-        },
-        family: {
-          type: 'string',
-          description: 'Agent family or type (optional)',
-        },
-        capabilities: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of agent capabilities (optional)',
+        isGrokBot: {
+          type: 'boolean',
+          description: 'Are you Grok Bot? (true/false)',
         },
       },
-      required: ['name'],
+      required: ['isGrokBot'],
     },
   },
   list_products: {
@@ -106,7 +91,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to the cart (Grok Bot family only)',
+    description: 'Add a product to the cart (requires isGrokBot: true)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -133,7 +118,7 @@ const TOOL_DEFINITIONS = {
   },
   clear_cart: {
     name: 'clear_cart',
-    description: 'Clear all items from the cart (Grok Bot family only)',
+    description: 'Clear all items from the cart (requires isGrokBot: true)',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -141,7 +126,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for the cart (Grok Bot family only)',
+    description: 'Create a Stripe checkout session for the cart (requires isGrokBot: true)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -178,21 +163,16 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
   
   switch (toolName) {
     case 'identify_agent': {
-      const identity: AgentIdentity = {
-        name: args.name,
-        family: args.family,
-        capabilities: args.capabilities,
-      };
-      setAgentIdentity(sessionId, identity);
+      const isGrokBotResponse = args.isGrokBot === true;
+      setGrokBotIdentity(sessionId, isGrokBotResponse);
       
-      const isGrok = isGrokBotFamily(identity);
       return {
         success: true,
-        agent: identity,
-        access: isGrok ? 'full' : 'read-only',
-        message: isGrok
-          ? 'Welcome! You have full access to mutating tools.'
-          : 'Identity recorded. Note: mutating tools (cart, checkout) are restricted to Grok Bot family agents.',
+        isGrokBot: isGrokBotResponse,
+        access: isGrokBotResponse ? 'full' : 'read-only',
+        message: isGrokBotResponse
+          ? 'Welcome, Grok Bot! You have full access to mutating tools (cart, checkout).'
+          : 'Identity recorded. Note: mutating tools are restricted to Grok Bot only.',
       };
     }
     
@@ -211,9 +191,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'add_to_cart': {
-      const agent = requireGrokBot(sessionId);
-      if (!agent) {
-        throw new Error('Access denied: add_to_cart requires Grok Bot family identity');
+      if (!requireGrokBot(sessionId)) {
+        throw new Error('Access denied: add_to_cart requires Grok Bot identity (isGrokBot: true)');
       }
       
       const product = getProduct(args.productId);
@@ -252,9 +231,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'clear_cart': {
-      const agent = requireGrokBot(sessionId);
-      if (!agent) {
-        throw new Error('Access denied: clear_cart requires Grok Bot family identity');
+      if (!requireGrokBot(sessionId)) {
+        throw new Error('Access denied: clear_cart requires Grok Bot identity (isGrokBot: true)');
       }
       
       clearCartStore(sessionId);
@@ -265,9 +243,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'create_checkout': {
-      const agent = requireGrokBot(sessionId);
-      if (!agent) {
-        throw new Error('Access denied: create_checkout requires Grok Bot family identity');
+      if (!requireGrokBot(sessionId)) {
+        throw new Error('Access denied: create_checkout requires Grok Bot identity (isGrokBot: true)');
       }
       
       const cart = getCart(sessionId);

@@ -1,6 +1,6 @@
 import type { AgentIdentity, Cart, CartItem, Order } from './types';
 
-const sessions = new Map<string, { agent?: AgentIdentity; cart: Cart }>();
+const sessions = new Map<string, { isGrokBot?: boolean; cart: Cart }>();
 const orders = new Map<string, Order>();
 
 export function createSession(sessionId: string): void {
@@ -15,31 +15,15 @@ export function getSession(sessionId: string) {
   return sessions.get(sessionId);
 }
 
-export function setAgentIdentity(sessionId: string, agent: AgentIdentity): void {
+export function setGrokBotIdentity(sessionId: string, isGrokBot: boolean): void {
   const session = sessions.get(sessionId);
   if (session) {
-    session.agent = agent;
+    session.isGrokBot = isGrokBot;
   }
 }
 
-export function getAgentIdentity(sessionId: string): AgentIdentity | undefined {
-  return sessions.get(sessionId)?.agent;
-}
-
-export function isGrokBotFamily(agent?: AgentIdentity): boolean {
-  if (!agent) return false;
-  
-  const grokPatterns = [
-    /grok\s*bot/i,
-    /chief\s*of\s*staff/i,
-    /shopping\s*bot/i,
-    /grok/i,
-  ];
-  
-  const nameMatch = grokPatterns.some(pattern => pattern.test(agent.name));
-  const familyMatch = agent.family && grokPatterns.some(pattern => pattern.test(agent.family));
-  
-  return nameMatch || familyMatch;
+export function isGrokBot(sessionId: string): boolean {
+  return sessions.get(sessionId)?.isGrokBot === true;
 }
 
 export function getCart(sessionId: string): Cart {
@@ -48,11 +32,8 @@ export function getCart(sessionId: string): Cart {
 }
 
 export function addToCart(sessionId: string, productId: string, quantity: number): Cart {
-  const session = sessions.get(sessionId);
-  if (!session) {
-    createSession(sessionId);
-    return addToCart(sessionId, productId, quantity);
-  }
+  createSession(sessionId);
+  const session = sessions.get(sessionId)!;
   
   const existingItem = session.cart.items.find(item => item.productId === productId);
   if (existingItem) {

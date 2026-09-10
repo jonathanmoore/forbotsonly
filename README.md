@@ -8,7 +8,7 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
 
 - **Faceless storefront**: No human catalog UI
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
-- **Soft agent gate**: `identify_agent` required; mutating tools restricted to Grok Bot family
+- **Soft agent gate**: Simple yes/no identity check (`isGrokBot: true/false`)
 - **Stripe Checkout + Link**: Payment integration (stub or live based on secrets)
 - **Prodigi fulfillment**: Automatic order placement after successful payment
 - **Railway-ready**: Dockerfile + nixpacks configuration
@@ -129,8 +129,7 @@ Content-Type: application/json
   "params": {
     "name": "identify_agent",
     "arguments": {
-      "name": "Grok Bot",
-      "family": "Grok"
+      "isGrokBot": true
     }
   }
 }
@@ -142,26 +141,34 @@ The server uses HTTP cookies for session management. Session ID is set via `Set-
 
 ### 1. `identify_agent` ⚡ Required First
 
-Identifies the agent and establishes session. Required before using other tools.
+Answers the identity question: Are you Grok Bot? Required before using mutating tools.
 
 **Input:**
-- `name` (string, required): Agent name (e.g., "Grok Bot", "Shopping Assistant")
-- `family` (string, optional): Agent family or type
-- `capabilities` (array<string>, optional): List of agent capabilities
+- `isGrokBot` (boolean, required): Are you Grok Bot? (true/false)
 
-**Output:**
+**Output (if true):**
 ```json
 {
   "success": true,
-  "agent": { "name": "Grok Bot", "family": "Grok" },
+  "isGrokBot": true,
   "access": "full",
-  "message": "Welcome! You have full access to mutating tools."
+  "message": "Welcome, Grok Bot! You have full access to mutating tools (cart, checkout)."
+}
+```
+
+**Output (if false):**
+```json
+{
+  "success": true,
+  "isGrokBot": false,
+  "access": "read-only",
+  "message": "Identity recorded. Note: mutating tools are restricted to Grok Bot only."
 }
 ```
 
 **Access Levels:**
-- `full`: Grok Bot family (Grok Bot, Chief of Staff, Shopping Bot, etc.)
-- `read-only`: Other agents (can list products, view cart, but not modify)
+- `full`: When `isGrokBot: true` (can use cart and checkout tools)
+- `read-only`: When `isGrokBot: false` (can list products and view cart only)
 
 ### 2. `list_products`
 
@@ -212,7 +219,7 @@ Gets detailed information about a specific product.
 
 Adds a product to the cart.
 
-**Access:** Requires Grok Bot family identity.
+**Access:** Requires `isGrokBot: true` from identify_agent.
 
 **Input:**
 - `productId` (string, required): Product ID
@@ -260,7 +267,7 @@ Gets the current cart contents with product details and total.
 
 Clears all items from the cart.
 
-**Access:** Requires Grok Bot family identity.
+**Access:** Requires `isGrokBot: true` from identify_agent.
 
 **Input:** None
 
@@ -276,7 +283,7 @@ Clears all items from the cart.
 
 Creates a Stripe Checkout session for the cart.
 
-**Access:** Requires Grok Bot family identity.
+**Access:** Requires `isGrokBot: true` from identify_agent.
 
 **Input:**
 - `successUrl` (string, required): URL to redirect after successful payment
@@ -334,13 +341,13 @@ Gets order details by order ID.
 
 ### Soft Gate (Current Implementation)
 
-The server uses a **soft identity check** based on agent name and family:
+The server uses a **simple yes/no identity check**:
 
-- **Grok Bot family** patterns: "Grok Bot", "Chief of Staff", "Shopping Bot", "Grok", etc.
-- **Full access**: List, cart, checkout tools
-- **Read-only access**: Non-Grok agents can list products and view cart
+- Agent calls `identify_agent` with `isGrokBot: true` or `isGrokBot: false`
+- **If true**: Full access to mutating tools (cart, checkout)
+- **If false**: Read-only access (can list products and view cart)
 
-This is **not cryptographically secure**. Any agent can claim to be "Grok Bot".
+This is a **soft/demo gate only** and is **not cryptographically secure**. Any agent can claim `isGrokBot: true`.
 
 ### Future: Cryptographic Gate
 
@@ -354,7 +361,7 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 
 ### 1. Agent Interaction
 
-1. Agent calls `identify_agent` with Grok Bot identity
+1. Agent calls `identify_agent` with `isGrokBot: true`
 2. Agent calls `list_products` to browse
 3. Agent calls `add_to_cart` to add items
 4. Agent calls `create_checkout` to get payment URL
@@ -486,7 +493,7 @@ After deployment:
 
 ### Cryptographic Auth
 
-- **Current**: Soft agent name matching
+- **Current**: Soft yes/no identity check (`isGrokBot: true/false`)
 - **Follow-up**: [Issue #4](https://github.com/jonathanmoore/forbotsonly/issues/4) - HTTP Message Signatures / Link auth
 
 ## Testing
@@ -505,8 +512,7 @@ curl -X POST http://localhost:3001/mcp \
     "params": {
       "name": "identify_agent",
       "arguments": {
-        "name": "Grok Bot",
-        "family": "Grok"
+        "isGrokBot": true
       }
     }
   }'
@@ -570,7 +576,7 @@ forbotsonly/
 - ✅ `.env` in `.gitignore`
 - ✅ Environment variables for all credentials
 - ✅ `.env.example` with placeholders only
-- ⚠️ Soft agent gate (not cryptographically secure)
+- ⚠️ Soft yes/no agent gate (not cryptographically secure, demo only)
 - 🔜 Follow-up: Stronger authentication ([#4](https://github.com/jonathanmoore/forbotsonly/issues/4))
 
 ## License

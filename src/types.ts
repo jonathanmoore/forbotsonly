@@ -1,9 +1,3 @@
-export interface AgentIdentity {
-  name: string;
-  family?: string;
-  capabilities?: string[];
-}
-
 export interface Product {
   id: string;
   sku: string;
