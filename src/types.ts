@@ -1,3 +1,8 @@
+export interface AgentIdentity {
+  name: string;
+  mark: MarkConfig;
+}
+
 export interface Product {
   id: string;
   sku: string;

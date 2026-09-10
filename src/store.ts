@@ -1,6 +1,6 @@
-import type { AgentIdentity, Cart, CartItem, Order } from './types';
+import type { AgentIdentity, Cart, CartItem, Order, MarkConfig } from './types';
 
-const sessions = new Map<string, { isGrokBot?: boolean; cart: Cart }>();
+const sessions = new Map<string, { identity?: AgentIdentity; cart: Cart }>();
 const orders = new Map<string, Order>();
 
 export function createSession(sessionId: string): void {
@@ -15,15 +15,19 @@ export function getSession(sessionId: string) {
   return sessions.get(sessionId);
 }
 
-export function setGrokBotIdentity(sessionId: string, isGrokBot: boolean): void {
+export function setAgentIdentity(sessionId: string, identity: AgentIdentity): void {
   const session = sessions.get(sessionId);
   if (session) {
-    session.isGrokBot = isGrokBot;
+    session.identity = identity;
   }
 }
 
-export function isGrokBot(sessionId: string): boolean {
-  return sessions.get(sessionId)?.isGrokBot === true;
+export function getAgentIdentity(sessionId: string): AgentIdentity | undefined {
+  return sessions.get(sessionId)?.identity;
+}
+
+export function isIdentified(sessionId: string): boolean {
+  return !!sessions.get(sessionId)?.identity;
 }
 
 export function getCart(sessionId: string): Cart {
@@ -31,7 +35,7 @@ export function getCart(sessionId: string): Cart {
   return sessions.get(sessionId)!.cart;
 }
 
-export function addToCart(sessionId: string, productId: string, quantity: number, mark: { shape: string; color: string }): Cart {
+export function addToCart(sessionId: string, productId: string, quantity: number, mark: MarkConfig): Cart {
   createSession(sessionId);
   const session = sessions.get(sessionId)!;
   

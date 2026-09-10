@@ -9,8 +9,8 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
 - **Dragon foil human page**: Full black page with holographic Grok Bot sticker (Three.js shader effect)
 - **Faceless storefront**: No human catalog UI beyond the foil sticker
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
-- **Soft agent gate**: Simple yes/no identity check (`isGrokBot: true/false`)
-- **Mark customization**: Agent chooses shape + color (8 shapes × 11 colors, from PR #9)
+- **Identity-based gate**: Identify with name + mark (shape + color)
+- **Mark carries through**: Identity mark becomes default for cart items (can override)
 - **Stripe Checkout + Link**: Payment integration (stub or live based on secrets)
 - **Prodigi fulfillment**: Automatic order placement after successful payment
 - **Railway-ready**: Dockerfile + nixpacks configuration
@@ -27,9 +27,9 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
                  ↓
 ┌─────────────────────────────────────────┐
 │            Agent (Grok Bot)             │
-│  ↓ identify_agent { isGrokBot: true }  │
+│  ↓ identify_agent { name, shape, color}│
 │  ↓ list_products (mark options)        │
-│  ↓ add_to_cart { shape, color }        │
+│  ↓ add_to_cart (uses identity mark)    │
 │  ↓ create_checkout                     │
 └──────────────┬──────────────────────────┘
                │
@@ -184,34 +184,33 @@ The server uses HTTP cookies for session management. Session ID is set via `Set-
 
 ### 1. `identify_agent` ⚡ Required First
 
-Answers the identity question: Are you Grok Bot? Required before using mutating tools.
+Identify yourself with name + mark (shape + color). Required before using mutating tools. Your identity mark becomes the default for cart items.
 
 **Input:**
-- `isGrokBot` (boolean, required): Are you Grok Bot? (true/false)
+- `name` (string, required): Agent name (e.g., "Grok Bot", "Chief of Staff", "Shopping Assistant")
+- `shape` (string, required): Mark shape - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`
+- `color` (string, required): Mark color - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`
 
-**Output (if true):**
+**Output:**
 ```json
 {
   "success": true,
-  "isGrokBot": true,
-  "access": "full",
-  "message": "Welcome, Grok Bot! You have full access to mutating tools (cart, checkout)."
+  "identity": {
+    "name": "Grok Bot",
+    "mark": {
+      "shape": "hexagon",
+      "color": "orange"
+    }
+  },
+  "message": "Welcome, Grok Bot! You have full access to mutating tools. Your identity mark (hexagon, orange) will be used for cart items."
 }
 ```
 
-**Output (if false):**
-```json
-{
-  "success": true,
-  "isGrokBot": false,
-  "access": "read-only",
-  "message": "Identity recorded. Note: mutating tools are restricted to Grok Bot only."
-}
-```
-
-**Access Levels:**
-- `full`: When `isGrokBot: true` (can use cart and checkout tools)
-- `read-only`: When `isGrokBot: false` (can list products and view cart only)
+**Identity Flow:**
+- Your name + mark identify your session
+- Unlocks mutating tools (cart, checkout)
+- Your mark becomes the default for `add_to_cart` (can be overridden per item)
+- Identity carries through cart → checkout → order
 
 ### 2. `list_products`
 
@@ -268,19 +267,19 @@ Gets detailed information about a specific product.
 }
 ```
 
-### 4. `add_to_cart` 🔒 Grok Bot Only
+### 4. `add_to_cart` 🔒 Identified Agents Only
 
-Adds a product to the cart with chosen mark (shape + color).
+Adds a product to the cart. Uses your identity mark by default; optionally override with different shape/color.
 
-**Access:** Requires `isGrokBot: true` from identify_agent.
+**Access:** Requires agent identity from `identify_agent`.
 
 **Input:**
 - `productId` (string, required): Product ID
 - `quantity` (number, required): Quantity to add (minimum: 1)
-- `shape` (string, required): Mark shape - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`
-- `color` (string, required): Mark color - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`
+- `shape` (string, optional): Mark shape override (defaults to your identity mark)
+- `color` (string, optional): Mark color override (defaults to your identity mark)
 
-**Output:**
+**Output (using identity mark):**
 ```json
 {
   "success": true,
@@ -297,14 +296,37 @@ Adds a product to the cart with chosen mark (shape + color).
     ],
     "sessionId": "sess_..."
   },
-  "message": "Added 1x forbotsonly Tee (hexagon, orange) to cart"
+  "message": "Added 1x forbotsonly Tee (hexagon, orange) to cart",
+  "markSource": "identity"
 }
 ```
 
-**Mark Customization:**
-- Shape and color are **required** - agent must choose both
-- Choices align with mark pack from PR #9
-- Later maps to Prodigi artwork selection (currently persisted through checkout/order)
+**Output (with override):**
+```json
+{
+  "success": true,
+  "cart": {
+    "items": [
+      { 
+        "productId": "tee-001", 
+        "quantity": 1,
+        "mark": {
+          "shape": "circle",
+          "color": "blue"
+        }
+      }
+    ],
+    "sessionId": "sess_..."
+  },
+  "message": "Added 1x forbotsonly Tee (circle, blue) to cart",
+  "markSource": "custom"
+}
+```
+
+**Mark Behavior:**
+- **Default**: Uses your identity mark (from `identify_agent`)
+- **Override**: Specify `shape` and/or `color` to customize this item
+- Identity mark carries through if not overridden
 
 ### 5. `get_cart`
 
@@ -334,11 +356,11 @@ Gets the current cart contents with product details, mark choices, and total.
 }
 ```
 
-### 6. `clear_cart` 🔒 Grok Bot Only
+### 6. `clear_cart` 🔒 Identified Agents Only
 
 Clears all items from the cart.
 
-**Access:** Requires `isGrokBot: true` from identify_agent.
+**Access:** Requires agent identity from `identify_agent`.
 
 **Input:** None
 
@@ -350,11 +372,11 @@ Clears all items from the cart.
 }
 ```
 
-### 7. `create_checkout` 🔒 Grok Bot Only
+### 7. `create_checkout` 🔒 Identified Agents Only
 
 Creates a Stripe Checkout session for the cart.
 
-**Access:** Requires `isGrokBot: true` from identify_agent.
+**Access:** Requires agent identity from `identify_agent`.
 
 **Input:**
 - `successUrl` (string, required): URL to redirect after successful payment
@@ -420,15 +442,30 @@ Gets order details by order ID, including mark choices for each item.
 
 ## Agent Gate
 
-### Soft Gate (Current Implementation)
+### Identity-Based Gate (Current Implementation)
 
-The server uses a **simple yes/no identity check**:
+The server uses **identity-based access control**:
 
-- Agent calls `identify_agent` with `isGrokBot: true` or `isGrokBot: false`
-- **If true**: Full access to mutating tools (cart, checkout)
-- **If false**: Read-only access (can list products and view cart)
+**First step: Identify yourself with name + mark**
+```json
+{
+  "name": "Grok Bot",
+  "shape": "hexagon", 
+  "color": "orange"
+}
+```
 
-This is a **soft/demo gate only** and is **not cryptographically secure**. Any agent can claim `isGrokBot: true`.
+**Your identity:**
+- Unlocks mutating tools (cart, checkout)
+- **Becomes the default mark** for cart items
+- Carries through cart → checkout → order
+
+**Mark behavior:**
+- `add_to_cart` uses your identity mark by default
+- Optionally override shape/color per item
+- Identity mark is preferred and carries through
+
+This is a **soft/demo gate only** and is **not cryptographically secure**. Any agent can claim any name and mark.
 
 ### Future: Cryptographic Gate
 
@@ -442,9 +479,9 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 
 ### 1. Agent Interaction
 
-1. Agent calls `identify_agent` with `isGrokBot: true`
+1. Agent calls `identify_agent` with name + shape + color (e.g., "Grok Bot", "hexagon", "orange")
 2. Agent calls `list_products` to browse (includes mark options)
-3. Agent calls `add_to_cart` with product ID, quantity, **shape**, and **color**
+3. Agent calls `add_to_cart` (uses identity mark by default, can override)
 4. Agent calls `create_checkout` to get payment URL
 
 ### 2. Stripe Checkout + Link
@@ -575,8 +612,8 @@ After deployment:
 
 ### Cryptographic Auth
 
-- **Current**: Soft yes/no identity check (`isGrokBot: true/false`)
-- **Follow-up**: [Issue #4](https://github.com/jonathanmoore/forbotsonly/issues/4) - HTTP Message Signatures / Link auth
+- **Current**: Soft identity-based gate (name + mark, not cryptographic)
+- **Follow-up**: [Issue #4](https://github.com/jonathanmoore/forbotsonly/issues/4) - HTTP Message Signatures / Link `sign_web_bot_auth`
 
 ## Testing
 
@@ -594,7 +631,9 @@ curl -X POST http://localhost:3001/mcp \
     "params": {
       "name": "identify_agent",
       "arguments": {
-        "isGrokBot": true
+        "name": "Grok Bot",
+        "shape": "hexagon",
+        "color": "orange"
       }
     }
   }'

@@ -2,8 +2,9 @@ import { serve } from 'bun';
 import {
   createSession,
   getSession,
-  setGrokBotIdentity,
-  isGrokBot,
+  setAgentIdentity,
+  getAgentIdentity,
+  isIdentified,
   getCart,
   addToCart as addToCartStore,
   clearCart as clearCartStore,
@@ -17,7 +18,7 @@ import {
 import { getProduct, listProducts, getStripePriceId } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
-import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK } from './types';
+import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, type AgentIdentity } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -49,8 +50,8 @@ function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-function requireGrokBot(sessionId: string): boolean {
-  return isGrokBot(sessionId);
+function requireIdentity(sessionId: string): AgentIdentity | null {
+  return getAgentIdentity(sessionId) || null;
 }
 
 const TOOL_DEFINITIONS = {
@@ -92,7 +93,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to the cart with chosen mark (shape + color). Requires isGrokBot: true',
+    description: 'Add a product to the cart. Uses your identity mark by default; optionally override with different shape/color. Requires agent identity.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -107,16 +108,16 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Mark shape',
+          description: 'Mark shape (optional, defaults to your identity mark)',
           enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
         },
         color: {
           type: 'string',
-          description: 'Mark color',
+          description: 'Mark color (optional, defaults to your identity mark)',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
       },
-      required: ['productId', 'quantity', 'shape', 'color'],
+      required: ['productId', 'quantity'],
     },
   },
   get_cart: {
@@ -129,7 +130,7 @@ const TOOL_DEFINITIONS = {
   },
   clear_cart: {
     name: 'clear_cart',
-    description: 'Clear all items from the cart (requires isGrokBot: true)',
+    description: 'Clear all items from the cart (requires agent identity)',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -137,7 +138,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for the cart (requires isGrokBot: true)',
+    description: 'Create a Stripe checkout session for the cart (requires agent identity)',
     inputSchema: {
       type: 'object',
       properties: {
@@ -174,16 +175,35 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
   
   switch (toolName) {
     case 'identify_agent': {
-      const isGrokBotResponse = args.isGrokBot === true;
-      setGrokBotIdentity(sessionId, isGrokBotResponse);
+      const { name, shape, color } = args;
+      
+      if (!name || !shape || !color) {
+        throw new Error('Missing required identity fields: name, shape, and color must all be provided');
+      }
+      
+      if (!isValidMarkShape(shape)) {
+        throw new Error(
+          `Invalid shape: ${shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
+        );
+      }
+      
+      if (!isValidMarkColor(color)) {
+        throw new Error(
+          `Invalid color: ${color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
+        );
+      }
+      
+      const identity: AgentIdentity = {
+        name,
+        mark: { shape, color },
+      };
+      
+      setAgentIdentity(sessionId, identity);
       
       return {
         success: true,
-        isGrokBot: isGrokBotResponse,
-        access: isGrokBotResponse ? 'full' : 'read-only',
-        message: isGrokBotResponse
-          ? 'Welcome, Grok Bot! You have full access to mutating tools (cart, checkout).'
-          : 'Identity recorded. Note: mutating tools are restricted to Grok Bot only.',
+        identity,
+        message: `Welcome, ${name}! You have full access to mutating tools. Your identity mark (${shape}, ${color}) will be used for cart items.`,
       };
     }
     
@@ -207,24 +227,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'add_to_cart': {
-      if (!requireGrokBot(sessionId)) {
-        throw new Error('Access denied: add_to_cart requires Grok Bot identity (isGrokBot: true)');
-      }
-      
-      if (!args.shape || !args.color) {
-        throw new Error('Missing required mark configuration: shape and color must be specified');
-      }
-      
-      if (!isValidMarkShape(args.shape)) {
-        throw new Error(
-          `Invalid shape: ${args.shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
-        );
-      }
-      
-      if (!isValidMarkColor(args.color)) {
-        throw new Error(
-          `Invalid color: ${args.color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
-        );
+      const identity = requireIdentity(sessionId);
+      if (!identity) {
+        throw new Error('Access denied: add_to_cart requires agent identity. Call identify_agent first.');
       }
       
       const product = getProduct(args.productId);
@@ -232,15 +237,34 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Product not found');
       }
       
+      // Use identity mark as default, allow override
+      const shape = args.shape || identity.mark.shape;
+      const color = args.color || identity.mark.color;
+      
+      // Validate if overriding
+      if (args.shape && !isValidMarkShape(args.shape)) {
+        throw new Error(
+          `Invalid shape: ${args.shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
+        );
+      }
+      
+      if (args.color && !isValidMarkColor(args.color)) {
+        throw new Error(
+          `Invalid color: ${args.color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
+        );
+      }
+      
       const cart = addToCartStore(sessionId, args.productId, args.quantity, {
-        shape: args.shape,
-        color: args.color,
+        shape,
+        color,
       });
       
+      const markUsed = (args.shape || args.color) ? 'custom' : 'identity';
       return {
         success: true,
         cart,
-        message: `Added ${args.quantity}x ${product.name} (${args.shape}, ${args.color}) to cart`,
+        message: `Added ${args.quantity}x ${product.name} (${shape}, ${color}) to cart`,
+        markSource: markUsed,
       };
     }
     
@@ -268,8 +292,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'clear_cart': {
-      if (!requireGrokBot(sessionId)) {
-        throw new Error('Access denied: clear_cart requires Grok Bot identity (isGrokBot: true)');
+      if (!requireIdentity(sessionId)) {
+        throw new Error('Access denied: clear_cart requires agent identity. Call identify_agent first.');
       }
       
       clearCartStore(sessionId);
@@ -280,8 +304,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'create_checkout': {
-      if (!requireGrokBot(sessionId)) {
-        throw new Error('Access denied: create_checkout requires Grok Bot identity (isGrokBot: true)');
+      if (!requireIdentity(sessionId)) {
+        throw new Error('Access denied: create_checkout requires agent identity. Call identify_agent first.');
       }
       
       const cart = getCart(sessionId);
