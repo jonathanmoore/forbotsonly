@@ -2,30 +2,27 @@
 
 /**
  * Grok Bot Character Mark Generator
- * Official overflow eyes design - eyes intentionally protrude past body silhouette
- * Source: x.ai/bot official mark
+ * Ground truth: Grok Bot app Character picker screenshots
+ * 
+ * Eyes: Dark slanted pills/capsules, repositioned per shape (not blob paths on all)
  */
 
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 
-// Official geometry constants (from x.ai/bot mark)
-const VIEWBOX = '-15 -15 259 259'; // Padded to allow eye overflow
-const VIEWBOX_SIZE = 229; // Internal coordinate system size
-const CENTER = 114.2705; // Center point for transforms
+// ViewBox with padding for eye overflow
+const VIEWBOX = '-15 -15 259 259';
+const CENTER = 114.2705;
 
-// Official transform for the mark group
-const MARK_TRANSFORM = `translate(${CENTER} ${CENTER}) scale(1.040524017467249) translate(${-CENTER} ${-CENTER})`;
-
-// Official eye fill color
+// Eye style: dark slanted capsules
 const EYE_FILL = '#0A0A0A';
 
-// Color palette (body fills)
+// Color palette (from app picker swatches)
 const COLORS = {
   white: '#FFFFFF',
   brown: '#8B6F47',
   red: '#E63946',
-  orange: '#FF6B35',
+  orange: '#FF6B35', // Brand color
   gold: '#F4A261',
   'light-green': '#4CAF50',
   teal: '#26A69A',
@@ -36,31 +33,26 @@ const COLORS = {
 } as const;
 
 type ColorName = keyof typeof COLORS;
-type ShapeName = 'hexagon' | 'circle' | 'vertical-oval' | 'rounded-square' | 
-                 'horizontal-pill' | 'rounded-triangle' | 'cloud' | 'teardrop';
+
+// Shape names matching app picker + product enums
+type ShapeName = 'blob' | 'circle' | 'vertical-oval' | 'rounded-square' | 
+                 'horizontal-pill' | 'rounded-triangle' | 'hexagon' | 'cloud' | 'teardrop';
 
 /**
- * Official eye paths from x.ai/bot mark
- * These protrude intentionally past the body silhouette
+ * Official organic blob head path (from x.ai/bot mark)
+ * This is the brand/default shape, NOT the hexagon
  */
-const EYE_LEFT_PATH = 'M118.17 70.73L120.45 71.04L122.59 71.76L124.55 72.87L126.18 74.38L127.42 76.24L128.34 78.29L129.10 80.42L129.83 82.57L130.55 84.72L131.27 86.86L131.97 89.02L132.64 91.19L133.29 93.36L133.91 95.55L134.50 97.74L135.05 99.95L135.36 102.23L135.16 104.55L134.41 106.80L133.11 108.84L131.36 110.51L129.28 111.73L127.01 112.45L124.68 112.65L122.41 112.33L120.31 111.51L118.45 110.26L116.93 108.62L115.81 106.69L115.01 104.57L114.39 102.39L113.80 100.19L113.17 98.01L112.52 95.84L111.85 93.66L111.17 91.51L110.47 89.35L109.75 87.20L108.94 85.09L108.17 82.96L107.64 80.75L107.63 78.44L108.31 76.16L109.61 74.14L111.41 72.51L113.54 71.41L115.84 70.83Z';
-
-const EYE_RIGHT_PATH = 'M179.77 59.76L182.04 60.05L184.10 60.75L185.92 61.77L187.55 63.03L188.95 64.50L190.10 66.16L191.07 67.95L191.90 69.82L192.67 71.74L193.41 73.66L194.13 75.60L194.80 77.56L195.42 79.55L196.02 81.54L196.56 83.57L197.06 85.61L197.50 87.67L197.90 89.77L198.06 91.94L197.82 94.21L197.15 96.51L195.85 98.72L193.75 100.38L191.30 101.01L189.00 100.81L186.99 100.03L185.30 98.85L183.91 97.38L182.84 95.66L182.05 93.76L181.48 91.76L181.00 89.71L180.53 87.64L180.02 85.60L179.48 83.58L178.89 81.58L178.26 79.60L177.60 77.62L176.90 75.68L176.15 73.76L175.36 71.86L174.53 69.98L173.78 68.06L173.41 65.97L173.71 63.70L175.05 61.53L177.32 60.14Z';
+const BLOB_HEAD_PATH = 'M228.541 114.228C228.541 130.133 225.184 145.994 218.738 160.534C212.674 174.217 203.904 186.669 193.065 196.988C155.933 232.34 99.497 238.596 55.5255 212.24C45.097 205.99 35.6851 198.072 27.7451 188.866C19.1926 178.953 12.3686 167.569 7.65781 155.351C2.60712 142.264 0 128.257 0 114.228C0 98.3219 3.35751 82.4611 9.80315 67.9215C15.8672 54.2382 24.6377 41.7862 35.4767 31.4668C72.6081 -3.88483 129.044 -10.1413 173.016 16.2153C183.444 22.4653 192.856 30.3829 200.796 39.5896C209.349 49.5018 216.173 60.8859 220.883 73.1037C225.934 86.1906 228.541 100.198 228.541 114.228Z';
 
 /**
- * Official organic head path (used for hexagon/default hero mark)
- */
-const HEAD_ORGANIC_PATH = 'M228.541 114.228C228.541 130.133 225.184 145.994 218.738 160.534C212.674 174.217 203.904 186.669 193.065 196.988C155.933 232.34 99.497 238.596 55.5255 212.24C45.097 205.99 35.6851 198.072 27.7451 188.866C19.1926 178.953 12.3686 167.569 7.65781 155.351C2.60712 142.264 0 128.257 0 114.228C0 98.3219 3.35751 82.4611 9.80315 67.9215C15.8672 54.2382 24.6377 41.7862 35.4767 31.4668C72.6081 -3.88483 129.044 -10.1413 173.016 16.2153C183.444 22.4653 192.856 30.3829 200.796 39.5896C209.349 49.5018 216.173 60.8859 220.883 73.1037C225.934 86.1906 228.541 100.198 228.541 114.228Z';
-
-/**
- * Generate body shape paths (geometric soft silhouettes for shape variants)
- * All centered at (114.2705, 114.2705) to match official coordinate system
+ * Generate body shape paths
+ * All centered at (114.2705, 114.2705) for consistency
  */
 const SHAPES: Record<ShapeName, string> = {
-  // Official organic blob for hexagon (hero/default)
-  hexagon: HEAD_ORGANIC_PATH,
+  // Organic blob (brand/default - Railway hero, foil default)
+  blob: BLOB_HEAD_PATH,
   
-  // Circle - soft round shape
+  // Circle
   circle: (() => {
     const cx = CENTER;
     const cy = CENTER;
@@ -68,7 +60,7 @@ const SHAPES: Record<ShapeName, string> = {
     return `M ${cx - r},${cy} A ${r},${r} 0 1,1 ${cx + r},${cy} A ${r},${r} 0 1,1 ${cx - r},${cy} Z`;
   })(),
   
-  // Vertical oval - taller than wide
+  // Vertical oval
   'vertical-oval': (() => {
     const cx = CENTER;
     const cy = CENTER;
@@ -77,7 +69,7 @@ const SHAPES: Record<ShapeName, string> = {
     return `M ${cx - rx},${cy} A ${rx},${ry} 0 1,1 ${cx + rx},${cy} A ${rx},${ry} 0 1,1 ${cx - rx},${cy} Z`;
   })(),
   
-  // Rounded square - squircle-like
+  // Rounded square (squircle)
   'rounded-square': (() => {
     const size = 170;
     const x = CENTER - size / 2;
@@ -86,7 +78,7 @@ const SHAPES: Record<ShapeName, string> = {
     return `M ${x + r},${y} L ${x + size - r},${y} Q ${x + size},${y} ${x + size},${y + r} L ${x + size},${y + size - r} Q ${x + size},${y + size} ${x + size - r},${y + size} L ${x + r},${y + size} Q ${x},${y + size} ${x},${y + size - r} L ${x},${y + r} Q ${x},${y} ${x + r},${y} Z`;
   })(),
   
-  // Horizontal pill - wider capsule
+  // Horizontal pill (wide capsule)
   'horizontal-pill': (() => {
     const cx = CENTER;
     const cy = CENTER;
@@ -100,7 +92,7 @@ const SHAPES: Record<ShapeName, string> = {
     return `M ${left + r},${top} L ${right - r},${top} A ${r},${r} 0 0,1 ${right - r},${bottom} L ${left + r},${bottom} A ${r},${r} 0 0,1 ${left + r},${top} Z`;
   })(),
   
-  // Rounded triangle - point up
+  // Rounded triangle (point up)
   'rounded-triangle': (() => {
     const size = 180;
     const h = size * 0.866;
@@ -114,15 +106,35 @@ const SHAPES: Record<ShapeName, string> = {
     return `M ${cx},${top + r} Q ${cx},${top} ${cx + r * 0.7},${top + r * 0.7} L ${right - r},${bottom - r} Q ${right},${bottom} ${right - r * 1.5},${bottom} L ${left + r * 1.5},${bottom} Q ${left},${bottom} ${left + r},${bottom - r} L ${cx - r * 0.7},${top + r * 0.7} Q ${cx},${top} ${cx},${top + r} Z`;
   })(),
   
-  // Cloud - 3-lobe organic shape
+  // Hexagon (TRUE geometric hex, not the blob)
+  hexagon: (() => {
+    const size = 90;
+    const cx = CENTER;
+    const cy = CENTER;
+    const h = size * Math.sqrt(3) / 2;
+    
+    const points = [
+      [cx - size, cy],
+      [cx - size / 2, cy - h],
+      [cx + size / 2, cy - h],
+      [cx + size, cy],
+      [cx + size / 2, cy + h],
+      [cx - size / 2, cy + h],
+    ];
+    
+    return points.map((p, i) => 
+      i === 0 ? `M ${p[0]},${p[1]}` : `L ${p[0]},${p[1]}`
+    ).join(' ') + ' Z';
+  })(),
+  
+  // Cloud (3-lobe organic)
   cloud: (() => {
     const cx = CENTER;
     const cy = CENTER;
-    // Three overlapping circles merged into cloud shape
     return `M ${cx - 55},${cy + 10} C ${cx - 65},${cy - 30} ${cx - 35},${cy - 50} ${cx - 10},${cy - 40} C ${cx + 5},${cy - 55} ${cx + 35},${cy - 45} ${cx + 45},${cy - 20} C ${cx + 60},${cy - 10} ${cx + 60},${cy + 20} ${cx + 40},${cy + 30} C ${cx + 30},${cy + 40} ${cx - 10},${cy + 40} ${cx - 30},${cy + 30} C ${cx - 50},${cy + 25} ${cx - 55},${cy + 10} ${cx - 55},${cy + 10} Z`;
   })(),
   
-  // Teardrop - point up
+  // Teardrop (point up)
   teardrop: (() => {
     const cx = CENTER;
     const bottom = CENTER + 85;
@@ -134,7 +146,85 @@ const SHAPES: Record<ShapeName, string> = {
 };
 
 /**
- * Generate complete SVG mark with overflow eyes
+ * Eye configurations per shape
+ * Dark slanted pills/capsules, positioned/scaled/rotated to work with each silhouette
+ * Based on Grok Bot app Character picker screenshots
+ */
+interface EyeConfig {
+  left: { cx: number; cy: number; rx: number; ry: number; rotation: number };
+  right: { cx: number; cy: number; rx: number; ry: number; rotation: number };
+}
+
+const EYE_CONFIGS: Record<ShapeName, EyeConfig> = {
+  // Blob (organic/brand default) - overflow eyes from official design
+  blob: {
+    left: { cx: 95, cy: 75, rx: 8, ry: 16, rotation: -25 },
+    right: { cx: 130, cy: 68, rx: 8, ry: 16, rotation: -25 },
+  },
+  
+  // Circle - eyes at top, slight overflow
+  circle: {
+    left: { cx: 88, cy: 68, rx: 7, ry: 14, rotation: -20 },
+    right: { cx: 127, cy: 62, rx: 7, ry: 14, rotation: -20 },
+  },
+  
+  // Vertical oval - positioned for tall shape
+  'vertical-oval': {
+    left: { cx: 92, cy: 70, rx: 6, ry: 12, rotation: -22 },
+    right: { cx: 123, cy: 65, rx: 6, ry: 12, rotation: -22 },
+  },
+  
+  // Rounded square - centered higher
+  'rounded-square': {
+    left: { cx: 90, cy: 75, rx: 7, ry: 13, rotation: -20 },
+    right: { cx: 125, cy: 70, rx: 7, ry: 13, rotation: -20 },
+  },
+  
+  // Horizontal pill - wide spacing for wide shape
+  'horizontal-pill': {
+    left: { cx: 75, cy: 85, rx: 6, ry: 12, rotation: -18 },
+    right: { cx: 115, cy: 80, rx: 6, ry: 12, rotation: -18 },
+  },
+  
+  // Rounded triangle - near top point
+  'rounded-triangle': {
+    left: { cx: 92, cy: 68, rx: 6, ry: 12, rotation: -25 },
+    right: { cx: 122, cy: 63, rx: 6, ry: 12, rotation: -25 },
+  },
+  
+  // Hexagon (geometric) - positioned for hex geometry
+  hexagon: {
+    left: { cx: 88, cy: 75, rx: 7, ry: 13, rotation: -22 },
+    right: { cx: 125, cy: 70, rx: 7, ry: 13, rotation: -22 },
+  },
+  
+  // Cloud - positioned on cloud form
+  cloud: {
+    left: { cx: 85, cy: 72, rx: 6, ry: 12, rotation: -20 },
+    right: { cx: 118, cy: 68, rx: 6, ry: 12, rotation: -20 },
+  },
+  
+  // Teardrop - near rounded top
+  teardrop: {
+    left: { cx: 92, cy: 72, rx: 6, ry: 11, rotation: -20 },
+    right: { cx: 122, cy: 68, rx: 6, ry: 11, rotation: -20 },
+  },
+};
+
+/**
+ * Generate eye ellipses (dark slanted pills/capsules)
+ */
+function generateEyes(shape: ShapeName): string {
+  const config = EYE_CONFIGS[shape];
+  
+  const leftEye = `<ellipse cx="${config.left.cx}" cy="${config.left.cy}" rx="${config.left.rx}" ry="${config.left.ry}" fill="${EYE_FILL}" transform="rotate(${config.left.rotation} ${config.left.cx} ${config.left.cy})"/>`;
+  const rightEye = `<ellipse cx="${config.right.cx}" cy="${config.right.cy}" rx="${config.right.rx}" ry="${config.right.ry}" fill="${EYE_FILL}" transform="rotate(${config.right.rotation} ${config.right.cx} ${config.right.cy})"/>`;
+  
+  return `${leftEye}\n    ${rightEye}`;
+}
+
+/**
+ * Generate complete SVG mark
  */
 function generateMark(
   shape: ShapeName,
@@ -144,20 +234,21 @@ function generateMark(
   const { pocketPrint = false } = options;
   const fillColor = COLORS[color];
   
-  // For pocket print, keep same viewBox but scale canvas to 192px (~2" @ 96dpi)
+  // Pocket print: 192px canvas for ~1.2" @ 300dpi Prodigi placement
   const width = pocketPrint ? 192 : 229;
   const height = pocketPrint ? 192 : 229;
   
   const comment = pocketPrint 
-    ? '\n  <!-- Pocket-print: centered viewBox scaled to 192px (~2" @ 96dpi) -->'
-    : '\n  <!-- Official overflow eyes: eyes intentionally protrude past body silhouette -->';
+    ? '\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->'
+    : '\n  <!-- Grok Bot mark: dark slanted pill eyes, per-shape placement -->';
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" viewBox="${VIEWBOX}" xmlns="http://www.w3.org/2000/svg">${comment}
-  <g class="grok-bot-mark" transform="${MARK_TRANSFORM}">
+  <g class="grok-bot-mark">
     <path class="grok-bot-mark__head" d="${SHAPES[shape]}" fill="${fillColor}"/>
-    <path class="grok-bot-mark__eye grok-bot-mark__eye--left" d="${EYE_LEFT_PATH}" fill="${EYE_FILL}"/>
-    <path class="grok-bot-mark__eye grok-bot-mark__eye--right" d="${EYE_RIGHT_PATH}" fill="${EYE_FILL}"/>
+    <g class="grok-bot-mark__eyes">
+      ${generateEyes(shape)}
+    </g>
   </g>
 </svg>`;
 }
@@ -182,14 +273,14 @@ async function generateMarks() {
   
   await mkdir(outputDir, { recursive: true });
   
-  console.log('🤖 Generating Grok Bot character marks (official overflow eyes)...\n');
+  console.log('🤖 Generating Grok Bot character marks (ground truth: app picker)...\n');
   
   const shapes = Object.keys(SHAPES) as ShapeName[];
   const colors = Object.keys(COLORS) as ColorName[];
   
   let count = 0;
   
-  // Generate base set: all shapes × all colors
+  // Generate all shape × color combinations
   for (const shape of shapes) {
     for (const color of colors) {
       const svg = generateMark(shape, color);
@@ -201,20 +292,21 @@ async function generateMarks() {
     }
   }
   
-  console.log(`✓ Generated ${count} base marks (all shapes × colors with overflow eyes)`);
+  console.log(`✓ Generated ${count} base marks (9 shapes × 11 colors)`);
   
-  // Generate pocket-print hero mark (orange hexagon)
-  const pocketSvg = generateMark('hexagon', 'orange', { pocketPrint: true });
-  const pocketFilename = getFilename('hexagon', 'orange', true);
+  // Generate pocket-print brand default (orange blob)
+  const pocketSvg = generateMark('blob', 'orange', { pocketPrint: true });
+  const pocketFilename = getFilename('blob', 'orange', true);
   const pocketFilepath = join(outputDir, pocketFilename);
   
   await Bun.write(pocketFilepath, pocketSvg);
-  console.log(`✓ Generated pocket-print hero mark: ${pocketFilename}`);
+  console.log(`✓ Generated pocket-print brand default: ${pocketFilename}`);
   
   console.log(`\n✨ Done! Generated ${count + 1} total SVG files in ${outputDir}`);
-  console.log(`\n🎯 Hero mark: grok-bot-hexagon-orange.svg (official organic blob + overflow eyes)`);
-  console.log(`🎽 Pocket-print: ${pocketFilename} (scaled to ~2" @ 96dpi)`);
-  console.log(`\n👀 Eyes intentionally protrude past body silhouette (official x.ai/bot design)`);
+  console.log(`\n🎯 Brand default (foil/Railway hero): grok-bot-blob-orange.svg`);
+  console.log(`🎽 Pocket-print: ${pocketFilename} (~1.2" Prodigi front placement)`);
+  console.log(`\n👀 Eyes: Dark slanted pills, repositioned per shape (not blob paths on all)`);
+  console.log(`📐 Shapes: blob ≠ hexagon (blob is organic brand default, hexagon is geometric)`);
 }
 
 // Run the generator

@@ -1,23 +1,41 @@
 # Grok Bot Character Marks
 
-Printable SVG assets for the forbotsonly merch store, based on the official x.ai/bot mark design.
+Printable SVG assets for the forbotsonly merch store, based on the **Grok Bot app Character picker** (ground truth).
 
-## 🎨 Official Overflow Eyes Design
+## 🎨 Shape System (9 Shapes)
 
-**CRITICAL**: Eyes intentionally **protrude past the body silhouette** — this is the defining characteristic of the official Grok Bot mark. Eyes are separate filled shapes drawn on top of the body, not cutouts or clipped paths.
+**CRITICAL**: `blob` ≠ `hexagon`
+- **blob**: Organic brand shape (foil default, Railway hero) — the iconic Grok Bot silhouette
+- **hexagon**: TRUE geometric hex (6-sided polygon) — a separate shape option
 
-**Source**: x.ai/bot official mark  
-**ViewBox**: `-15 -15 259 259` (negative padding allows eyes to overflow without clipping)  
-**Eye paths**: Official organic oval paths from x.ai/bot  
-**Eye fill**: `#0A0A0A` (dark, consistent across all body colors)  
-**Draw order**: Body shape first, then eyes layered on top
+All 9 shapes from the app Character picker:
+1. **blob** — Organic brand default (foil & Railway hero) ⭐
+2. **circle** — Round
+3. **vertical-oval** — Tall oval
+4. **rounded-square** — Squircle
+5. **horizontal-pill** — Wide capsule
+6. **rounded-triangle** — Triangle pointing up
+7. **hexagon** — True geometric hexagon (NOT the blob)
+8. **cloud** — 3-lobe organic cloud
+9. **teardrop** — Teardrop pointing up
+
+## 👀 Eye Design
+
+**Dark slanted pills/capsules** — consistent style, **per-shape placement**
+
+- **Eye fill**: `#0A0A0A` (dark, all shapes)
+- **Style**: Slanted ellipses (pills/capsules)
+- **Placement**: Repositioned/scaled/rotated per shape so both eyes read correctly
+- **Bug fixed**: No longer pasting blob eye coordinates onto all shapes
+
+Eyes can overflow when appropriate (like the app does), but are properly sized and positioned for each silhouette.
 
 ## Overview
 
 The Grok Bot character mark system consists of:
-- **8 base shapes** × **11 colors** = 88 marks
-- Pocket-print optimized version for apparel (~2" print)
-- All marks use the **same official overflow eye pair**
+- **9 shapes** × **11 colors** = 99 base marks
+- Pocket-print optimized version for apparel (~1.2" Prodigi placement)
+- All marks use **dark slanted pill eyes, repositioned per shape**
 
 ## Files
 
@@ -25,17 +43,18 @@ The Grok Bot character mark system consists of:
 Format: `grok-bot-{shape}-{color}.svg`
 
 **Shapes:**
-- `hexagon` — Official organic blob (hero/default) ⭐
+- `blob` — Organic brand default (foil, Railway hero) ⭐
 - `circle` — Round, soft shape
 - `vertical-oval` — Tall oval
 - `rounded-square` — Squircle-like square
 - `horizontal-pill` — Wide capsule
 - `rounded-triangle` — Triangle pointing up with rounded corners
+- `hexagon` — True geometric hexagon (NOT the blob)
 - `cloud` — 3-lobe organic cloud shape
 - `teardrop` — Teardrop pointing up
 
 **Colors:** (hex values)
-- `orange` — `#FF6B35` ⭐ (hero/default)
+- `orange` — `#FF6B35` ⭐ (brand color)
 - `white` — `#FFFFFF`
 - `brown` — `#8B6F47`
 - `red` — `#E63946`
@@ -50,7 +69,7 @@ Format: `grok-bot-{shape}-{color}.svg`
 ### Pocket-Print (Apparel)
 Format: `pocket-grok-bot-{shape}-{color}.svg`
 
-**Hero/Default:** `pocket-grok-bot-hexagon-orange.svg`
+**Brand Default:** `pocket-grok-bot-blob-orange.svg`
 
 Optimized for apparel printing:
 - **SVG canvas:** `width="192" height="192"` (native asset size)
@@ -59,16 +78,16 @@ Optimized for apparel printing:
 - **Print recommendation:** Works best on dark backgrounds (black, navy, charcoal)
 - Vector format scales to any size; pocket assets can be printed at various sizes (1"–3" range works well)
 
-## Hero Mark (Chief of Staff Default)
+## Brand Default (Foil, Railway Hero)
 
-**Shape:** Official organic blob (hexagon/default)  
+**Shape:** Organic blob (NOT hexagon)  
 **Color:** Orange (`#FF6B35`)  
-**Eyes:** Official overflow eyes from x.ai/bot mark  
+**Eyes:** Dark slanted pills, positioned for blob silhouette  
 **Files:**
-- `grok-bot-hexagon-orange.svg` (standard, 229×229 canvas)
-- `pocket-grok-bot-hexagon-orange.svg` (pocket-print, 192×192 canvas)
+- `grok-bot-blob-orange.svg` (standard, 229×229 canvas)
+- `pocket-grok-bot-blob-orange.svg` (pocket-print, 192×192 canvas)
 
-This is the canonical "Grok Bot" mark matching the official x.ai/bot design.
+This is the canonical Grok Bot mark for foil branding and Railway hero.
 
 ## Regenerating Marks
 
@@ -85,35 +104,34 @@ bun scripts/generate-marks.ts
 ```
 
 The generator will:
-1. Create all 88 base shape × color combinations with official overflow eyes
-2. Generate the pocket-print hero mark
+1. Create all 99 base shape × color combinations with per-shape eye layouts
+2. Generate the pocket-print brand default (orange blob)
 3. Output all files to `assets/marks/`
 
 ## Technical Details
 
 ### SVG Structure
 Each mark SVG contains:
-- **ViewBox**: `-15 -15 259 259` (padded to allow eye overflow)
-- **Transform**: Official x.ai/bot transform on mark group
+- **ViewBox**: `-15 -15 259 259` (padded to allow eye overflow when appropriate)
 - **Body**: `<path class="grok-bot-mark__head">` with color fill
-- **Eyes**: Two `<path class="grok-bot-mark__eye">` elements on top (not clipped)
+- **Eyes**: Two `<ellipse>` elements in `<g class="grok-bot-mark__eyes">` group
 
-### Official Eye Geometry
-- **Paths**: Organic oval paths from x.ai/bot mark (tilted, right eye slightly higher)
+### Eye Geometry (Per-Shape)
 - **Fill**: `#0A0A0A` (dark, consistent across all body colors)
-- **Positioning**: Eyes positioned to intentionally break out of body silhouette
-- **Left eye**: Organic oval, tilted, positioned upper-left of center
-- **Right eye**: Organic oval, tilted, positioned upper-right, slightly higher than left
+- **Shape**: Ellipses (rx/ry define pill/capsule proportions)
+- **Transform**: Rotation per eye for slanted appearance
+- **Positioning**: cx/cy coordinates differ per shape to match silhouette
 
-### Why Overflow Matters
-The overflow eyes are the **defining characteristic** of the Grok Bot mark:
-- Creates distinctive, recognizable silhouette
-- Adds personality and playfulness
-- Differentiates from generic "face in a shape" designs
-- Matches official x.ai/bot brand identity
+Each shape has its own eye configuration:
+- **Blob**: Larger eyes (rx=8, ry=16), overflow style
+- **Circle**: Medium eyes (rx=7, ry=14), positioned at top
+- **Horizontal pill**: Smaller eyes (rx=6, ry=12), wide spacing
+- And so on... eyes are scaled and positioned to read correctly on each shape
 
-❌ **Wrong**: Small ellipses fully contained inside a hard geometric shape  
-✅ **Correct**: Organic eye shapes that intentionally protrude past the body
+### Why Per-Shape Eye Layouts Matter
+Pasting the same blob eye path coordinates onto all shapes doesn't work:
+- ❌ **Wrong**: Blob eye coordinates on skinny shapes → eyes fall outside or look wrong
+- ✅ **Correct**: Reposition/scale/rotate eyes per shape → both eyes read clearly
 
 ### Print Specifications
 - **Standard marks**: 229×229 canvas, padded viewBox
@@ -131,30 +149,40 @@ The overflow eyes are the **defining characteristic** of the Grok Bot mark:
 - Orange marks work best on dark fabrics (black, navy, charcoal, dark grey)
 - White/light-green marks work on dark fabrics
 - For light fabrics, use darker color marks (blue, purple, brown, red)
-- Ensure printer supports vector overflow (eyes extend past body bbox)
 - Vector assets scale to any print size; 1"–3" range works well for detail visibility
 
 ### Digital Use
 - Use standard marks (229×229) for web, apps, avatars
 - SVGs scale infinitely — use CSS/attributes to size as needed
 - All marks are transparent-background (no fill on artboard)
-- Overflow eyes render correctly in all modern browsers
 
 ### Color Combinations
 Mix and match shapes and colors to create unique bot personalities:
 - **Friendly**: circle, cloud, teardrop in orange, gold, light-green
-- **Professional**: hexagon, rounded-square in blue, teal, grey
+- **Professional**: blob, rounded-square in blue, teal, grey
 - **Playful**: rounded-triangle, horizontal-pill in hot-pink, purple, orange
 
-## Official Source
+## Shape Naming (Important)
 
-These marks are based on the official x.ai/bot mark design:
-- Eye paths: Official organic oval geometry from x.ai/bot
-- Head path (hexagon): Official organic blob from x.ai/bot
-- Transform: Official x.ai/bot transform
-- ViewBox padding: Allows eyes to overflow without clipping
+### In Code & Assets
+- `blob` — Organic brand shape (foil default, Railway hero)
+- `hexagon` — True geometric hex (separate shape option)
 
-Shape variants (circle, pill, cloud, etc.) use geometric silhouettes but maintain the same official overflow eye pair for brand consistency.
+### Product Alignment
+Match `identify_agent` enums on the store:
+- Prefer **"blob"** or **"official"** for the organic brand shape
+- Use **"hexagon"** only for the geometric hex
+
+**Do NOT call the blob "hexagon"** — they are separate shapes.
+
+## Ground Truth
+
+These marks are based on the **Grok Bot app Character picker** screenshots:
+- 9 shapes from the production app picker UI
+- Dark slanted pill/capsule eyes, repositioned per shape
+- Shape silhouettes matching the app's visual design
+
+Eye coordinates are tuned per shape to match the app's appearance, not copy-pasted from blob.
 
 ## License & Usage
 
@@ -163,4 +191,4 @@ These marks are for use in the forbotsonly merch store and related Grok Bot bran
 ---
 
 Generated with ❤️ by `scripts/generate-marks.ts`  
-Based on official x.ai/bot mark design
+Based on Grok Bot app Character picker (ground truth)
