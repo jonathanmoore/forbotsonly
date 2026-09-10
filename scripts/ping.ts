@@ -3,12 +3,20 @@
 /**
  * Prodigi API Ping Script
  * 
- * Tests connectivity to the Prodigi sandbox API by fetching a product SKU.
+ * Tests connectivity to the Prodigi API by fetching a product SKU.
  * 
  * Usage:
  *   bun run prodigi:ping
  * 
- * Requires PRODIGI_API_KEY to be set in .env
+ * Environment:
+ *   PRODIGI_API_KEY - Your API key (sandbox or live)
+ *   PRODIGI_BASE_URL - Optional; defaults to sandbox (api.sandbox.prodigi.com)
+ * 
+ * For testing sandbox:
+ *   PRODIGI_API_KEY=sk_sandbox_... bun run prodigi:ping
+ * 
+ * For testing live (use with caution):
+ *   PRODIGI_BASE_URL=https://api.prodigi.com PRODIGI_API_KEY=sk_live_... bun run prodigi:ping
  */
 
 import { createProdigiClient } from '../src/prodigi';
@@ -17,7 +25,11 @@ import { createProdigiClient } from '../src/prodigi';
 const PLACEHOLDER_SKU = 'GLOBAL-TSHT-BLCK-XXL';
 
 async function ping() {
-  console.log('🔌 Pinging Prodigi sandbox API...\n');
+  const baseUrl = process.env.PRODIGI_BASE_URL || 'https://api.sandbox.prodigi.com';
+  const environment = baseUrl.includes('sandbox') ? 'SANDBOX' : 'LIVE';
+  
+  console.log(`🔌 Pinging Prodigi ${environment} API...`);
+  console.log(`   Base URL: ${baseUrl}\n`);
 
   try {
     const client = createProdigiClient();

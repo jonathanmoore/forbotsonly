@@ -1,8 +1,20 @@
 /**
- * Minimal Prodigi Sandbox API Client
+ * Minimal Prodigi API Client
  * 
  * Provides thin wrappers around the Prodigi API for product catalog
  * and order management operations.
+ * 
+ * Architecture:
+ * - SANDBOX (api.sandbox.prodigi.com): Rehearsal environment for testing
+ * - LIVE (api.prodigi.com): Production environment for real orders
+ * 
+ * Intended Flow:
+ * 1. Customer completes payment via Stripe Checkout / Link (live mode)
+ * 2. Stripe webhook fires `checkout.session.completed`
+ * 3. Webhook handler places LIVE Prodigi order using this client
+ * 4. Same code, different env: PRODIGI_BASE_URL + PRODIGI_API_KEY switch between sandbox/live
+ * 
+ * CRITICAL: Live API key must NEVER be committed to version control.
  */
 
 export interface ProdigiConfig {
@@ -30,6 +42,7 @@ export class ProdigiClient {
 
   constructor(config: ProdigiConfig) {
     this.apiKey = config.apiKey;
+    // Default to sandbox for safety; live deployments must explicitly set PRODIGI_BASE_URL
     this.baseUrl = config.baseUrl || process.env.PRODIGI_BASE_URL || 'https://api.sandbox.prodigi.com';
   }
 
