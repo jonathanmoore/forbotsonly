@@ -1,0 +1,11 @@
+{
+  "name": "forbotsonly",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "prodigi:ping": "bun run scripts/ping.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
