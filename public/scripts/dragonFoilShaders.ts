@@ -72,27 +72,32 @@ export const fragmentShader = `
     // Fresnel rim light
     float fresnelFactor = fresnel(viewDir, vNormal, 3.0);
     
-    // Foil intensity from mask (0-1 range, normalized)
+    // Foil intensity from mask (normalized 0-1)
     float foilIntensity = foilMask.r / 255.0;
     
-    // Base colored material (orange head, dark eyes from SVG)
+    // Base material color (orange head #FF6B35, dark eyes #0A0A0A from SVG)
     vec3 baseRGB = baseColor.rgb;
+    float baseLuminance = dot(baseRGB, vec3(0.299, 0.587, 0.114));
     
-    // Foil overlay: only visible where foilIntensity is higher
-    vec3 foilOverlay = rainbowColor * foilIntensity * 0.6;
+    // Force dark matte for near-black pixels (eyes) - ignore foil overlay
+    if (baseLuminance < 0.1) {
+      // Eyes: stay dark matte, no rainbow glow
+      gl_FragColor = vec4(baseRGB * 0.8, baseColor.a);
+      return;
+    }
     
-    // Add fresnel rim (subtle)
-    foilOverlay += fresnelFactor * rainbowColor * foilIntensity * 0.3;
+    // Orange head: apply foil as additive shimmer overlay
+    vec3 foilOverlay = rainbowColor * foilIntensity * 0.5;
+    foilOverlay += fresnelFactor * rainbowColor * foilIntensity * 0.2;
     
-    // Idle shimmer (very subtle)
+    // Idle shimmer (subtle)
     float shimmer = sin(uTime * 2.0 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
     foilOverlay += rainbowColor * shimmer * foilIntensity * 0.05;
     
-    // Final: base color dominates when foilIntensity is low (orange head, dark eyes)
-    // Foil is ADDITIVE overlay, not replacement
+    // Final: base orange + foil overlay (not replacement)
     vec3 finalColor = baseRGB + foilOverlay;
     
-    // Hover effect - slight brightening
+    // Hover effect
     finalColor += vec3(0.05) * uHover * foilIntensity;
     
     gl_FragColor = vec4(finalColor, baseColor.a);
