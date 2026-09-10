@@ -1,8 +1,8 @@
 # Railway configuration
-# Nixpacks will auto-detect Bun from package.json
+# Use Dockerfile for build to ensure assets ship correctly
 
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
 
 [deploy]
 startCommand = "bun run server"
