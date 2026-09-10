@@ -1,0 +1,19 @@
+<svg viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
+  <!-- Organic x.ai Grok Bot head silhouette - #FF6B35 orange -->
+  <!-- Smooth, organic blob shape characteristic of x.ai bot -->
+  <path fill="#FF6B35" d="M 114.5 10 
+    C 155 10 188 28 208 55 
+    C 225 78 229 105 229 114.5 
+    C 229 135 222 155 208 172 
+    C 188 197 155 219 114.5 219 
+    C 74 219 41 197 21 172 
+    C 7 155 0 135 0 114.5 
+    C 0 105 4 78 21 55 
+    C 41 28 74 10 114.5 10 Z"/>
+  
+  <!-- Left eye - #0A0A0A dark, protruding past head silhouette (no clipPath) -->
+  <ellipse cx="70" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(-12 70 88)"/>
+  
+  <!-- Right eye - #0A0A0A dark, protruding past head silhouette (no clipPath) -->
+  <ellipse cx="159" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(12 159 88)"/>
+</svg>
