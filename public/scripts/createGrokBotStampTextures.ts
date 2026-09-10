@@ -65,14 +65,14 @@ export async function createGrokBotStampTextures(svgSrc: string, size = 1024): P
         
         let brightness;
         if (isEdge) {
-          // Rim → very high foil for strong bevel shimmer
+          // Rim → high foil for strong bevel shimmer
           brightness = 200;
         } else if (luminance < 50) {
-          // Dark pixels (eyes #0A0A0A) → VERY LOW foil, stay as dark matte slots
-          brightness = 5;
+          // Dark pixels (eyes #0A0A0A) → LOW foil, stay as dark matte slots
+          brightness = 15;
         } else {
-          // Light pixels (orange head #FF6B35) → HIGH foil for rainbow shimmer on orange
-          brightness = 150;
+          // Light pixels (orange head #FF6B35) → MODERATE-HIGH foil for shimmer
+          brightness = 120;
         }
         
         tempData[idx] = brightness;

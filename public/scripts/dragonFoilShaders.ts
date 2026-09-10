@@ -72,8 +72,8 @@ export const fragmentShader = `
     // Fresnel rim light
     float fresnelFactor = fresnel(viewDir, vNormal, 3.0);
     
-    // Foil intensity from mask (normalized 0-1)
-    float foilIntensity = foilMask.r / 255.0;
+    // Foil intensity from mask (texture2D already returns 0-1, DON'T divide by 255!)
+    float foilIntensity = foilMask.r;
     
     // Base material color (orange head #FF6B35, dark eyes #0A0A0A from SVG)
     vec3 baseRGB = baseColor.rgb;
@@ -87,12 +87,12 @@ export const fragmentShader = `
     }
     
     // Orange head: apply foil as additive shimmer overlay
-    vec3 foilOverlay = rainbowColor * foilIntensity * 0.5;
-    foilOverlay += fresnelFactor * rainbowColor * foilIntensity * 0.2;
+    vec3 foilOverlay = rainbowColor * foilIntensity * 0.8;
+    foilOverlay += fresnelFactor * rainbowColor * foilIntensity * 0.4;
     
     // Idle shimmer (subtle)
     float shimmer = sin(uTime * 2.0 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
-    foilOverlay += rainbowColor * shimmer * foilIntensity * 0.05;
+    foilOverlay += rainbowColor * shimmer * foilIntensity * 0.1;
     
     // Final: base orange + foil overlay (not replacement)
     vec3 finalColor = baseRGB + foilOverlay;
