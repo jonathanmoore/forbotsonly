@@ -2,6 +2,9 @@ name: Prodigi Print Areas Investigation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - merch/prodigi-print-areas-343f
 
 jobs:
   check-print-areas:
