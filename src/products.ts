@@ -16,6 +16,9 @@ export const PRODUCTS: Product[] = [
       color: 'black',
       size: 'm',
     },
+    // TODO: Add product image URL when flat lay photography is available
+    // See PRODUCT_IMAGERY.md for specifications
+    // imageUrl: '/images/products/forbotsonly-tee-flatlay.jpg',
   },
 ];
 
