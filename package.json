@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && mkdir -p dist/images && cp -R public/images/* dist/images/ || true",
     "preview": "vite preview",
     "server": "bun run src/server.ts",
     "prodigi:ping": "bun run scripts/ping.ts"

@@ -582,15 +582,24 @@ serve({
       return jsonResponse({ status: 'ok' });
     }
     
-    // Serve static files from dist/ (Vite build output)
+    // Serve static files from dist/ (Vite build output) with public/ fallback
     if (req.method === 'GET') {
       try {
-        // Try dist/ first (production build)
+        // Try dist/ first (production build), then public/ (runtime fallback)
         let filePath = url.pathname === '/' ? '/index.html' : url.pathname;
-        const distPath = `./dist${filePath}`;
+        let distPath = `./dist${filePath}`;
+        let publicPath = `./public${filePath}`;
         
-        const file = Bun.file(distPath);
-        const exists = await file.exists();
+        let file = Bun.file(distPath);
+        let exists = await file.exists();
+        let servedFrom = 'dist';
+        
+        // Fallback to public/ if not in dist/
+        if (!exists) {
+          file = Bun.file(publicPath);
+          exists = await file.exists();
+          servedFrom = 'public';
+        }
         
         if (exists) {
           const ext = filePath.split('.').pop()?.toLowerCase() || '';
@@ -609,7 +618,13 @@ serve({
             'woff2': 'font/woff2',
             'ttf': 'font/ttf',
             'eot': 'application/vnd.ms-fontobject',
+            'ts': 'application/typescript',
           };
+          
+          // Log once for debug (only on first request or svg)
+          if (ext === 'svg' || filePath === '/index.html') {
+            console.log(`📄 Served ${filePath} from ${servedFrom}/`);
+          }
           
           return new Response(file, {
             headers: {
