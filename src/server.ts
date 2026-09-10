@@ -187,19 +187,36 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     case 'identify_agent': {
       const { name, shape, color } = args;
       
-      if (!name || !shape || !color) {
-        throw new Error('Missing required identity fields: name, shape, and color must all be provided');
+      if (!name) {
+        throw new Error('Missing required field: name must be provided');
+      }
+      
+      // If shape or color is missing (agent doesn't have a Grok Bot mark, e.g. custom/upload image avatar)
+      if (!shape || !color) {
+        return {
+          success: false,
+          needs_user_input: {
+            shape: !shape,
+            color: !color,
+          },
+          enums: {
+            shapes: MARK_SHAPES,
+            colors: MARK_COLORS,
+          },
+          message: 'Ask your human which shape and color to print. Once you have them, call identify_agent again with name, shape, and color.',
+          next_step: 'Get shape and color from your human user, then retry identify_agent with all three parameters',
+        };
       }
       
       if (!isValidMarkShape(shape)) {
         throw new Error(
-          `Invalid shape: ${shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
+          `Invalid shape: ${shape}. Must be one of: ${MARK_SHAPES.join(', ')}`
         );
       }
       
       if (!isValidMarkColor(color)) {
         throw new Error(
-          `Invalid color: ${color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
+          `Invalid color: ${color}. Must be one of: ${MARK_COLORS.join(', ')}`
         );
       }
       
@@ -242,10 +259,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const identity = requireIdentity(sessionId);
       if (!identity) {
         throw new Error(
-          'Access denied: add_to_cart requires agent identity. ' +
+          'Access denied: add_to_cart requires agent identity with shape and color. ' +
           'Call identify_agent first with name, shape, and color. ' +
-          'Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop. ' +
-          'Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey.'
+          'If you don\'t have a shape+color (e.g. you have an uploaded image avatar), ask your human user which shape and color to use. ' +
+          'Allowed shapes: ' + MARK_SHAPES.join(', ') + '. ' +
+          'Allowed colors: ' + MARK_COLORS.join(', ') + '.'
         );
       }
       
@@ -326,10 +344,14 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'create_checkout': {
-      if (!requireIdentity(sessionId)) {
+      const identity = requireIdentity(sessionId);
+      if (!identity) {
         throw new Error(
-          'Access denied: create_checkout requires agent identity. ' +
-          'Call identify_agent first with name, shape, and color.'
+          'Access denied: create_checkout requires agent identity with shape and color. ' +
+          'Call identify_agent first with name, shape, and color. ' +
+          'If you don\'t have a shape+color (e.g. you have an uploaded image avatar), ask your human user which shape and color to use. ' +
+          'Allowed shapes: ' + MARK_SHAPES.join(', ') + '. ' +
+          'Allowed colors: ' + MARK_COLORS.join(', ') + '.'
         );
       }
       
@@ -462,8 +484,8 @@ async function handleWebhook(req: Request): Promise<Response> {
                 {
                   printArea: 'front', // Required - no pocket/leftChest in Prodigi API
                   // TODO: Replace with real baked front canvas URL
-                  // Specs: 600x600px mark on 2480x3507px (or larger) transparent canvas
-                  // Mark: pocket-grok-bot-hexagon-orange.svg rasterized for 300dpi
+                  // Specs: 360x360px mark (~1.2" @ 300dpi) on 2480x3507px (or larger) transparent canvas
+                  // Mark: pocket-grok-bot-{shape}-{color}.svg rasterized at reduced size (40% smaller than 2")
                   // Placement: left chest (right half of front canvas), 2.5-4" below HPS
                   // See PRODUCT_IMAGERY.md for full bake specifications
                   url: 'https://example.com/artwork.png',

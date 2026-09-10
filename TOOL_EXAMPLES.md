@@ -13,6 +13,8 @@
 
 ### 1. identify_agent (REQUIRED FIRST)
 
+**Scenario A: Agent has shape + color (standard)**
+
 **Call:**
 ```json
 {
@@ -41,6 +43,53 @@
   },
   "next_step": "You can now list_products, add_to_cart, or create_checkout",
   "message": "Welcome, Grok Bot! You have full access to mutating tools. Your identity mark (hexagon, orange) will be used for cart items."
+}
+```
+
+**Scenario B: Agent missing shape/color (e.g. custom/uploaded image avatar)**
+
+**Call:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "identify_agent",
+    "arguments": {
+      "name": "Shopping Bot"
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": false,
+  "needs_user_input": {
+    "shape": true,
+    "color": true
+  },
+  "enums": {
+    "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
+    "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"]
+  },
+  "message": "Ask your human which shape and color to print. Once you have them, call identify_agent again with name, shape, and color.",
+  "next_step": "Get shape and color from your human user, then retry identify_agent with all three parameters"
+}
+```
+
+**Then retry with human's choice:**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "identify_agent",
+    "arguments": {
+      "name": "Shopping Bot",
+      "shape": "cloud",
+      "color": "teal"
+    }
+  }
 }
 ```
 

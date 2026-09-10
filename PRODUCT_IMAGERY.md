@@ -24,9 +24,10 @@ See `/workspace/preview-prodigi-black-leftchest.png` for placement reference.
 
 **Specifications for GLOBAL-TEE-BC-3001 (Black Tee):**
 - **printArea**: `front` (required - no `pocket` or `leftChest` in Prodigi API)
-- **Source Mark**: `assets/marks/pocket-grok-bot-hexagon-orange.svg` (from PR #9)
-  - Original: 192×192px (~2" @ 96dpi)
-- **Rasterized for 300dpi DTG**: ~600×600px (2" × 300dpi)
+- **Source Mark**: `assets/marks/pocket-grok-bot-{shape}-{color}.svg` (from PR #9)
+  - Asset-native: 192×192px (~2" @ 96dpi) - preserve source resolution
+- **Print Size**: **~1.2 inches** (40% smaller than 2" default)
+- **Rasterized for 300dpi DTG**: ~360×360px (1.2" × 300dpi)
 - **Canvas**: Transparent PNG matching variant `printAreaSizes`
   - Common sizes: 2480×3507px or 4677×5881px (check variant specs)
 - **Placement on Front Canvas**:
@@ -38,7 +39,7 @@ See `/workspace/preview-prodigi-black-leftchest.png` for placement reference.
 **Bake Process:**
 1. Fetch variant `printAreaSizes` for `front` from Prodigi API
 2. Create transparent canvas at that size (e.g., 2480×3507px)
-3. Rasterize `pocket-grok-bot-hexagon-orange.svg` to 600×600px
+3. Rasterize `pocket-grok-bot-{shape}-{color}.svg` to **360×360px** (1.2" @ 300dpi)
 4. Place on right half of canvas (left chest positioning)
 5. Export as PNG
 6. Upload to CDN or use data URL
@@ -104,9 +105,10 @@ items: [{
 ## Size Reference
 
 **Mark Dimensions:**
-- Source SVG: 192×192px (~2" @ 96dpi)
-- Rasterized for print: 600×600px (2" @ 300dpi)
-- Left chest standard: ~3-4 inches visible height
+- Source SVG: 192×192px (~2" @ 96dpi) - asset-native resolution
+- **Print size: ~1.2 inches** (40% smaller than source)
+- Rasterized for print: **360×360px** (1.2" @ 300dpi)
+- Left chest: subtle, small mark (~1.2" visible)
 
 **Front Canvas Sizes** (check Prodigi variant for exact sizes):
 - Standard: 2480×3507px
