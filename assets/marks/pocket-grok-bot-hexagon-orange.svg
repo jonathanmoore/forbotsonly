@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <g id="mark" transform="scale(1.92) translate(-46, -46)">
+    <g id="shape" fill="#FF6B35" stroke="#FF6B35">
+      <path d="M 30,50 L 40,32.60869565217391 L 60,32.60869565217391 L 70,50 L 60,67.3913043478261 L 40,67.3913043478261 Z" stroke-linejoin="round" stroke-linecap="round" stroke-width="3"/>
+    </g>
+    <g id="eyes">
+      <ellipse cx="35" cy="42" rx="4" ry="7" fill="#1A1A1A" transform="rotate(-25 35 42)"/>
+      <ellipse cx="58" cy="38" rx="4" ry="7" fill="#1A1A1A" transform="rotate(-25 58 38)"/>
+    </g>
+  </g>
+</svg>

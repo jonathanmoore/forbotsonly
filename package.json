@@ -1,0 +1,11 @@
+{
+  "name": "forbotsonly",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "marks:generate": "bun run scripts/generate-marks.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
