@@ -524,10 +524,15 @@ serve({
     }
     
     if (url.pathname === '/.well-known/mcp.json') {
+      // Derive public origin from request (x-forwarded-* headers or Host header)
+      const forwardedProto = req.headers.get('x-forwarded-proto') || 'http';
+      const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+      const publicOrigin = process.env.PUBLIC_URL || `${forwardedProto}://${forwardedHost}`;
+      
       return jsonResponse({
         mcpServers: {
           forbotsonly: {
-            url: `${PUBLIC_URL}/mcp`,
+            url: `${publicOrigin}/mcp`,
           },
         },
       });
