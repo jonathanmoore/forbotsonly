@@ -2,11 +2,12 @@
 
 Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi fulfillment.
 
-**This store is for agents.** Human visitors see a simple "for agents only" message. Agents interact via WebMCP tools.
+**This store is for agents.** Human visitors see a **dragon foil holographic sticker** of the Grok Bot mark (orange hexagon) on a full black page. Agents interact via WebMCP tools.
 
 ## Features
 
-- **Faceless storefront**: No human catalog UI
+- **Dragon foil human page**: Full black page with holographic Grok Bot sticker (Three.js shader effect)
+- **Faceless storefront**: No human catalog UI beyond the foil sticker
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
 - **Soft agent gate**: Simple yes/no identity check (`isGrokBot: true/false`)
 - **Mark customization**: Agent chooses shape + color (8 shapes × 11 colors, from PR #9)
@@ -17,34 +18,75 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
 ## Architecture
 
 ```
-┌─────────────┐
-│   Agent     │ (Grok Bot, Chief of Staff, Shopping Bot)
-└──────┬──────┘
-       │ WebMCP tools
-       ↓
 ┌─────────────────────────────────────────┐
-│  forbotsonly Server                     │
+│         Human Visitor                   │
+│   (sees dragon foil sticker only)       │
+└─────────────────────────────────────────┘
+                 │
+                 │ WebMCP tools
+                 ↓
+┌─────────────────────────────────────────┐
+│            Agent (Grok Bot)             │
+│  ↓ identify_agent { isGrokBot: true }  │
+│  ↓ list_products (mark options)        │
+│  ↓ add_to_cart { shape, color }        │
+│  ↓ create_checkout                     │
+└──────────────┬──────────────────────────┘
+               │
+               ↓
+┌─────────────────────────────────────────┐
+│       forbotsonly Server                │
 │  ┌────────────────────────────────┐    │
 │  │ Soft Agent Gate                │    │
-│  │ (identify_agent + Grok check)  │    │
+│  │ (identify_agent + isGrokBot)   │    │
 │  └────────────────────────────────┘    │
 │  ┌────────────────────────────────┐    │
 │  │ WebMCP Tools                   │    │
 │  │ - list_products, get_product   │    │
-│  │ - add_to_cart, get_cart        │    │
+│  │ - add_to_cart (shape + color)  │    │
+│  │ - get_cart, clear_cart         │    │
 │  │ - create_checkout, get_order   │    │
 │  └────────────────────────────────┘    │
-└─────┬───────────────────────────────┬───┘
-      │                               │
-      │ Stripe Checkout               │ Webhook
-      ↓                               ↓
-┌─────────────┐              ┌─────────────────┐
-│   Stripe    │              │    Prodigi      │
-│  (Payment)  │──────────────→│  (Fulfillment) │
-└─────────────┘   Success    └─────────────────┘
+└──────┬────────────────────────┬─────────┘
+       │                        │
+       │ Stripe Checkout        │ Webhook
+       ↓                        ↓
+┌─────────────┐      ┌─────────────────┐
+│   Stripe    │      │    Prodigi      │
+│  (Payment)  │──────→│  (Fulfillment) │
+└─────────────┘      └─────────────────┘
+      Success
 ```
 
-## Quick Start
+## Human-Facing Page
+
+### Dragon Foil Sticker
+
+The landing page features a **dragon foil holographic sticker** of the Grok Bot mark (orange hexagon) on a full black background.
+
+**Implementation:**
+- Three.js-based shader effect with holographic rainbow iridescence
+- Mouse-reactive animation (follows cursor movement)
+- Idle shimmer/morph when not hovering
+- Two-texture system:
+  - **Silhouette**: Grey shape on transparent background
+  - **Foil mask**: Black body with white figure cutouts (bright = foil, dark = matte)
+- Generated client-side from SVG using canvas API
+- Fallback to static SVG if WebGL unavailable
+
+**Technical Stack:**
+- `three` library for WebGL rendering
+- Custom vertex and fragment shaders for foil effect
+- Real-time fresnel rim lighting
+- Animated rainbow color generation based on UV coordinates and time
+- Smooth mouse tracking with easing
+
+**Files:**
+- `public/index.html` - Landing page
+- `public/scripts/createDragonFoilStamp.ts` - Three.js scene and animation
+- `public/scripts/dragonFoilShaders.ts` - Vertex and fragment shaders
+- `public/scripts/createGrokBotStampTextures.ts` - Texture generation from SVG
+- `public/images/grok-bot-hexagon-orange.svg` - Source mark (placeholder)
 
 ### Prerequisites
 
@@ -70,13 +112,13 @@ bun run server
 
 Server runs on http://localhost:3001 by default.
 
-Start the frontend (optional, for testing human page):
+Start the frontend (to see dragon foil human page):
 
 ```bash
 bun run dev
 ```
 
-Frontend runs on http://localhost:3000 and proxies API calls to the server.
+Frontend runs on http://localhost:3000 with the holographic Grok Bot sticker.
 
 ### Test Prodigi Connection
 
