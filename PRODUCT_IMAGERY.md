@@ -1,55 +1,114 @@
 # Product Imagery Requirements
 
-## Reference Image
+## Two Types of Imagery
+
+### 1. Store/Human Product Photos (Flat Lay)
 See `/workspace/mark-ref/jonathan-flatlay-reference.png` for composition/pose reference.
 
-## Specifications for forbotsonly Tee
+**Purpose**: Store listings, cart display, human-facing product pages
 
-### Composition (from reference)
+**Specifications:**
 - **Pose**: Front-facing flat lay
 - **Style**: Studio photography
 - **Sleeves**: Out (not folded)
-- **Background**: Clean, solid color
+- **Background**: White or light grey
 - **NOT**: Folded tee, lifestyle shot, or worn/modeled
-
-### Our Product Specifics
-- **Base**: Black tee (reference shows white - invert)
-- **Background**: White or light grey (to contrast with black tee)
-- **Mark**: Orange hexagon Grok Bot mark
+- **Base**: Black tee
+- **Mark**: Orange hexagon Grok Bot mark on left chest
 - **Placement**: Left chest (wearer's left = viewer's right when facing camera)
-- **Mark size**: ~3-4 inches, standard left-chest print area
 
-### Reference Analysis
-The attached image shows:
+### 2. Prodigi Print-Area Artwork (Front Canvas Bake)
+See `/workspace/preview-prodigi-black-leftchest.png` for placement reference.
+
+**Purpose**: Prodigi API `assets[].url` for DTG printing
+
+**Specifications for GLOBAL-TEE-BC-3001 (Black Tee):**
+- **printArea**: `front` (required - no `pocket` or `leftChest` in Prodigi API)
+- **Source Mark**: `assets/marks/pocket-grok-bot-hexagon-orange.svg` (from PR #9)
+  - Original: 192×192px (~2" @ 96dpi)
+- **Rasterized for 300dpi DTG**: ~600×600px (2" × 300dpi)
+- **Canvas**: Transparent PNG matching variant `printAreaSizes`
+  - Common sizes: 2480×3507px or 4677×5881px (check variant specs)
+- **Placement on Front Canvas**:
+  - Wearer's left chest = **right half** of front-facing artwork
+  - ~2.5–4 inches below HPS (high point shoulder)
+  - Clear of centerline
+  - See preview image for exact positioning
+
+**Bake Process:**
+1. Fetch variant `printAreaSizes` for `front` from Prodigi API
+2. Create transparent canvas at that size (e.g., 2480×3507px)
+3. Rasterize `pocket-grok-bot-hexagon-orange.svg` to 600×600px
+4. Place on right half of canvas (left chest positioning)
+5. Export as PNG
+6. Upload to CDN or use data URL
+7. Pass URL to Prodigi `assets[].url` for `printArea: "front"`
+
+## Reference Analysis
+
+### Store Flat Lay Reference
+The first reference shows:
 - White tee on dark/black background
 - Front-facing flat lay with sleeves extended horizontally
 - "LOGO" text and Nike swoosh on left chest area
 - Clean, professional studio lighting
-- No wrinkles or folds
-- Centered composition
 
-### Our Implementation
-**Invert the reference style:**
+**Our Implementation (inverted):**
 - Black tee on white/light background
 - Same flat lay pose (sleeves out)
-- Orange hex Grok Bot mark where "LOGO" + swoosh appear
-- Professional studio lighting
-- Clean, wrinkle-free presentation
+- Orange hex Grok Bot mark on left chest
+
+### Prodigi Placement Reference
+The preview image (`preview-prodigi-black-leftchest.png`) shows:
+- Black tee worn/modeled
+- Orange hexagon mark on left chest (wearer's left, viewer's right)
+- Correct print placement for Prodigi `front` printArea
+- **Use this placement for Prodigi artwork bake**
+- **Do NOT use worn/lifestyle style for store photos**
 
 ## Current Status
 
-**Stub/Placeholder**: The E2E implementation currently uses the Grok Bot mark SVG directly. A proper product photo matching this specification should be added when available.
+**Store Imagery**: TODO - Commission flat lay photography matching first reference specs
 
-**TODO**: Commission or generate product photography following this flat lay specification:
-1. Photograph black GLOBAL-TEE-BC-3001 in flat lay pose
-2. Orange hex Grok Bot mark printed on left chest
-3. Studio lighting on white/light grey background
-4. Match reference composition (sleeves out, centered)
+**Prodigi Artwork**: 
+- Placeholder URL in code: `https://example.com/artwork.png`
+- Source mark available: `assets/marks/pocket-grok-bot-hexagon-orange.svg` (PR #9)
+- TODO: Create baked front canvas following Prodigi specs above
+- Update `src/server.ts` webhook handler with real artwork URL
 
-## Product Image Usage
+## Implementation Notes
 
-When product images are added:
-- Update `public/images/` with high-res flat lay
-- Use in product listings (`list_products` response)
-- Display in cart/checkout flows
-- Maintain aspect ratio for responsive display
+### In Product Listings
+```typescript
+{
+  id: 'tee-001',
+  name: 'forbotsonly Tee',
+  // Store display - flat lay
+  imageUrl: '/images/products/forbotsonly-tee-flatlay.jpg',
+  // Prodigi print artwork - front canvas bake
+  prodigiArtworkUrl: 'https://cdn.example.com/prodigi/front-leftchest-orange-hex.png',
+}
+```
+
+### In Prodigi Order
+```typescript
+items: [{
+  sku: 'GLOBAL-TEE-BC-3001',
+  assets: [{
+    printArea: 'front', // Required - no pocket/leftChest API area
+    url: 'https://cdn.example.com/prodigi/front-leftchest-orange-hex.png',
+  }],
+}]
+```
+
+## Size Reference
+
+**Mark Dimensions:**
+- Source SVG: 192×192px (~2" @ 96dpi)
+- Rasterized for print: 600×600px (2" @ 300dpi)
+- Left chest standard: ~3-4 inches visible height
+
+**Front Canvas Sizes** (check Prodigi variant for exact sizes):
+- Standard: 2480×3507px
+- Large format: 4677×5881px
+
