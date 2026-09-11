@@ -3,7 +3,7 @@
 **Issue:** #23 iterate 8 - Matte white appearance instead of metallic pewter/chrome  
 **Branch:** `cursor/iterate-8-metallic-pewter-b9ad`  
 **Status:** PR created (draft), awaiting CoS squash-merge  
-**Bundle Hash:** `main-C5sKNMXk.js`
+**Bundle Hash:** `main-5MtWyQwO.js` (or similar Vite-generated hash on deployment)
 
 ## Problem Statement
 
@@ -273,7 +273,7 @@ npm run build
 # ✓ built in 976ms
 ```
 
-**Bundle hash:** `main-C5sKNMXk.js`
+**Bundle hash:** `main-5MtWyQwO.js` (or similar - Vite generates hash based on build timestamp)
 
 No TypeScript errors, no shader compilation errors. File size increase (+1.6 kB) is due to additional specular layer and expanded comments.
 
@@ -293,4 +293,4 @@ No TypeScript errors, no shader compilation errors. File size increase (+1.6 kB)
 
 ---
 
-**Summary:** Restored metallic pewter/chrome appearance by dramatically increasing specular shininess (256+) and contributions while keeping #43's achromatic color pipeline. #43 eliminated peach but removed metal quality via low specular values. Iter 8 keeps the achromatic approach (no peach) but restores high-contrast metallic read via sharp, bright glints. Expected bundle: `main-C5sKNMXk.js`.
+**Summary:** Restored metallic pewter/chrome appearance by dramatically increasing specular shininess (256+) and contributions while keeping #43's achromatic color pipeline. #43 eliminated peach but removed metal quality via low specular values. Iter 8 keeps the achromatic approach (no peach) but restores high-contrast metallic read via sharp, bright glints. Expected bundle: `main-5MtWyQwO.js` (or similar Vite-generated hash).
