@@ -1,0 +1,34 @@
+{
+  "name": "morph-bot-element",
+  "version": "0.6.0",
+  "description": "A framework-free SVG character state and loading animation Web Component.",
+  "type": "module",
+  "types": "./morph-bot.d.ts",
+  "exports": {
+    ".": {
+      "types": "./morph-bot.d.ts",
+      "import": "./morph-bot.js"
+    },
+    "./engine": "./grok-bot-engine.js",
+    "./data": "./original-data.js",
+    "./catalog": "./catalog.js",
+    "./materials": {
+      "types": "./materials.d.ts",
+      "import": "./materials.js"
+    }
+  },
+  "files": [
+    "morph-bot.js",
+    "grok-bot-engine.js",
+    "original-data.js",
+    "catalog.js",
+    "materials.js",
+    "materials.d.ts",
+    "runtime",
+    "morph-bot.d.ts",
+    "README.md"
+  ],
+  "sideEffects": [
+    "./morph-bot.js"
+  ]
+}
