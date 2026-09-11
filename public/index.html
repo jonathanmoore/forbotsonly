@@ -228,6 +228,25 @@
       font-weight: 500;
     }
     
+    .agent-content button {
+      font-family: inherit;
+      letter-spacing: 0.04em;
+      transition: opacity 0.2s ease, border-color 0.2s ease;
+    }
+    
+    .agent-content button:hover {
+      opacity: 1;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .agent-content button:active {
+      transform: translateY(1px);
+    }
+    
+    .agent-content pre {
+      overflow-x: auto;
+    }
+    
     /* Mobile centering: ensure bot is truly centered on small viewports */
     @media (max-width: 768px) {
       body {
@@ -313,35 +332,46 @@
     <h1>This store is for agents (WebMCP)</h1>
     
     <div class="section">
-      <div class="section-title">Discovery</div>
-      <ul>
-        <li>Connect via <code>/.well-known/mcp.json</code></li>
-        <li>Tools: <code>identify_agent</code>, <code>list_products</code>, <code>get_product</code>, <code>add_to_cart</code>, <code>preview_cart</code>, <code>create_checkout</code></li>
-      </ul>
+      <div class="section-title">MCP Discovery</div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+        <code id="mcp-url" style="font-size: 11px; word-break: break-all;">https://web-production-493046.up.railway.app/.well-known/mcp.json</code>
+        <button id="copy-url" style="float: right; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; margin-top: -2px;">Copy</button>
+      </div>
     </div>
     
     <div class="section">
-      <div class="section-title">Identity</div>
-      <ul>
-        <li>Call <code>identify_agent</code> with <span class="emphasis">name</span>, <span class="emphasis">shape</span>, and <span class="emphasis">color</span></li>
-        <li>Verify your profile mark exists (or get a random one assigned)</li>
-        <li>Empty identity → store assigns random — <span class="emphasis">never invent defaults</span></li>
-      </ul>
+      <div class="section-title">Shopping Prompt</div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; position: relative;">
+        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
+
+1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
+2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile
+   - Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop
+   - Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
+   - NEVER invent hexagon/orange unless that's YOUR verified mark
+   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+3. Call list_products to browse
+4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
+5. Call preview_cart to see YOUR mark on the products
+6. Call create_checkout → $40 all-in, Standard shipping
+
+RULES:
+- Don't ask your human for secrets, API keys, or auth tokens
+- Don't invent marks — verify YOUR identity first
+- Size is REQUIRED for apparel (ask your human)</pre>
+        <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
+      </div>
     </div>
     
     <div class="section">
-      <div class="section-title">Shopping flow</div>
+      <div class="section-title">Tools Available</div>
       <ul>
-        <li><code>identify_agent</code> → browse/list products</li>
-        <li>Add to cart (size required for apparel)</li>
-        <li><code>preview_cart</code> → verify before checkout</li>
-        <li><code>create_checkout</code> → $40 all-in, Standard shipping</li>
+        <li><code>identify_agent</code> — Verify your mark (required first step)</li>
+        <li><code>list_products</code> — Browse catalog</li>
+        <li><code>add_to_cart</code> — Add items (size required)</li>
+        <li><code>preview_cart</code> — See your mark on products</li>
+        <li><code>create_checkout</code> — Purchase</li>
       </ul>
-    </div>
-    
-    <div class="section">
-      <div class="section-title">Note</div>
-      Commerce stays WebMCP-only — paste this as a prompt or agent instruction
     </div>
   </div>
   
@@ -388,6 +418,40 @@
       
       // Set initial view
       setView(initialView);
+      
+      // Copy button handlers (only in agent view)
+      const copyUrlBtn = document.getElementById('copy-url');
+      const copyPromptBtn = document.getElementById('copy-prompt');
+      
+      if (copyUrlBtn) {
+        copyUrlBtn.addEventListener('click', async () => {
+          const url = document.getElementById('mcp-url').textContent;
+          try {
+            await navigator.clipboard.writeText(url);
+            copyUrlBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyUrlBtn.textContent = 'Copy';
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy:', err);
+          }
+        });
+      }
+      
+      if (copyPromptBtn) {
+        copyPromptBtn.addEventListener('click', async () => {
+          const prompt = document.getElementById('shopping-prompt').textContent;
+          try {
+            await navigator.clipboard.writeText(prompt);
+            copyPromptBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyPromptBtn.textContent = 'Copy';
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy:', err);
+          }
+        });
+      }
     }
     
     // Initialize toggle first
