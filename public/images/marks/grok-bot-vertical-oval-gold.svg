@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
   <!-- Grok Bot mark: face layout computation (product ID: bean) -->
-  <!-- Recipe weight: 0.96 | App picker: vertical-oval -->
+  <!-- Recipe weight: 0.96 | App picker: vertical-oval | Eyes: transparent knockouts -->
   <g class="grok-bot-mark" data-product-id="bean" data-picker-shape="vertical-oval">
-    <path class="grok-bot-mark__head" d="M 44.2705,114.2705 A 70,105 0 1,1 184.2705,114.2705 A 70,105 0 1,1 44.2705,114.2705 Z" fill="#F4A261"/>
-    <g class="grok-bot-mark__eyes">
-      <ellipse cx="88.50" cy="70.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 88.50 70.00)"/>
-    <ellipse cx="126.50" cy="65.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 126.50 65.00)"/>
-    </g>
+    <path class="grok-bot-mark__compound" fill="#F4A261" fill-rule="evenodd" d="M 44.2705,114.2705 A 70,105 0 1,1 184.2705,114.2705 A 70,105 0 1,1 44.2705,114.2705 Z M 93.86,65.76 A 5.57,11.04 -22 0,1 103.16,73.91 A 5.57,11.04 -22 0,1 102.14,86.24 A 5.57,11.04 -22 0,1 92.84,78.09 A 5.57,11.04 -22 0,1 93.86,65.76 Z M 125.86,62.76 A 5.57,11.04 -22 0,1 135.16,70.91 A 5.57,11.04 -22 0,1 134.14,83.24 A 5.57,11.04 -22 0,1 124.84,75.09 A 5.57,11.04 -22 0,1 125.86,62.76 Z"/>
   </g>
 </svg>

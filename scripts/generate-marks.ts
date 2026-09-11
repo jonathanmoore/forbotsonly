@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 /**
  * Grok Bot Character Mark Generator
@@ -8,15 +8,16 @@
  * Recipe weights: Per-shape eye scale + GROK_BOT_RECIPE_FACE_TUNE
  */
 
-import { join } from 'path';
-import { mkdir } from 'fs/promises';
+import { join, dirname } from 'path';
+import { mkdir, writeFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
 
-// ViewBox with padding for eye overflow (blob brand default)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ViewBox with padding
 const VIEWBOX = '-15 -15 259 259';
 const CENTER = 114.2705;
-
-// Eye style: dark fill
-const EYE_FILL = '#0A0A0A';
 
 // Color palette (app picker swatches)
 const COLORS = {
@@ -111,130 +112,130 @@ interface FaceParams {
  * These params drive eye path d computation
  */
 const FACE_LAYOUTS: Record<ProductID, FaceParams> = {
-  // Blob: Brand overflow eyes
+  // Blob: Contained slanted oval eyes (NO overflow for print marks)
   blob: {
-    centerX: 112,
-    centerY: 72,
-    eyeSpacing: 35,
-    baseRX: 8.5,
-    baseRY: 17,
-    rotation: -25,
-    leftDX: -5,
-    leftDY: 3,
-    rightDX: 6,
-    rightDY: -4,
-  },
-  
-  // Egg (circle): Positioned at top
-  egg: {
-    centerX: 108,
-    centerY: 65,
-    eyeSpacing: 39,
-    baseRX: 7.3,
-    baseRY: 14.5,
-    rotation: -20,
-    leftDX: -4,
-    leftDY: 3,
-    rightDX: 4,
-    rightDY: -3,
-  },
-  
-  // Bean (vertical oval): Narrower eyes for tall shape
-  bean: {
-    centerX: 108,
-    centerY: 68,
-    eyeSpacing: 31,
-    baseRX: 6.3,
-    baseRY: 12.5,
-    rotation: -22,
-    leftDX: -4,
-    leftDY: 2,
-    rightDX: 3,
-    rightDY: -3,
-  },
-  
-  // Squircle: Centered higher
-  squircle: {
-    centerX: 108,
-    centerY: 73,
-    eyeSpacing: 35,
-    baseRX: 8.3,
+    centerX: 114,
+    centerY: 80,
+    eyeSpacing: 30,
+    baseRX: 7.8,
     baseRY: 15.5,
-    rotation: -20,
-    leftDX: -4,
-    leftDY: 2,
-    rightDX: 4,
-    rightDY: -3,
-  },
-  
-  // Capsule (horizontal pill): Wide spacing for wide shape
-  capsule: {
-    centerX: 95,
-    centerY: 83,
-    eyeSpacing: 40,
-    baseRX: 6,
-    baseRY: 12,
-    rotation: -18,
-    leftDX: -5,
-    leftDY: 2,
-    rightDX: 5,
-    rightDY: -3,
-  },
-  
-  // Wedge (rounded triangle): Near top point
-  wedge: {
-    centerX: 107,
-    centerY: 66,
-    eyeSpacing: 30,
-    baseRX: 6.4,
-    baseRY: 12.8,
     rotation: -25,
-    leftDX: -4,
+    leftDX: -3,
     leftDY: 2,
     rightDX: 3,
-    rightDY: -3,
-  },
-  
-  // Hex (geometric hexagon): Positioned for hex geometry
-  hex: {
-    centerX: 107,
-    centerY: 73,
-    eyeSpacing: 37,
-    baseRX: 7.4,
-    baseRY: 13.8,
-    rotation: -22,
-    leftDX: -5,
-    leftDY: 2,
-    rightDX: 5,
-    rightDY: -3,
-  },
-  
-  // Cloud: Positioned on cloud form
-  cloud: {
-    centerX: 102,
-    centerY: 70,
-    eyeSpacing: 33,
-    baseRX: 6,
-    baseRY: 12,
-    rotation: -20,
-    leftDX: -4,
-    leftDY: 2,
-    rightDX: 4,
     rightDY: -2,
   },
   
-  // Teardrop: Near rounded top
-  teardrop: {
-    centerX: 107,
-    centerY: 70,
-    eyeSpacing: 30,
-    baseRX: 6,
+  // Egg (circle): Contained with safety margin from r=95 bounds
+  egg: {
+    centerX: 114,
+    centerY: 75,
+    eyeSpacing: 32,
+    baseRX: 6.8,
+    baseRY: 13.5,
+    rotation: -20,
+    leftDX: -3,
+    leftDY: 2,
+    rightDX: 3,
+    rightDY: -2,
+  },
+  
+  // Bean (vertical oval): Contained within rx=70 bounds
+  bean: {
+    centerX: 114,
+    centerY: 75,
+    eyeSpacing: 28,
+    baseRX: 5.8,
     baseRY: 11.5,
-    rotation: -20,
-    leftDX: -4,
-    leftDY: 2,
-    rightDX: 4,
+    rotation: -22,
+    leftDX: -2,
+    leftDY: 1,
+    rightDX: 2,
     rightDY: -2,
+  },
+  
+  // Squircle: Contained with safety margin
+  squircle: {
+    centerX: 114,
+    centerY: 80,
+    eyeSpacing: 32,
+    baseRX: 7.0,
+    baseRY: 13.5,
+    rotation: -20,
+    leftDX: -3,
+    leftDY: 1,
+    rightDX: 3,
+    rightDY: -2,
+  },
+  
+  // Capsule (horizontal pill): Centered with contained eyes (safety margin from x=79 edge)
+  capsule: {
+    centerX: 114,
+    centerY: 90,
+    eyeSpacing: 32,
+    baseRX: 5.5,
+    baseRY: 11,
+    rotation: -18,
+    leftDX: -3,
+    leftDY: 0,
+    rightDX: 3,
+    rightDY: 0,
+  },
+  
+  // Wedge (rounded triangle): Contained below top point
+  wedge: {
+    centerX: 114,
+    centerY: 75,
+    eyeSpacing: 28,
+    baseRX: 6.0,
+    baseRY: 12.0,
+    rotation: -25,
+    leftDX: -2,
+    leftDY: 1,
+    rightDX: 2,
+    rightDY: -2,
+  },
+  
+  // Hex (geometric hexagon): Contained within hex bounds
+  hex: {
+    centerX: 114,
+    centerY: 80,
+    eyeSpacing: 32,
+    baseRX: 6.8,
+    baseRY: 12.8,
+    rotation: -22,
+    leftDX: -3,
+    leftDY: 1,
+    rightDX: 3,
+    rightDY: -2,
+  },
+  
+  // Cloud: Contained within cloud lobes with safety margin
+  cloud: {
+    centerX: 114,
+    centerY: 85,
+    eyeSpacing: 28,
+    baseRX: 5.5,
+    baseRY: 11,
+    rotation: -20,
+    leftDX: -2,
+    leftDY: 1,
+    rightDX: 2,
+    rightDY: -1,
+  },
+  
+  // Teardrop: Contained within teardrop form
+  teardrop: {
+    centerX: 114,
+    centerY: 80,
+    eyeSpacing: 28,
+    baseRX: 5.5,
+    baseRY: 11,
+    rotation: -20,
+    leftDX: -2,
+    leftDY: 1,
+    rightDX: 2,
+    rightDY: -1,
   },
 };
 
@@ -335,7 +336,7 @@ const SHAPES: Record<ProductID, string> = {
 };
 
 /**
- * Compute eye path d from face params + recipe weight
+ * Compute eye ellipse path as SVG path d (for compound-path knockout)
  * Models GrokBotMark face layout mechanism
  */
 function computeEyePath(
@@ -358,23 +359,42 @@ function computeEyePath(
   const cx = face.centerX + (isLeft ? -spacing : spacing) + dx;
   const cy = face.centerY + dy;
   
-  // Generate ellipse path with rotation
-  // Using ellipse element for now; could convert to path d if needed
-  return `<ellipse cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${ry.toFixed(2)}" fill="${EYE_FILL}" transform="rotate(${face.rotation} ${cx.toFixed(2)} ${cy.toFixed(2)})"/>`;
-}
-
-/**
- * Generate eyes for a shape using face layout computation
- */
-function generateEyes(productID: ProductID): string {
-  const leftEye = computeEyePath(productID, 'left');
-  const rightEye = computeEyePath(productID, 'right');
+  // Convert rotated ellipse to path d
+  // Approximation: use 4 arc segments for rotated ellipse
+  const rad = (face.rotation * Math.PI) / 180;
+  const cosR = Math.cos(rad);
+  const sinR = Math.sin(rad);
   
-  return `${leftEye}\n    ${rightEye}`;
+  // Compute ellipse boundary points (top, right, bottom, left)
+  const pts: [number, number][] = [
+    [0, -ry],  // top
+    [rx, 0],   // right
+    [0, ry],   // bottom
+    [-rx, 0],  // left
+  ].map(([x, y]) => [
+    cx + x * cosR - y * sinR,
+    cy + x * sinR + y * cosR,
+  ]);
+  
+  // Build elliptical arc path (4 quarters)
+  return `M ${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${face.rotation} 0,1 ${pts[1][0].toFixed(2)},${pts[1][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${face.rotation} 0,1 ${pts[2][0].toFixed(2)},${pts[2][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${face.rotation} 0,1 ${pts[3][0].toFixed(2)},${pts[3][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${face.rotation} 0,1 ${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)} Z`;
 }
 
 /**
- * Generate complete SVG mark
+ * Generate compound path with head + eye knockouts
+ * Uses fill-rule="evenodd" so eyes become transparent cutouts
+ */
+function generateCompoundPath(productID: ProductID, fillColor: string): string {
+  const headPath = SHAPES[productID];
+  const leftEyePath = computeEyePath(productID, 'left');
+  const rightEyePath = computeEyePath(productID, 'right');
+  
+  // Combine head + eyes as compound path (evenodd makes eyes transparent)
+  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${leftEyePath} ${rightEyePath}"/>`;
+}
+
+/**
+ * Generate complete SVG mark with knockout eyes
  */
 function generateMark(
   pickerShape: PickerShape,
@@ -390,16 +410,13 @@ function generateMark(
   const height = pocketPrint ? 192 : 229;
   
   const comment = pocketPrint 
-    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Product ID: ${productID} (${pickerShape}) -->`
-    : `\n  <!-- Grok Bot mark: face layout computation (product ID: ${productID}) -->\n  <!-- Recipe weight: ${EYE_SCALE_WEIGHTS[productID]} | App picker: ${pickerShape} -->`;
+    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Product ID: ${productID} (${pickerShape}) | Eyes: knockout cutouts (evenodd) -->`
+    : `\n  <!-- Grok Bot mark: face layout computation (product ID: ${productID}) -->\n  <!-- Recipe weight: ${EYE_SCALE_WEIGHTS[productID]} | App picker: ${pickerShape} | Eyes: transparent knockouts -->`;
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" viewBox="${VIEWBOX}" xmlns="http://www.w3.org/2000/svg">${comment}
   <g class="grok-bot-mark" data-product-id="${productID}" data-picker-shape="${pickerShape}">
-    <path class="grok-bot-mark__head" d="${SHAPES[productID]}" fill="${fillColor}"/>
-    <g class="grok-bot-mark__eyes">
-      ${generateEyes(productID)}
-    </g>
+    ${generateCompoundPath(productID, fillColor)}
   </g>
 </svg>`;
 }
@@ -420,7 +437,7 @@ function getFilename(
  * Main generation function
  */
 async function generateMarks() {
-  const outputDir = join(import.meta.dir, '..', 'assets', 'marks');
+  const outputDir = join(__dirname, '..', 'assets', 'marks');
   
   await mkdir(outputDir, { recursive: true });
   
@@ -447,7 +464,7 @@ async function generateMarks() {
       const filename = getFilename(shape, color);
       const filepath = join(outputDir, filename);
       
-      await Bun.write(filepath, svg);
+      await writeFile(filepath, svg, 'utf-8');
       count++;
     }
   }
@@ -459,13 +476,14 @@ async function generateMarks() {
   const pocketFilename = getFilename('blob', 'orange', true);
   const pocketFilepath = join(outputDir, pocketFilename);
   
-  await Bun.write(pocketFilepath, pocketSvg);
+  await writeFile(pocketFilepath, pocketSvg, 'utf-8');
   console.log(`✓ Generated pocket-print brand default: ${pocketFilename}`);
   
   console.log(`\n✨ Done! Generated ${count + 1} total SVG files in ${outputDir}`);
   console.log(`\n🎯 Brand default (foil/Railway hero): grok-bot-blob-orange.svg`);
   console.log(`🎽 Pocket-print: ${pocketFilename} (~1.2" Prodigi front placement)`);
-  console.log(`\n👀 Eyes: Computed from face params (position/scale/leftDX/rightDX) + recipe weights`);
+  console.log(`\n👀 Eyes: KNOCKOUT transparent cutouts (fill-rule evenodd) — NOT solid black fills`);
+  console.log(`📐 Positioning: Fully CONTAINED inside each shape with safety margins`);
   console.log(`📊 Recipe weights: blob:.92, egg:.96, squircle:.84, capsule:1, wedge:.94, hex:.94, cloud:1, teardrop:1`);
 }
 
