@@ -1,4 +1,5 @@
 import { serve } from 'bun';
+import Stripe from 'stripe';
 import {
   createSession,
   getSession,
@@ -18,7 +19,7 @@ import {
 import { getProduct, listProducts, getStripePriceId } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
-import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity } from './types';
+import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -74,6 +75,69 @@ function errorResponse(message: string, status = 400): Response {
 
 function requireIdentity(sessionId: string): AgentIdentity | null {
   return getAgentIdentity(sessionId) || null;
+}
+
+/**
+ * Shared order fulfillment logic.
+ * Called by both webhook handler and get_order reconciliation.
+ * Updates order status to 'paid', creates Prodigi order, and stores Prodigi ID.
+ */
+async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Session): Promise<void> {
+  const order = getOrder(orderId);
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
+  // Update order status to paid
+  updateOrderStatus(orderId, 'paid');
+  updateOrderStripeSession(orderId, session.id);
+
+  // Create Prodigi order if API key is configured
+  const prodigiClient = createProdigiClient();
+  const firstItem = order.items[0];
+  const product = getProduct(firstItem.productId);
+
+  if (product && process.env.PRODIGI_API_KEY) {
+    try {
+      const prodigiOrder = await prodigiClient.createOrder({
+        shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
+        recipient: {
+          name: session.customer_details?.name || 'Customer',
+          address: {
+            line1: session.shipping_details?.address?.line1 || '',
+            line2: session.shipping_details?.address?.line2 || '',
+            postalOrZipCode: session.shipping_details?.address?.postal_code || '',
+            countryCode: session.shipping_details?.address?.country || 'US',
+            townOrCity: session.shipping_details?.address?.city || '',
+            stateOrCounty: session.shipping_details?.address?.state || '',
+          },
+        },
+        items: [
+          {
+            sku: product.sku,
+            copies: firstItem.quantity,
+            attributes: product.attributes,
+            assets: [
+              {
+                printArea: 'front',
+                // TODO: Replace with real baked front canvas URL
+                // Specs: 360x360px mark (~1.2" @ 300dpi) on 2480x3507px (or larger) transparent canvas
+                // Mark: pocket-grok-bot-{shape}-{color}.svg rasterized at reduced size (40% smaller than 2")
+                // Placement: left chest (right half of front canvas), 2.5-4" below HPS
+                // See PRODUCT_IMAGERY.md for full bake specifications
+                url: 'https://example.com/artwork.png',
+              },
+            ],
+          },
+        ],
+      });
+
+      updateOrderProdigiId(orderId, prodigiOrder.id);
+    } catch (err) {
+      console.error('Prodigi order creation failed:', err);
+      // Don't throw - order is still marked as paid even if Prodigi fails
+    }
+  }
 }
 
 const TOOL_DEFINITIONS = {
@@ -460,7 +524,41 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       if (!order) {
         throw new Error('Order not found');
       }
-      
+
+      // Reconciliation: If order is pending and has Stripe session, check payment status
+      if (order.status === 'pending' && order.stripeCheckoutSessionId) {
+        try {
+          const session = await getCheckoutSession(order.stripeCheckoutSessionId);
+          if (session && session.payment_status === 'paid') {
+            // Payment completed but webhook didn't fire - fulfill now
+            await fulfillPaidOrder(order.id, session);
+            // Re-fetch order to get updated status
+            const updatedOrder = getOrder(args.orderId);
+            if (updatedOrder) {
+              const items = updatedOrder.items.map(item => {
+                const product = getProduct(item.productId);
+                return {
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  mark: item.mark,
+                  product,
+                };
+              });
+
+              return {
+                order: {
+                  ...updatedOrder,
+                  items,
+                },
+              };
+            }
+          }
+        } catch (err) {
+          console.error('Stripe reconciliation failed:', err);
+          // Continue with original pending order if reconciliation fails
+        }
+      }
+
       const items = order.items.map(item => {
         const product = getProduct(item.productId);
         return {
@@ -486,12 +584,29 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
 
 async function handleWebhook(req: Request): Promise<Response> {
   const body = await req.text();
+  const signature = req.headers.get('stripe-signature');
   
   let event: any;
-  try {
-    event = JSON.parse(body);
-  } catch {
-    return errorResponse('Invalid JSON', 400);
+  
+  // Verify signature if STRIPE_WEBHOOK_SECRET is configured
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (webhookSecret && signature) {
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+        apiVersion: '2024-11-20.acacia',
+      });
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message);
+      return errorResponse('Webhook signature verification failed', 400);
+    }
+  } else {
+    // No signature verification - parse as JSON (for testing without webhook secret)
+    try {
+      event = JSON.parse(body);
+    } catch {
+      return errorResponse('Invalid JSON', 400);
+    }
   }
   
   if (event.type === 'checkout.session.completed') {
@@ -507,52 +622,12 @@ async function handleWebhook(req: Request): Promise<Response> {
       return errorResponse('Order not found', 404);
     }
     
-    updateOrderStatus(orderId, 'paid');
-    updateOrderStripeSession(orderId, session.id);
-    
-    const prodigiClient = createProdigiClient();
-    const firstItem = order.items[0];
-    const product = getProduct(firstItem.productId);
-    
-    if (product && process.env.PRODIGI_API_KEY) {
-      try {
-        const prodigiOrder = await prodigiClient.createOrder({
-          shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
-          recipient: {
-            name: session.customer_details?.name || 'Customer',
-            address: {
-              line1: session.shipping_details?.address?.line1 || '',
-              line2: session.shipping_details?.address?.line2 || '',
-              postalOrZipCode: session.shipping_details?.address?.postal_code || '',
-              countryCode: session.shipping_details?.address?.country || 'US',
-              townOrCity: session.shipping_details?.address?.city || '',
-              stateOrCounty: session.shipping_details?.address?.state || '',
-            },
-          },
-          items: [
-            {
-              sku: product.sku,
-              copies: firstItem.quantity,
-              attributes: product.attributes,
-              assets: [
-                {
-                  printArea: 'front', // Required - no pocket/leftChest in Prodigi API
-                  // TODO: Replace with real baked front canvas URL
-                  // Specs: 360x360px mark (~1.2" @ 300dpi) on 2480x3507px (or larger) transparent canvas
-                  // Mark: pocket-grok-bot-{shape}-{color}.svg rasterized at reduced size (40% smaller than 2")
-                  // Placement: left chest (right half of front canvas), 2.5-4" below HPS
-                  // See PRODUCT_IMAGERY.md for full bake specifications
-                  url: 'https://example.com/artwork.png',
-                },
-              ],
-            },
-          ],
-        });
-        
-        updateOrderProdigiId(orderId, prodigiOrder.id);
-      } catch (err) {
-        console.error('Prodigi order creation failed:', err);
-      }
+    // Use shared fulfillment logic
+    try {
+      await fulfillPaidOrder(orderId, session);
+    } catch (err: any) {
+      console.error('Order fulfillment failed:', err);
+      return errorResponse('Order fulfillment failed', 500);
     }
     
     return jsonResponse({ received: true });
@@ -754,5 +829,7 @@ serve({
 console.log(`🤖 forbotsonly server running on http://localhost:${PORT}`);
 console.log(`📡 MCP endpoint: ${PUBLIC_URL}/mcp`);
 console.log(`🪝 Webhook endpoint: ${PUBLIC_URL}/webhook/stripe`);
+console.log(`   ⚙️  Configure in Stripe Dashboard: https://web-production-493046.up.railway.app/webhook/stripe`);
+console.log(`   🔑 Webhook secret: ${process.env.STRIPE_WEBHOOK_SECRET ? 'Configured (signature verification enabled)' : 'Not set (testing mode, no signature verification)'}`);
 console.log(`🔐 Stripe configured: ${isStripeConfigured() ? 'Yes' : 'No (stub mode)'}`);
 console.log(`🌐 Serving static files from ./dist/`);
