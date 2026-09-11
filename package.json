@@ -12,6 +12,8 @@
     "marks:generate": "bun run scripts/generate-marks.ts"
   },
   "dependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "stripe": "^17.5.0",
     "three": "^0.170.0"
   },

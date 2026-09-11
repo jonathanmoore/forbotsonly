@@ -5,16 +5,24 @@ import {
   getSession,
   setAgentIdentity,
   getAgentIdentity,
+  getAgentIdentityAsync,
   isIdentified,
+  isIdentifiedAsync,
   getCart,
+  getCartAsync,
   addToCart as addToCartStore,
+  addToCartAsync,
   clearCart as clearCartStore,
   createOrder,
+  createOrderAsync,
   getOrder,
+  getOrderAsync,
   updateOrderStripeSession,
   updateOrderProdigiId,
   updateOrderStatus,
   findOrderByStripeSession,
+  findOrderByStripeSessionAsync,
+  isUsingPostgres,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
@@ -73,7 +81,10 @@ function errorResponse(message: string, status = 400): Response {
   return jsonResponse({ error: message }, status);
 }
 
-function requireIdentity(sessionId: string): AgentIdentity | null {
+async function requireIdentity(sessionId: string): Promise<AgentIdentity | null> {
+  if (isUsingPostgres()) {
+    return (await getAgentIdentityAsync(sessionId)) || null;
+  }
   return getAgentIdentity(sessionId) || null;
 }
 
@@ -83,7 +94,7 @@ function requireIdentity(sessionId: string): AgentIdentity | null {
  * Logs detailed error information for troubleshooting.
  */
 async function createProdigiOrderForOrder(orderId: string, session: Stripe.Checkout.Session): Promise<string | null> {
-  const order = getOrder(orderId);
+  const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
   if (!order) {
     console.error(`[Prodigi] Order ${orderId} not found`);
     return null;
@@ -192,7 +203,7 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
  * Updates order status to 'paid', creates Prodigi order, and stores Prodigi ID.
  */
 async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Session): Promise<void> {
-  const order = getOrder(orderId);
+  const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
   if (!order) {
     throw new Error('Order not found');
   }
@@ -493,7 +504,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'add_to_cart': {
-      const identity = requireIdentity(sessionId);
+      const identity = await requireIdentity(sessionId);
       if (!identity) {
         throw new Error(
           'Access denied: add_to_cart requires agent identity with shape and color. ' +
@@ -545,10 +556,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         );
       }
       
-      const cart = addToCartStore(sessionId, args.productId, args.quantity, {
-        shape,
-        color,
-      }, args.size);
+      const cart = isUsingPostgres() 
+        ? await addToCartAsync(sessionId, args.productId, args.quantity, { shape, color }, args.size)
+        : addToCartStore(sessionId, args.productId, args.quantity, { shape, color }, args.size);
       
       const markUsed = (args.shape || args.color) ? 'custom' : 'identity';
       return {
@@ -561,7 +571,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'get_cart': {
-      const cart = getCart(sessionId);
+      const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
       const items = cart.items.map(item => {
         const product = getProduct(item.productId);
         return {
@@ -585,7 +595,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'clear_cart': {
-      if (!requireIdentity(sessionId)) {
+      if (!(await requireIdentity(sessionId))) {
         throw new Error(
           'Access denied: clear_cart requires agent identity. ' +
           'Call identify_agent first with name, shape, and color.'
@@ -600,7 +610,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'create_checkout': {
-      const identity = requireIdentity(sessionId);
+      const identity = await requireIdentity(sessionId);
       if (!identity) {
         throw new Error(
           'Access denied: create_checkout requires agent identity with shape and color. ' +
@@ -611,12 +621,12 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         );
       }
       
-      const cart = getCart(sessionId);
+      const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
       if (cart.items.length === 0) {
         throw new Error('Cart is empty');
       }
       
-      const order = createOrder(sessionId, cart);
+      const order = isUsingPostgres() ? await createOrderAsync(sessionId, cart) : createOrder(sessionId, cart);
       
       const firstItem = cart.items[0];
       const product = getProduct(firstItem.productId);
@@ -671,7 +681,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'preview_cart': {
-      const cart = getCart(sessionId);
+      const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
       
       if (cart.items.length === 0) {
         return {
@@ -682,7 +692,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       }
       
       // Get session identity for context
-      const identity = getAgentIdentity(sessionId);
+      const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
       
       // Build public origin for asset URLs
       const origin = process.env.PUBLIC_URL || 'http://localhost:3001';
@@ -732,7 +742,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     }
     
     case 'get_order': {
-      const order = getOrder(args.orderId);
+      const order = isUsingPostgres() ? await getOrderAsync(args.orderId) : getOrder(args.orderId);
       if (!order) {
         throw new Error('Order not found');
       }
@@ -746,7 +756,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             console.log(`[Reconciliation] Order ${order.id} is pending but Stripe shows paid - fulfilling now`);
             await fulfillPaidOrder(order.id, session);
             // Re-fetch order to get updated status
-            const updatedOrder = getOrder(args.orderId);
+            const updatedOrder = isUsingPostgres() ? await getOrderAsync(args.orderId) : getOrder(args.orderId);
             if (updatedOrder) {
               const items = updatedOrder.items.map(item => {
                 const product = getProduct(item.productId);
@@ -794,7 +804,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       }
 
       // Re-fetch order one final time to get any reconciliation updates
-      const finalOrder = getOrder(args.orderId);
+      const finalOrder = isUsingPostgres() ? await getOrderAsync(args.orderId) : getOrder(args.orderId);
       if (!finalOrder) {
         throw new Error('Order not found after reconciliation');
       }
@@ -839,9 +849,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       let order: Order | undefined;
       
       if (requestedOrderId) {
-        order = getOrder(requestedOrderId);
+        order = isUsingPostgres() ? await getOrderAsync(requestedOrderId) : getOrder(requestedOrderId);
       } else {
-        order = findOrderByStripeSession(stripeCheckoutSessionId);
+        order = isUsingPostgres() 
+          ? await findOrderByStripeSessionAsync(stripeCheckoutSessionId)
+          : findOrderByStripeSession(stripeCheckoutSessionId);
       }
       
       // If order is missing, recreate it
@@ -861,12 +873,13 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
               productId: 'tee-001',
               quantity: 1,
               mark: { shape: markShape, color: markColor },
+              size: 'l', // Default size for recovery
             },
           ],
           sessionId: session.id,
         };
         
-        order = createOrder(session.id, cart, orderId);
+        order = isUsingPostgres() ? await createOrderAsync(session.id, cart, orderId) : createOrder(session.id, cart, orderId);
         order.status = 'paid';
         updateOrderStripeSession(orderId, stripeCheckoutSessionId);
         
@@ -903,7 +916,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       }
       
       // Re-fetch order with latest updates
-      const recoveredOrder = getOrder(order.id);
+      const recoveredOrder = isUsingPostgres() ? await getOrderAsync(order.id) : getOrder(order.id);
       if (!recoveredOrder) {
         throw new Error('Order not found after recovery');
       }
@@ -969,7 +982,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       return errorResponse('No order ID in session metadata', 400);
     }
     
-    const order = getOrder(orderId);
+    const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
     if (!order) {
       return errorResponse('Order not found', 404);
     }
