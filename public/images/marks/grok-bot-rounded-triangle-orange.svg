@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grok Bot mark: face layout computation (product ID: wedge) -->
+  <!-- Recipe weight: 0.94 | App picker: rounded-triangle -->
+  <g class="grok-bot-mark" data-product-id="wedge" data-picker-shape="rounded-triangle">
+    <path class="grok-bot-mark__head" d="M 114.2705,46.53649999999999 Q 114.2705,28.53649999999999 126.87049999999999,41.13649999999999 L 186.2705,166.41649999999998 Q 204.2705,184.41649999999998 177.2705,184.41649999999998 L 51.2705,184.41649999999998 Q 24.2705,184.41649999999998 42.2705,166.41649999999998 L 101.6705,41.13649999999999 Q 114.2705,28.53649999999999 114.2705,46.53649999999999 Z" fill="#FF6B35"/>
+    <g class="grok-bot-mark__eyes">
+      <ellipse cx="88.00" cy="68.00" rx="6.02" ry="12.03" fill="#0A0A0A" transform="rotate(-25 88.00 68.00)"/>
+    <ellipse cx="125.00" cy="63.00" rx="6.02" ry="12.03" fill="#0A0A0A" transform="rotate(-25 125.00 63.00)"/>
+    </g>
+  </g>
+</svg>

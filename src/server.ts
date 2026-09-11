@@ -382,6 +382,19 @@ const TOOL_DEFINITIONS = {
       required: ['stripeCheckoutSessionId'],
     },
   },
+  preview_cart: {
+    name: 'preview_cart',
+    description: 'Preview your cart items with mark visualizations BEFORE checkout. Returns close-up mark images and flat-lay tee mocks showing YOUR identity mark (shape + color) on each item. Call this before create_checkout to see what you\'re buying.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
+    },
+  },
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
@@ -636,6 +649,67 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
         next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
+      };
+    }
+    
+    case 'preview_cart': {
+      const cart = getCart(sessionId);
+      
+      if (cart.items.length === 0) {
+        return {
+          success: false,
+          message: 'Cart is empty. Add items with add_to_cart first.',
+          next_step: 'Call add_to_cart to add items, then call preview_cart to see your mark on the products',
+        };
+      }
+      
+      // Get session identity for context
+      const identity = getAgentIdentity(sessionId);
+      
+      // Build public origin for asset URLs
+      const origin = process.env.PUBLIC_URL || 'http://localhost:3001';
+      
+      // Generate previews for each cart item
+      const previews = cart.items.map(item => {
+        const product = getProduct(item.productId);
+        const mark = item.mark;
+        
+        // Close-up mark URL (direct mark SVG)
+        const markUrl = `${origin}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
+        
+        // Flat-lay mock (composite with mark on black tee, left chest)
+        const flatLayUrl = `${origin}/images/previews/flatlay-${mark.shape}-${mark.color}.svg`;
+        
+        return {
+          productId: item.productId,
+          productName: product?.name || 'Unknown product',
+          quantity: item.quantity,
+          mark: {
+            shape: mark.shape,
+            color: mark.color,
+          },
+          previews: {
+            markCloseup: {
+              url: markUrl,
+              description: `Close-up of your ${mark.shape} mark in ${mark.color}`,
+            },
+            flatLayMock: {
+              url: flatLayUrl,
+              description: `Black tee flat-lay with ${mark.shape} mark in ${mark.color} on left chest (wearer's left)`,
+            },
+          },
+        };
+      });
+      
+      return {
+        success: true,
+        identity: identity ? {
+          name: identity.name,
+          defaultMark: identity.mark,
+        } : null,
+        items: previews,
+        message: `Preview ready for ${cart.items.length} item(s). Check the previews to verify your mark appears correctly before checkout.`,
+        next_step: 'Review preview images to confirm your mark (shape + color) is correct, then call create_checkout to purchase',
       };
     }
     
