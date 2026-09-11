@@ -407,6 +407,42 @@ Creates a Stripe Checkout session for the cart.
 
 Gets order details by order ID, including mark choices for each item.
 
+### 9. `recover_paid_checkout` 🔧 Admin Tool
+
+Recovers an orphaned paid checkout session after data loss (e.g., redeploy without volume persistence). Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. **Idempotent** - safe to call multiple times. **DOES NOT create a new charge** - only recovers existing paid sessions.
+
+**Use case:** Railway redeploy wiped in-memory store before volume was configured, orphaning a paid order.
+
+**Input:**
+- `stripeCheckoutSessionId` (string, required): Stripe checkout session ID (e.g., "cs_live_...")
+- `orderId` (string, optional): Restore exact order ID (useful if you know the original ID)
+- `shape` (string, optional): Mark shape for recreated order (defaults to hexagon)
+- `color` (string, optional): Mark color for recreated order (defaults to orange)
+
+**Output:**
+```json
+{
+  "success": true,
+  "recovered": true,
+  "order": {
+    "id": "ord_1789089764884_hh1rzcckj",
+    "status": "paid",
+    "items": [...],
+    "stripeCheckoutSessionId": "cs_live_a1aL...",
+    "prodigiOrderId": "pro_...",
+    "createdAt": 1789089764884
+  },
+  "message": "Recovery complete. Order ord_... is paid with Prodigi order pro_..."
+}
+```
+
+**Behavior:**
+- Validates Stripe session is paid (payment_status === 'paid')
+- Recreates order if missing (uses provided orderId or generates new one)
+- Links order to Stripe session
+- Creates Prodigi fulfillment if not already done
+- If order already exists with Prodigi order, returns it without changes
+
 **Order Reconciliation:** If the order is `pending` and has a Stripe checkout session ID, `get_order` will automatically check Stripe for the payment status. If payment was completed but the webhook didn't fire (e.g., webhook not configured), the order will be reconciled: status updated to `paid` and Prodigi order created.
 
 **Input:**
@@ -541,6 +577,7 @@ Prodigi order includes:
 | `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | (not used server-side) |
 | `PORT` | Server port | `3001` |
 | `PUBLIC_URL` | Public server URL (for Railway) | `http://localhost:3001` |
+| `DATA_DIR` | Directory for persistent storage | `./data` |
 
 ### Secrets in Production
 
@@ -619,11 +656,45 @@ Even without webhooks configured, orders will be reconciled when `get_order` is 
 
 ## Development Notes
 
-### Cart State
+### Durable Storage
 
-- **Current**: In-memory session-based cart (non-persistent)
-- **Limitation**: Restarts clear all carts
-- **Follow-up**: Add Redis/database for persistence
+- **Implementation**: File-backed persistence using JSON files under `DATA_DIR`
+- **Default location**: `./data` (configurable via `DATA_DIR` env var)
+- **Files**: `sessions.json` (carts + identities), `orders.json` (orders)
+- **Railway**: Mount a volume at `/data` to persist across redeploys
+  - Navigate to your Railway service → Data → Volumes → Mount Volume
+  - Set mount path: `/data`
+  - Set `DATA_DIR=/data` environment variable
+- **Behavior**: All writes (cart updates, order creation, status changes) persist immediately
+- **Startup**: Automatically loads sessions and orders from disk on boot
+
+### Order Recovery
+
+If a redeploy wipes data before setting up volume persistence, use the `recover_paid_checkout` tool to restore orphaned orders:
+
+```bash
+# Call via MCP:
+POST /mcp
+{
+  "method": "tools/call",
+  "params": {
+    "name": "recover_paid_checkout",
+    "arguments": {
+      "stripeCheckoutSessionId": "cs_live_a1aL...",
+      "orderId": "ord_1789089764884_hh1rzcckj",  // optional
+      "shape": "hexagon",  // optional, defaults to hexagon
+      "color": "orange"    // optional, defaults to orange
+    }
+  }
+}
+```
+
+This tool:
+- Retrieves the Stripe session and validates payment_status === paid
+- Recreates the order if missing (preserves orderId if provided)
+- Creates Prodigi fulfillment if not already done
+- Idempotent - safe to call multiple times
+- **DOES NOT create a new charge** - only recovers existing payments
 
 ### Stub Artwork
 
