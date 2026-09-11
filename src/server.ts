@@ -121,9 +121,14 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
 
     // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-    const artworkUrl = `${publicUrl}/images/grok-bot-hexagon-orange.svg`;
+    
+    // Build artwork URL from order line item's mark (shape + color)
+    // Uses real mark pack: /images/marks/grok-bot-{shape}-{color}.svg
+    const mark = firstItem.mark;
+    const artworkUrl = `${publicUrl}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
 
-    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}, artwork: ${artworkUrl}`);
+    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
+    console.log(`[Prodigi] Artwork URL: ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
 
     // Build address object, omitting line2 if empty/whitespace
     const address: Record<string, string> = {
