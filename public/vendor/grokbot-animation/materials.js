@@ -11,21 +11,21 @@ const defineCatalog = (entries) => Object.freeze(entries.map((entry) => Object.f
 export const MATERIAL_IDS = Object.freeze(["solid", "gradient", "rainbow-glass"]);
 
 export const SOLID_PRESETS = defineCatalog([
-  { id: "ink", label: { zh: "墨黑", en: "Ink" }, color: "#0b0b0b" },
-  { id: "ultraviolet", label: { zh: "紫外光", en: "Ultraviolet" }, color: "#705cff" },
-  { id: "signal-blue", label: { zh: "信号蓝", en: "Signal blue" }, color: "#3c82f6" },
-  { id: "coral", label: { zh: "暖珊瑚", en: "Warm coral" }, color: "#f9705c" },
-  { id: "mint", label: { zh: "薄荷", en: "Mint" }, color: "#27b98b" },
-  { id: "solar", label: { zh: "日光", en: "Solar" }, color: "#f5b13f" },
-  { id: "graphite", label: { zh: "石墨", en: "Graphite" }, color: "#45505f" },
-  { id: "pearl", label: { zh: "珍珠", en: "Pearl" }, color: "#eef1f8" },
+  { id: "ink", label: { en: "Ink" }, color: "#0b0b0b" },
+  { id: "ultraviolet", label: { en: "Ultraviolet" }, color: "#705cff" },
+  { id: "signal-blue", label: { en: "Signal blue" }, color: "#3c82f6" },
+  { id: "coral", label: { en: "Warm coral" }, color: "#f9705c" },
+  { id: "mint", label: { en: "Mint" }, color: "#27b98b" },
+  { id: "solar", label: { en: "Solar" }, color: "#f5b13f" },
+  { id: "graphite", label: { en: "Graphite" }, color: "#45505f" },
+  { id: "pearl", label: { en: "Pearl" }, color: "#eef1f8" },
 ]);
 
 // Presets use ordered stops and explicit angles so their output remains portable.
 export const GRADIENT_PRESETS = defineCatalog([
   {
     id: "electric-dusk",
-    label: { zh: "电光暮色", en: "Electric dusk" },
+    label: { en: "Electric dusk" },
     angle: 135,
     stops: [
       { offset: 0, color: "#5658f7" },
@@ -35,7 +35,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "ocean-signal",
-    label: { zh: "海洋信号", en: "Ocean signal" },
+    label: { en: "Ocean signal" },
     angle: 130,
     stops: [
       { offset: 0, color: "#315cf5" },
@@ -45,7 +45,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "warm-flare",
-    label: { zh: "暖焰", en: "Warm flare" },
+    label: { en: "Warm flare" },
     angle: 45,
     stops: [
       { offset: 0, color: "#ff6b6b" },
@@ -55,7 +55,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "mint-violet",
-    label: { zh: "薄荷紫", en: "Mint violet" },
+    label: { en: "Mint violet" },
     angle: 120,
     stops: [
       { offset: 0, color: "#2dd4bf" },
@@ -65,7 +65,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "midnight-plum",
-    label: { zh: "午夜李子", en: "Midnight plum" },
+    label: { en: "Midnight plum" },
     angle: 145,
     stops: [
       { offset: 0, color: "#111827" },
@@ -75,7 +75,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "peach-sky",
-    label: { zh: "桃色天空", en: "Peach sky" },
+    label: { en: "Peach sky" },
     angle: 35,
     stops: [
       { offset: 0, color: "#fb7185" },
@@ -85,7 +85,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "acid-lime",
-    label: { zh: "酸性青柠", en: "Acid lime" },
+    label: { en: "Acid lime" },
     angle: 105,
     stops: [
       { offset: 0, color: "#14b8a6" },
@@ -95,7 +95,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "blue-hour",
-    label: { zh: "蓝调时刻", en: "Blue hour" },
+    label: { en: "Blue hour" },
     angle: 160,
     stops: [
       { offset: 0, color: "#0f172a" },
@@ -105,7 +105,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "porcelain-bloom",
-    label: { zh: "瓷雾花影", en: "Porcelain bloom" },
+    label: { en: "Porcelain bloom" },
     kind: "soft",
     angle: 0,
     base: "#f5f7f7",
@@ -123,7 +123,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "lilac-breath",
-    label: { zh: "丁香呼吸", en: "Lilac breath" },
+    label: { en: "Lilac breath" },
     kind: "soft",
     angle: 0,
     base: "#faf7fb",
@@ -141,7 +141,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "blue-milk",
-    label: { zh: "蓝调牛乳", en: "Blue milk" },
+    label: { en: "Blue milk" },
     kind: "soft",
     angle: 0,
     base: "#f2f7fa",
@@ -159,7 +159,7 @@ export const GRADIENT_PRESETS = defineCatalog([
   },
   {
     id: "peach-haze",
-    label: { zh: "蜜桃柔霭", en: "Peach haze" },
+    label: { en: "Peach haze" },
     kind: "soft",
     angle: 0,
     base: "#fff8f4",
@@ -180,7 +180,7 @@ export const GRADIENT_PRESETS = defineCatalog([
 export const GLASS_PRESETS = defineCatalog([
   {
     id: "iridescent-orb",
-    label: { zh: "深海虹彩", en: "Iridescent orb" },
+    label: { en: "Iridescent orb" },
     stops: [
       { offset: 0, color: "#eafcff" },
       { offset: 0.1, color: "#a2e9ff" },
@@ -208,7 +208,7 @@ export const GLASS_PRESETS = defineCatalog([
   },
   {
     id: "prism",
-    label: { zh: "棱镜泡泡", en: "Prism bubble" },
+    label: { en: "Prism bubble" },
     stops: [
       { offset: 0, color: "#fff7fb" },
       { offset: 0.18, color: "#ff7eb6" },
@@ -226,7 +226,7 @@ export const GLASS_PRESETS = defineCatalog([
   },
   {
     id: "aurora",
-    label: { zh: "极光玻璃", en: "Aurora glass" },
+    label: { en: "Aurora glass" },
     stops: [
       { offset: 0, color: "#eaffff" },
       { offset: 0.24, color: "#39e6d0" },
@@ -243,7 +243,7 @@ export const GLASS_PRESETS = defineCatalog([
   },
   {
     id: "candy",
-    label: { zh: "糖果玻璃", en: "Candy glass" },
+    label: { en: "Candy glass" },
     stops: [
       { offset: 0, color: "#fff1f8" },
       { offset: 0.25, color: "#ff87d4" },
@@ -260,7 +260,7 @@ export const GLASS_PRESETS = defineCatalog([
   },
   {
     id: "opal",
-    label: { zh: "蛋白石", en: "Opal" },
+    label: { en: "Opal" },
     stops: [
       { offset: 0, color: "#ffffff" },
       { offset: 0.28, color: "#c8f7ff" },
@@ -278,9 +278,9 @@ export const GLASS_PRESETS = defineCatalog([
 ]);
 
 export const MATERIAL_LABELS = Object.freeze({
-  solid: Object.freeze({ zh: "纯色", en: "Solid" }),
-  gradient: Object.freeze({ zh: "渐变", en: "Gradient" }),
-  "rainbow-glass": Object.freeze({ zh: "彩虹玻璃", en: "Rainbow glass" }),
+  solid: Object.freeze({ en: "Solid" }),
+  gradient: Object.freeze({ en: "Gradient" }),
+  "rainbow-glass": Object.freeze({ en: "Rainbow glass" }),
 });
 
 export const DEFAULT_MATERIAL = Object.freeze({
