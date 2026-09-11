@@ -157,9 +157,8 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
       ],
     });
 
-    // Prodigi API returns different response structures depending on endpoint
-    // Try both .id and .order.id paths
-    const prodigiOrderId = prodigiOrder.id || (prodigiOrder as any).order?.id;
+    // ProdigiClient.createOrder() already unwraps the nested order object
+    const prodigiOrderId = prodigiOrder.id;
     
     if (!prodigiOrderId) {
       console.error(`[Prodigi] Created order for ${orderId} but response missing id field. Response:`, JSON.stringify(prodigiOrder));
