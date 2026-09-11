@@ -21,16 +21,17 @@ Replaced the static Three.js dragon foil sticker on the human page with an anima
 - Configuration:
   - **State**: `idle` with automatic cycling through `curious`, `playful`, `happy`
   - **Shape**: `blob` (classic Grok Bot silhouette)
-  - **Material**: `rainbow-glass` with `prism` preset
+  - **Material**: `rainbow-glass` with `opal` preset
   - **Features**: Pointer following, interactive state transitions
   - **Size**: 320px (matches original foil sticker dimensions)
 
-### 3. Material Selection: Prism Glass
-The `prism` rainbow-glass preset provides a chrome/holographic foil effect with:
-- Metallic shimmer with iridescent color shifts
-- Light-reactive surface (follows pointer movement)
+### 3. Material Selection: Opal Glass
+The `opal` rainbow-glass preset provides a chrome/holographic foil effect with:
+- **Higher sheen** (0.9) for metallic appearance
+- **Subtle pastels** (white, light cyan/purple/pink) closer to chrome/pewter
+- **Less saturated** than rainbow presets, matches minimal aesthetic
+- **Light-reactive** surface that follows pointer movement
 - Soft specular highlights similar to foil material
-- Maintains minimal black void aesthetic
 
 ### 4. Interactive Behavior
 - **Idle**: Automatically cycles through subtle emotional states (3-5s intervals)
@@ -79,7 +80,7 @@ npm run dev
 
 **Expected behavior**:
 1. Page loads with animated Grok Bot sticker on black void
-2. Sticker has holographic prism material (chrome/rainbow shimmer)
+2. Sticker has holographic opal material (subtle chrome/pewter shimmer)
 3. Eyes and shape morph subtly in idle state
 4. Pointer movement causes bot to follow cursor
 5. Hover triggers `curious` state (wider eyes, slight tilt)
