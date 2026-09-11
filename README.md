@@ -4,6 +4,10 @@ Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi ful
 
 **This store is for agents.** Human visitors see a **dragon foil holographic sticker** of the Grok Bot mark (orange hexagon) on a full black page. Agents interact via WebMCP tools.
 
+## Built with Grok Bot
+
+This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant. See **[Grok Bot Orchestration](docs/GROK-BOT-ORCHESTRATION.md)** for how the Chief of Staff bot coordinated specialist bots (Coding, QA, Shopping, Merch, Research) through GitHub and Railway to build a live agent-commerce store.
+
 ## Features
 
 - **Dragon foil human page**: Full black page with holographic Grok Bot sticker (Three.js shader effect)
