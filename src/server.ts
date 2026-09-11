@@ -78,6 +78,108 @@ function requireIdentity(sessionId: string): AgentIdentity | null {
 }
 
 /**
+ * Create Prodigi order for a given order ID.
+ * Returns prodigiOrderId on success, null on failure.
+ * Logs detailed error information for troubleshooting.
+ */
+async function createProdigiOrderForOrder(orderId: string, session: Stripe.Checkout.Session): Promise<string | null> {
+  const order = getOrder(orderId);
+  if (!order) {
+    console.error(`[Prodigi] Order ${orderId} not found`);
+    return null;
+  }
+
+  const firstItem = order.items[0];
+  const product = getProduct(firstItem.productId);
+
+  if (!product) {
+    console.error(`[Prodigi] Product ${firstItem.productId} not found for order ${orderId}`);
+    return null;
+  }
+
+  if (!process.env.PRODIGI_API_KEY) {
+    console.log(`[Prodigi] API key not configured - skipping Prodigi order for ${orderId}`);
+    return null;
+  }
+
+  try {
+    const prodigiClient = createProdigiClient();
+
+    // Map Stripe session to recipient address
+    // Priority: shipping_details > customer_details
+    // Fallback: Prodigi sandbox test address when fields are empty (for QA testing)
+    const shippingAddress = session.shipping_details?.address;
+    const customerDetails = session.customer_details;
+    
+    const line1 = shippingAddress?.line1 || customerDetails?.address?.line1 || '1234 Main St';
+    const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
+    const city = shippingAddress?.city || customerDetails?.address?.city || 'San Francisco';
+    const state = shippingAddress?.state || customerDetails?.address?.state || 'CA';
+    const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code || '94102';
+    const country = shippingAddress?.country || customerDetails?.address?.country || 'US';
+    const recipientName = shippingAddress?.name || customerDetails?.name || 'Test Customer';
+
+    // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
+    const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+    const artworkUrl = `${publicUrl}/images/grok-bot-hexagon-orange.svg`;
+
+    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${product.attributes.size.toUpperCase()}, artwork: ${artworkUrl}`);
+
+    const prodigiOrder = await prodigiClient.createOrder({
+      shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
+      recipient: {
+        name: recipientName,
+        address: {
+          line1,
+          line2,
+          postalOrZipCode: postalCode,
+          countryCode: country,
+          townOrCity: city,
+          stateOrCounty: state,
+        },
+      },
+      items: [
+        {
+          sku: product.sku,
+          copies: firstItem.quantity,
+          // Prodigi requires uppercase size values for GLOBAL-TEE-BC-3001
+          sizing: product.attributes.size.toUpperCase(),
+          attributes: {
+            color: product.attributes.color,
+          },
+          assets: [
+            {
+              printArea: 'front',
+              url: artworkUrl,
+            },
+          ],
+        },
+      ],
+    });
+
+    // Prodigi API returns different response structures depending on endpoint
+    // Try both .id and .order.id paths
+    const prodigiOrderId = prodigiOrder.id || (prodigiOrder as any).order?.id;
+    
+    if (!prodigiOrderId) {
+      console.error(`[Prodigi] Created order for ${orderId} but response missing id field. Response:`, JSON.stringify(prodigiOrder));
+      return null;
+    }
+
+    console.log(`[Prodigi] ✅ Successfully created Prodigi order ${prodigiOrderId} for ${orderId}`);
+    return prodigiOrderId;
+  } catch (err: any) {
+    console.error(`[Prodigi] ❌ Failed to create order for ${orderId}:`, {
+      message: err.message,
+      status: err.status,
+      body: err.body,
+      stack: err.stack,
+    });
+    return null;
+  }
+}
+
+/**
  * Shared order fulfillment logic.
  * Called by both webhook handler and get_order reconciliation.
  * Updates order status to 'paid', creates Prodigi order, and stores Prodigi ID.
@@ -93,68 +195,9 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
   updateOrderStripeSession(orderId, session.id);
 
   // Create Prodigi order if API key is configured
-  const prodigiClient = createProdigiClient();
-  const firstItem = order.items[0];
-  const product = getProduct(firstItem.productId);
-
-  if (product && process.env.PRODIGI_API_KEY) {
-    try {
-      // Map Stripe session to recipient address
-      // Priority: shipping_details > customer_details
-      // Fallback: Prodigi sandbox test address when fields are empty (for QA testing)
-      const shippingAddress = session.shipping_details?.address;
-      const customerDetails = session.customer_details;
-      
-      const line1 = shippingAddress?.line1 || customerDetails?.address?.line1 || '1234 Main St';
-      const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
-      const city = shippingAddress?.city || customerDetails?.address?.city || 'San Francisco';
-      const state = shippingAddress?.state || customerDetails?.address?.state || 'CA';
-      const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code || '94102';
-      const country = shippingAddress?.country || customerDetails?.address?.country || 'US';
-      const recipientName = shippingAddress?.name || customerDetails?.name || 'Test Customer';
-
-      const prodigiOrder = await prodigiClient.createOrder({
-        shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
-        recipient: {
-          name: recipientName,
-          address: {
-            line1,
-            line2,
-            postalOrZipCode: postalCode,
-            countryCode: country,
-            townOrCity: city,
-            stateOrCounty: state,
-          },
-        },
-        items: [
-          {
-            sku: product.sku,
-            copies: firstItem.quantity,
-            // Prodigi requires uppercase size values for GLOBAL-TEE-BC-3001
-            sizing: product.attributes.size.toUpperCase(),
-            attributes: {
-              color: product.attributes.color,
-            },
-            assets: [
-              {
-                printArea: 'front',
-                // TODO: Replace with real baked front canvas URL
-                // Specs: 360x360px mark (~1.2" @ 300dpi) on 2480x3507px (or larger) transparent canvas
-                // Mark: pocket-grok-bot-{shape}-{color}.svg rasterized at reduced size (40% smaller than 2")
-                // Placement: left chest (right half of front canvas), 2.5-4" below HPS
-                // See PRODUCT_IMAGERY.md for full bake specifications
-                url: 'https://example.com/artwork.png',
-              },
-            ],
-          },
-        ],
-      });
-
-      updateOrderProdigiId(orderId, prodigiOrder.id);
-    } catch (err) {
-      console.error('Prodigi order creation failed:', err);
-      // Don't throw - order is still marked as paid even if Prodigi fails
-    }
+  const prodigiOrderId = await createProdigiOrderForOrder(orderId, session);
+  if (prodigiOrderId) {
+    updateOrderProdigiId(orderId, prodigiOrderId);
   }
 }
 
@@ -543,12 +586,13 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Order not found');
       }
 
-      // Reconciliation: If order is pending and has Stripe session, check payment status
+      // Reconciliation #1: If order is pending and has Stripe session, check payment status
       if (order.status === 'pending' && order.stripeCheckoutSessionId) {
         try {
           const session = await getCheckoutSession(order.stripeCheckoutSessionId);
           if (session && session.payment_status === 'paid') {
             // Payment completed but webhook didn't fire - fulfill now
+            console.log(`[Reconciliation] Order ${order.id} is pending but Stripe shows paid - fulfilling now`);
             await fulfillPaidOrder(order.id, session);
             // Re-fetch order to get updated status
             const updatedOrder = getOrder(args.orderId);
@@ -572,12 +616,39 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             }
           }
         } catch (err) {
-          console.error('Stripe reconciliation failed:', err);
+          console.error('[Reconciliation] Stripe check failed:', err);
           // Continue with original pending order if reconciliation fails
         }
       }
 
-      const items = order.items.map(item => {
+      // Reconciliation #2: If order is paid but missing prodigiOrderId, retry Prodigi creation
+      // This handles the case where payment succeeded but Prodigi API failed (network, bad request, etc.)
+      if (order.status === 'paid' && !order.prodigiOrderId && order.stripeCheckoutSessionId) {
+        try {
+          console.log(`[Reconciliation] Order ${order.id} is paid but missing prodigiOrderId - retrying Prodigi creation`);
+          const session = await getCheckoutSession(order.stripeCheckoutSessionId);
+          if (session) {
+            const prodigiOrderId = await createProdigiOrderForOrder(order.id, session);
+            if (prodigiOrderId) {
+              updateOrderProdigiId(order.id, prodigiOrderId);
+              console.log(`[Reconciliation] ✅ Successfully created Prodigi order ${prodigiOrderId} for ${order.id}`);
+            } else {
+              console.error(`[Reconciliation] ❌ Failed to create Prodigi order for ${order.id} (see Prodigi logs above)`);
+            }
+          }
+        } catch (err) {
+          console.error('[Reconciliation] Prodigi retry failed:', err);
+          // Continue - order stays paid but without prodigiOrderId
+        }
+      }
+
+      // Re-fetch order one final time to get any reconciliation updates
+      const finalOrder = getOrder(args.orderId);
+      if (!finalOrder) {
+        throw new Error('Order not found after reconciliation');
+      }
+
+      const items = finalOrder.items.map(item => {
         const product = getProduct(item.productId);
         return {
           productId: item.productId,
@@ -589,7 +660,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       
       return {
         order: {
-          ...order,
+          ...finalOrder,
           items,
         },
       };
