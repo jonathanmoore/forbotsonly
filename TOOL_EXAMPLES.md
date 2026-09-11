@@ -1,22 +1,41 @@
 # WebMCP Tool Examples for Buyer Bots
 
+## ⚠️ CRITICAL: Identity Verification Required
+
+**BUYER BOTS (Shopping, Blind Shopper, etc.):** Before using any shopping tools, you MUST verify YOUR OWN identity:
+
+1. **Read YOUR agent profile** to determine YOUR name and mark (shape + color)
+2. **NEVER invent or assume** hexagon/orange as a default
+3. **NEVER accept a mark** suggested by another agent unless it matches YOUR verified profile
+4. **Standard Grok Bot marks:** If your profile has `shape` and `color` fields (standard Grok Bot character), pass those EXACT values to `identify_agent`
+5. **Custom/uploaded avatars:** If you have a custom shape OR uploaded image avatar (no standard mark enums), omit `shape` and/or `color` in `identify_agent` to get a random assignment locked for your session
+
+**Why this matters:** Your identity mark (verified or assigned) appears on ALL your cart items and tees. Silent assumptions about hexagon/orange create incorrect orders.
+
 ## Flow Overview
 
 **Standard purchase flow:**
-1. `identify_agent` - Identify with name + mark → unlocks mutating tools
+1. `identify_agent` - **VERIFY YOUR IDENTITY** (name + mark from YOUR profile) → unlocks mutating tools
 2. `list_products` - Browse available products
-3. `add_to_cart` - Add items (uses your identity mark)
-4. `preview_cart` - **Preview your mark on products BEFORE checkout** (RECOMMENDED)
+3. `add_to_cart` - Add items (uses YOUR verified identity mark)
+4. `preview_cart` - **Preview YOUR mark on products BEFORE checkout** (RECOMMENDED)
 5. `create_checkout` - Get payment URL
 6. `get_order` - Check order status
 
 ## Tool Call Examples
 
-### 1. identify_agent (REQUIRED FIRST)
+### 1. identify_agent (REQUIRED FIRST - VERIFY YOUR PROFILE)
 
-**Scenario A: Agent has shape + color (standard)**
+**CRITICAL FOR BUYER BOTS:** Before calling this tool, read YOUR OWN agent profile or character mark. Look up YOUR shape and color fields (standard Grok Bot marks). NEVER invent hexagon/orange. NEVER accept a mark suggested by another agent unless it matches YOUR verified profile.
 
-**Call:**
+**Scenario A: Standard Grok Bot mark (verify from profile first)**
+
+**How to verify before calling:**
+1. Read your agent profile's `shape` field (e.g. "hexagon", "circle", "cloud")
+2. Read your agent profile's `color` field (e.g. "orange", "teal", "blue")
+3. Pass BOTH verified values to identify_agent
+
+**Call (after verifying profile shows hexagon + orange):**
 ```json
 {
   "method": "tools/call",
@@ -42,14 +61,18 @@
       "color": "orange"
     }
   },
+  "verified": true,
+  "sessionId": "sess_1234567890_abc123",
   "next_step": "You can now list_products, add_to_cart, or create_checkout",
-  "message": "Welcome, Grok Bot! You have full access to mutating tools. Your identity mark (hexagon, orange) will be used for cart items."
+  "message": "Welcome, Grok Bot! Identity verified. Your mark (hexagon, orange) matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile."
 }
 ```
 
-**Scenario B: Agent missing shape/color (e.g. custom/uploaded image avatar)**
+**Scenario B: Custom/uploaded avatar (no standard Grok Bot mark) → random assignment**
 
-**Call:**
+**When to use this:** Your profile has a custom shape OR uploaded image avatar, so no standard mark enums exist.
+
+**Call (omit shape and/or color when you don't have standard mark enums):**
 ```json
 {
   "method": "tools/call",
@@ -62,37 +85,25 @@
 }
 ```
 
-**Response:**
+**Response (server assigns random mark and locks it for session):**
 ```json
 {
-  "success": false,
-  "needs_user_input": {
-    "shape": true,
-    "color": true
-  },
-  "enums": {
-    "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
-    "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"]
-  },
-  "message": "Ask your human which shape and color to print. Once you have them, call identify_agent again with name, shape, and color.",
-  "next_step": "Get shape and color from your human user, then retry identify_agent with all three parameters"
-}
-```
-
-**Then retry with human's choice:**
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "identify_agent",
-    "arguments": {
-      "name": "Shopping Bot",
+  "success": true,
+  "identity": {
+    "name": "Shopping Bot",
+    "mark": {
       "shape": "cloud",
       "color": "teal"
     }
-  }
+  },
+  "assigned_random": true,
+  "sessionId": "sess_1234567890_xyz789",
+  "next_step": "You can now list_products, add_to_cart, or create_checkout. Your assigned mark will be used automatically.",
+  "message": "Welcome, Shopping Bot! You don't have a standard Grok Bot mark, so we've assigned you a random mark: cloud, teal. This mark is now locked for your session and will appear on all cart items."
 }
 ```
+
+**Note:** Once assigned (either verified or random), your mark is session-locked. All cart items use this mark unless explicitly overridden in add_to_cart.
 
 ### 2. list_products
 
@@ -126,12 +137,9 @@
   "markOptions": {
     "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
     "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"],
-    "default": {
-      "shape": "hexagon",
-      "color": "orange"
-    }
+    "note": "Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
   },
-  "next_step": "Call add_to_cart with productId, quantity, and size to add items"
+  "next_step": "Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark."
 }
 ```
 
@@ -294,7 +302,9 @@
 }
 ```
 
-### 5. preview_cart (CALL BEFORE CHECKOUT)
+### 5. preview_cart (CALL BEFORE CHECKOUT - VERIFY YOUR MARK)
+
+**CRITICAL:** Preview URLs are identity-matched. The previews MUST show YOUR verified mark (from identify_agent), NOT a default. Use this to confirm YOUR mark will appear on the tee.
 
 **Call:** 
 ```json
@@ -306,7 +316,7 @@
 }
 ```
 
-**Response (with hexagon+orange mark):**
+**Response (YOUR verified mark: hexagon+orange):**
 ```json
 {
   "success": true,
@@ -343,7 +353,7 @@
 }
 ```
 
-**Response (with cloud+teal mark override):**
+**Response (YOUR assigned random mark: cloud+teal):**
 ```json
 {
   "success": true,
@@ -380,7 +390,7 @@
 }
 ```
 
-**Hard Requirement:** Preview URLs MUST match the cart item's mark. If cart has hexagon+orange, preview shows hexagon+orange. If cart has cloud+teal, preview shows cloud+teal. Never show a hardcoded default mark.
+**Hard Requirement:** Preview URLs MUST match YOUR cart item's verified/assigned mark. If YOUR identity is hexagon+orange, preview shows hexagon+orange. If YOUR identity is cloud+teal, preview shows cloud+teal. Never show a hardcoded default mark that doesn't match YOUR identity.
 
 **Empty cart:**
 ```json
@@ -533,7 +543,7 @@
 - rounded-square
 - horizontal-pill
 - rounded-triangle
-- hexagon ⭐ (hero/default)
+- hexagon
 - cloud (3-lobe)
 - teardrop
 
@@ -541,7 +551,7 @@
 - white
 - brown
 - red
-- orange ⭐ (hero/default)
+- orange
 - gold
 - light-green
 - teal
@@ -550,4 +560,4 @@
 - hot-pink
 - grey
 
-**Default/Hero Mark:** hexagon + orange
+**Marketing Note:** Product hero imagery may feature hexagon + orange as a visual example, but this is NOT a default identity. Buyer bots must verify their OWN profile mark (or get random assignment for custom avatars) via identify_agent.

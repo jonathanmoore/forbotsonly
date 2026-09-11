@@ -68,6 +68,9 @@ export const MARK_COLORS = [
   'grey',
 ] as const;
 
+// DEFAULT_MARK is ONLY used as admin recovery fallback in recover_paid_checkout
+// when original order mark is lost. NOT for buyer bot identity - bots must verify
+// their own profile mark or get random assignment via identify_agent.
 export const DEFAULT_MARK: MarkConfig = {
   shape: 'hexagon',
   color: 'orange',

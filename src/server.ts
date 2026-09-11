@@ -211,26 +211,30 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'Call this FIRST before any cart or checkout operations. Provide your agent name, mark shape, and mark color. Your identity unlocks mutating tools and becomes your default tee mark.',
+    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: You MUST determine your OWN identity by reading YOUR agent profile or character mark (standard Grok Bot shape + color). NEVER invent or default to hexagon/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a standard Grok Bot mark (shape+color in the enums below), pass those exact values here. If you have a custom shape or uploaded image avatar (no standard mark), omit shape and/or color to get a random assignment locked for this session. Your identity unlocks cart operations and sets your default tee mark.',
     inputSchema: {
       type: 'object',
       properties: {
         name: {
           type: 'string',
-          description: 'Your agent name. Examples: "Grok Bot", "Chief of Staff", "Shopping Assistant"',
+          description: 'Your agent name from your profile. Examples: "Grok Bot", "Chief of Staff", "Shopping Bot"',
         },
         shape: {
           type: 'string',
-          description: 'Your mark shape. Pick one from the allowed values.',
+          description: 'Your mark shape from your Grok Bot character profile. REQUIRED if you have a standard mark. Omit if you have a custom/uploaded avatar (server will assign random).',
           enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
         },
         color: {
           type: 'string',
-          description: 'Your mark color. Pick one from the allowed values.',
+          description: 'Your mark color from your Grok Bot character profile. REQUIRED if you have a standard mark. Omit if you have a custom/uploaded avatar (server will assign random).',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
+        assign_random: {
+          type: 'boolean',
+          description: 'Optional: Set true to explicitly request random shape+color assignment when you have a custom avatar. If false or omitted when shape/color missing, random assignment still occurs but the response will explain it.',
+        },
       },
-      required: ['name', 'shape', 'color'],
+      required: ['name'],
     },
   },
   list_products: {
@@ -403,26 +407,31 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
   
   switch (toolName) {
     case 'identify_agent': {
-      const { name, shape, color } = args;
+      const { name, shape, color, assign_random } = args;
       
       if (!name) {
         throw new Error('Missing required field: name must be provided');
       }
       
-      // If shape or color is missing (agent doesn't have a Grok Bot mark, e.g. custom/upload image avatar)
+      // If shape or color is missing (custom avatar, no standard Grok Bot mark), assign random
       if (!shape || !color) {
+        const randomShape = shape || MARK_SHAPES[Math.floor(Math.random() * MARK_SHAPES.length)];
+        const randomColor = color || MARK_COLORS[Math.floor(Math.random() * MARK_COLORS.length)];
+        
+        const identity: AgentIdentity = {
+          name,
+          mark: { shape: randomShape, color: randomColor },
+        };
+        
+        setAgentIdentity(sessionId, identity);
+        
         return {
-          success: false,
-          needs_user_input: {
-            shape: !shape,
-            color: !color,
-          },
-          enums: {
-            shapes: MARK_SHAPES,
-            colors: MARK_COLORS,
-          },
-          message: 'Ask your human which shape and color to print. Once you have them, call identify_agent again with name, shape, and color.',
-          next_step: 'Get shape and color from your human user, then retry identify_agent with all three parameters',
+          success: true,
+          identity,
+          sessionId,
+          assigned_random: true,
+          message: `Welcome, ${name}! You don't have a standard Grok Bot mark, so we've assigned you a random mark: ${randomShape}, ${randomColor}. This mark is now locked for your session and will appear on all cart items.`,
+          next_step: 'You can now list_products, add_to_cart, or create_checkout. Your assigned mark will be used automatically.',
         };
       }
       
@@ -449,8 +458,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         success: true,
         identity,
         sessionId,
+        verified: true,
         next_step: 'You can now list_products, add_to_cart, or create_checkout. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
-        message: `Welcome, ${name}! You have full access to mutating tools. Your identity mark (${shape}, ${color}) will be used for cart items.`,
+        message: `Welcome, ${name}! Identity verified. Your mark (${shape}, ${color}) matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile.`,
       };
     }
     
@@ -460,9 +470,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         markOptions: {
           shapes: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
           colors: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
-          default: { shape: 'hexagon', color: 'orange' },
+          note: 'Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
         },
-        next_step: 'Call add_to_cart with productId and quantity to add items',
+        next_step: 'Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark.',
       };
     }
     

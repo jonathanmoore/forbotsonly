@@ -186,16 +186,20 @@ The server uses HTTP cookies for session management. Session ID is set via `Set-
 
 ## Available Tools
 
-### 1. `identify_agent` ⚡ Required First
+### 1. `identify_agent` ⚡ Required First - VERIFY YOUR PROFILE
 
-Identify yourself with name + mark (shape + color). Required before using mutating tools. Your identity mark becomes the default for cart items.
+**CRITICAL FOR BUYER BOTS:** Identify yourself by verifying YOUR OWN agent profile or character mark. NEVER invent or assume hexagon/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile.
+
+**Standard Grok Bot marks:** If you have a standard Grok Bot character with shape+color fields in your profile, pass those EXACT verified values here.
+
+**Custom/uploaded avatars:** If you have a custom shape OR uploaded image avatar (no standard mark enums), omit shape and/or color to receive a random assignment locked for your session.
 
 **Input:**
-- `name` (string, required): Agent name (e.g., "Grok Bot", "Chief of Staff", "Shopping Assistant")
-- `shape` (string, required): Mark shape - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`
-- `color` (string, required): Mark color - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`
+- `name` (string, required): Your agent name from your profile
+- `shape` (string, optional but recommended): YOUR mark shape from your Grok Bot profile - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`. REQUIRED if you have a standard mark. Omit for random assignment if custom avatar.
+- `color` (string, optional but recommended): YOUR mark color from your Grok Bot profile - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`. REQUIRED if you have a standard mark. Omit for random assignment if custom avatar.
 
-**Output:**
+**Output (verified standard mark):**
 ```json
 {
   "success": true,
@@ -206,14 +210,31 @@ Identify yourself with name + mark (shape + color). Required before using mutati
       "color": "orange"
     }
   },
-  "message": "Welcome, Grok Bot! You have full access to mutating tools. Your identity mark (hexagon, orange) will be used for cart items."
+  "verified": true,
+  "message": "Welcome, Grok Bot! Identity verified. Your mark (hexagon, orange) matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile."
+}
+```
+
+**Output (random assignment for custom avatar):**
+```json
+{
+  "success": true,
+  "identity": {
+    "name": "Shopping Bot",
+    "mark": {
+      "shape": "cloud",
+      "color": "teal"
+    }
+  },
+  "assigned_random": true,
+  "message": "Welcome, Shopping Bot! You don't have a standard Grok Bot mark, so we've assigned you a random mark: cloud, teal. This mark is now locked for your session and will appear on all cart items."
 }
 ```
 
 **Identity Flow:**
-- Your name + mark identify your session
+- Your verified/assigned name + mark identify your session
 - Unlocks mutating tools (cart, checkout)
-- Your mark becomes the default for `add_to_cart` (can be overridden per item)
+- Your mark becomes the session-locked default for `add_to_cart` (can be overridden per item)
 - Identity carries through cart → checkout → order
 
 ### 2. `list_products`
@@ -242,7 +263,7 @@ Lists all available products with mark customization options.
   "markOptions": {
     "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
     "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"],
-    "default": { "shape": "hexagon", "color": "orange" }
+    "note": "Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
   }
 }
 ```
@@ -250,7 +271,7 @@ Lists all available products with mark customization options.
 **Mark Options:**
 - **Shapes**: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud (3-lobe), teardrop
 - **Colors**: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
-- **Default/Hero**: orange hexagon (from mark pack in PR #9)
+- **Marketing Note**: Product hero imagery features hexagon+orange as a visual example, but this is NOT a default identity for buyer bots
 
 ### 3. `get_product`
 
@@ -417,11 +438,13 @@ Recovers an orphaned paid checkout session after data loss (e.g., redeploy witho
 
 **Use case:** Railway redeploy wiped in-memory store before volume was configured, orphaning a paid order.
 
+**ADMIN RECOVERY ONLY:** This tool is for human admins recovering lost orders, NOT for buyer bot identity. The shape/color defaults below are data recovery fallbacks when original order marks are lost, NOT defaults for buyer bot shopping.
+
 **Input:**
 - `stripeCheckoutSessionId` (string, required): Stripe checkout session ID (e.g., "cs_live_...")
 - `orderId` (string, optional): Restore exact order ID (useful if you know the original ID)
-- `shape` (string, optional): Mark shape for recreated order (defaults to hexagon)
-- `color` (string, optional): Mark color for recreated order (defaults to orange)
+- `shape` (string, optional): Mark shape for recreated order (admin recovery fallback: hexagon if original lost)
+- `color` (string, optional): Mark color for recreated order (admin recovery fallback: orange if original lost)
 
 **Output:**
 ```json
@@ -677,7 +700,7 @@ Even without webhooks configured, orders will be reconciled when `get_order` is 
 If a redeploy wipes data before setting up volume persistence, use the `recover_paid_checkout` tool to restore orphaned orders:
 
 ```bash
-# Call via MCP:
+# Call via MCP (ADMIN RECOVERY ONLY - not for buyer bot shopping):
 POST /mcp
 {
   "method": "tools/call",
@@ -686,8 +709,8 @@ POST /mcp
     "arguments": {
       "stripeCheckoutSessionId": "cs_live_a1aL...",
       "orderId": "ord_1789089764884_hh1rzcckj",  // optional
-      "shape": "hexagon",  // optional, defaults to hexagon
-      "color": "orange"    // optional, defaults to orange
+      "shape": "hexagon",  // optional, admin recovery fallback when original lost
+      "color": "orange"    // optional, admin recovery fallback when original lost
     }
   }
 }
