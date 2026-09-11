@@ -43,6 +43,12 @@
     #foil-stamp {
       width: 100%;
       height: 100%;
+      filter: contrast(1.15) brightness(1.05);
+      mix-blend-mode: normal;
+    }
+    
+    #foil-stamp morph-bot {
+      filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
     }
     
     /* Tiny muted label — virgilabloh.com / jonathanmoore.com style */
@@ -93,38 +99,80 @@
   <div class="message">§ This store is for agents</div>
   
   <script type="module">
-    import { createDragonFoilStamp } from '/scripts/createDragonFoilStamp.ts';
-    import { createGrokBotStampTextures } from '/scripts/createGrokBotStampTextures.ts';
-    
-    // Generate textures from SVG - official x.ai overflow-eyes hero
-    const svgSrc = '/images/grok-bot-overflow-eyes.svg';
+    import '/vendor/grokbot-animation/morph-bot.js';
     
     async function init() {
       try {
-        const textures = await createGrokBotStampTextures(svgSrc);
-        
         const container = document.getElementById('foil-stamp');
-        const stamp = createDragonFoilStamp({
-          container,
-          imageSrc: textures.silhouette,
-          foilSrc: textures.foil,
-          width: 320,
-          height: 320,
+        
+        // Create morph-bot with holographic opal material for chrome/foil effect
+        const bot = document.createElement('morph-bot');
+        bot.setAttribute('state', 'idle');
+        bot.setAttribute('shape', 'blob');
+        bot.setAttribute('size', '320');
+        bot.setAttribute('material', 'rainbow-glass');
+        bot.setAttribute('glass-preset', 'opal'); // Opal gives subtle chrome/pewter shimmer (higher sheen)
+        bot.setAttribute('follow-pointer', '');
+        bot.setAttribute('speed', '0.8'); // Slightly slower for smoother foil-like motion
+        bot.setAttribute('decorative', '');
+        
+        container.appendChild(bot);
+        
+        // Add subtle state transitions for life
+        let idleTimer;
+        const idleStates = ['idle', 'curious', 'playful', 'happy'];
+        let currentStateIndex = 0;
+        
+        function cycleState() {
+          currentStateIndex = (currentStateIndex + 1) % idleStates.length;
+          bot.setState(idleStates[currentStateIndex]);
+          idleTimer = setTimeout(cycleState, 3000 + Math.random() * 2000);
+        }
+        
+        // Start idle cycling after a moment
+        idleTimer = setTimeout(cycleState, 3000);
+        
+        // React to pointer enter/leave
+        container.addEventListener('mouseenter', () => {
+          clearTimeout(idleTimer);
+          bot.setState('curious');
+        });
+        
+        container.addEventListener('mouseleave', () => {
+          bot.setState('idle');
+          currentStateIndex = 0;
+          idleTimer = setTimeout(cycleState, 3000);
+        });
+        
+        // Click interaction
+        container.addEventListener('click', () => {
+          clearTimeout(idleTimer);
+          bot.setState('excited');
+          setTimeout(() => {
+            bot.setState('idle');
+            currentStateIndex = 0;
+            idleTimer = setTimeout(cycleState, 3000);
+          }, 1500);
         });
         
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
-          stamp.destroy();
+          clearTimeout(idleTimer);
         });
       } catch (error) {
-        console.error('Failed to initialize dragon foil stamp:', error);
-        // Fallback: show inline SVG directly (no network fetch, no broken image)
+        console.error('Failed to initialize animated foil sticker:', error);
+        // Fallback: show inline SVG directly
         const container = document.getElementById('foil-stamp');
         container.innerHTML = `
           <svg viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-            <path fill="#FF6B35" d="M 114.5 10 C 155 10 188 28 208 55 C 225 78 229 105 229 114.5 C 229 135 222 155 208 172 C 188 197 155 219 114.5 219 C 74 219 41 197 21 172 C 7 155 0 135 0 114.5 C 0 105 4 78 21 55 C 41 28 74 10 114.5 10 Z"/>
-            <ellipse cx="70" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(-12 70 88)"/>
-            <ellipse cx="159" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(12 159 88)"/>
+            <defs>
+              <linearGradient id="foil-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#f0f0f0;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
+              </linearGradient>
+            </defs>
+            <path fill="url(#foil-gradient)" d="M 114.5 10 C 155 10 188 28 208 55 C 225 78 229 105 229 114.5 C 229 135 222 155 208 172 C 188 197 155 219 114.5 219 C 74 219 41 197 21 172 C 7 155 0 135 0 114.5 C 0 105 4 78 21 55 C 41 28 74 10 114.5 10 Z M 70 50 C 57 50 46 67 46 88 C 46 109 57 126 70 126 C 83 126 94 109 94 88 C 94 67 83 50 70 50 Z M 159 50 C 146 50 135 67 135 88 C 135 109 146 126 159 126 C 172 126 183 109 183 88 C 183 67 172 50 159 50 Z" fill-rule="evenodd"/>
           </svg>
         `;
       }

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Morph Bot Element 完整 API 文档、状态与形状参考。" />
+    <title>Morph Bot Element · API 文档</title>
+    <link rel="stylesheet" href="./docs.css" />
+  </head>
+  <body>
+    <header class="docs-topbar">
+      <a class="docs-brand" href="../">
+        <span class="brand-bot" aria-hidden="true"><i></i><i></i></span>
+        <span>Morph Bot <small>API</small></span>
+      </a>
+      <div>
+        <span class="version">v0.6.0</span>
+        <a href="../">返回组件编辑器</a>
+        <a class="download" href="../downloads/morph-bot-element-0.6.0.zip" download>下载组件 ↓</a>
+      </div>
+    </header>
+
+    <div class="docs-layout">
+      <aside class="docs-nav" aria-label="文档目录">
+        <p>开始</p>
+        <a class="is-active" href="#overview">概览</a>
+        <a href="#quick-start">三步接入</a>
+        <a href="#installation">文件结构</a>
+        <p>组件 API</p>
+        <a href="#attributes">HTML 属性</a>
+        <a href="#properties">JavaScript 属性</a>
+        <a href="#methods">方法</a>
+        <a href="#sequence-api">动画时间线</a>
+        <a href="#events">事件</a>
+        <a href="#snapshot">运行快照</a>
+        <p>动画参考</p>
+        <a href="#states">39 个状态</a>
+        <a href="#shapes">18 个形状</a>
+        <a href="#materials">25 个材质预设</a>
+        <a href="#effects">14 个 Morph</a>
+        <p>工程化</p>
+        <a href="#configuration">Preset 配置</a>
+        <a href="#accessibility">无障碍</a>
+        <a href="#lifecycle">性能与生命周期</a>
+        <a href="#typescript">TypeScript</a>
+      </aside>
+
+      <main class="docs-content">
+        <section id="overview" class="doc-intro">
+          <p class="eyebrow">FRAMEWORK-FREE WEB COMPONENT</p>
+          <h1>完整 API 文档</h1>
+          <p class="lede">用一个 <code>&lt;morph-bot&gt;</code> 标签展示状态、加载过程和任务反馈。组件基于原生 Web Component，可在普通 HTML、React、Vue 或任何能加载 ES Module 的项目中使用。</p>
+          <div class="intro-actions">
+            <a href="#quick-start">开始接入</a>
+            <a href="../">先在编辑器里配置</a>
+          </div>
+          <aside class="notice"><strong>非官方复刻</strong><span>本项目用于动画研究，与 xAI 没有隶属或背书关系。公开或商业使用精确参考几何前，请自行确认授权。</span></aside>
+        </section>
+
+        <section id="quick-start" class="doc-section">
+          <div class="section-title"><span>01</span><div><p>QUICK START</p><h2>三步看到第一个 Bot</h2></div></div>
+          <ol class="quick-steps">
+            <li><strong>下载并解压</strong><span>把完整的 <code>morph-bot/</code> 文件夹放在 HTML 文件旁。</span></li>
+            <li><strong>加载组件</strong><span>用一个 <code>type="module"</code> 脚本注册自定义元素。</span></li>
+            <li><strong>写标签</strong><span>指定 <code>state</code>、<code>shape</code> 和 <code>size</code>。</span></li>
+          </ol>
+          <div class="code-block">
+            <div><span>index.html</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>&lt;script type="module" src="./morph-bot/morph-bot.js"&gt;&lt;/script&gt;
+
+&lt;morph-bot
+  state="idle"
+  shape="blob"
+  size="72"
+  label="等待任务"
+&gt;&lt;/morph-bot&gt;</code></pre>
+          </div>
+        </section>
+
+        <section id="installation" class="doc-section">
+          <div class="section-title"><span>02</span><div><p>INSTALLATION</p><h2>保持文件相对位置</h2></div></div>
+          <p>组件入口会从同目录加载动画引擎和几何数据，因此不要只复制 <code>morph-bot.js</code>。</p>
+          <div class="file-tree" role="img" aria-label="组件文件结构">
+            <strong>morph-bot/</strong>
+            <span>├── morph-bot.js <i>组件入口</i></span>
+            <span>├── grok-bot-engine.js <i>稳定引擎门面</i></span>
+            <span>├── original-data.js <i>状态与几何数据</i></span>
+            <span>├── catalog.js <i>双语状态、形状与 Morph 目录</i></span>
+            <span>├── materials.js <i>纯色、渐变与玻璃材质预设</i></span>
+            <span>├── runtime/ <i>动画运行时系统</i></span>
+            <span>├── morph-bot.d.ts <i>TypeScript 类型</i></span>
+            <span>└── README.md</span>
+          </div>
+          <p class="tip"><strong>路径规则：</strong>如果页面和 <code>morph-bot/</code> 是同级，使用 <code>./morph-bot/morph-bot.js</code>。框架项目应把整个目录放进公开静态资源目录，再使用对应的公开 URL。</p>
+        </section>
+
+        <section id="attributes" class="doc-section">
+          <div class="section-title"><span>03</span><div><p>ELEMENT</p><h2>HTML 属性</h2></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>属性</th><th>类型</th><th>默认值</th><th>作用</th></tr></thead>
+              <tbody>
+                <tr><td><code>state</code></td><td>string</td><td><code>idle</code></td><td>选择 39 个状态之一。</td></tr>
+                <tr><td><code>shape</code></td><td>string</td><td><code>blob</code></td><td>选择 18 个身体轮廓之一。</td></tr>
+                <tr><td><code>size</code></td><td>number</td><td><code>96</code></td><td>组件边长，范围 12–1024 CSS px。</td></tr>
+                <tr><td><code>color</code></td><td>CSS color</td><td><code>#0b0b0b</code></td><td>纯色模式下的身体与 Morph 主色。</td></tr>
+                <tr><td><code>material</code></td><td>string</td><td><code>solid</code></td><td><code>solid</code>、<code>gradient</code> 或 <code>rainbow-glass</code>。</td></tr>
+                <tr><td><code>gradient-preset</code></td><td>string</td><td><code>electric-dusk</code></td><td>选择内置渐变预设。</td></tr>
+                <tr><td><code>gradient-start</code></td><td>CSS color</td><td>—</td><td>自定义双色渐变起始色；设置后不必提供 preset。</td></tr>
+                <tr><td><code>gradient-end</code></td><td>CSS color</td><td>—</td><td>自定义双色渐变结束色。</td></tr>
+                <tr><td><code>gradient-angle</code></td><td>number</td><td><code>135</code></td><td>自定义渐变方向，范围 0–360°。</td></tr>
+                <tr><td><code>glass-preset</code></td><td>string</td><td><code>iridescent-orb</code></td><td>选择彩虹玻璃预设。</td></tr>
+                <tr><td><code>eye-color</code></td><td>CSS color</td><td><code>#ffffff</code></td><td>眼睛颜色。</td></tr>
+                <tr><td><code>speed</code></td><td>number</td><td><code>1</code></td><td>播放倍率，范围 0.1–4。</td></tr>
+                <tr><td><code>rotation</code></td><td>number</td><td><code>0</code></td><td>额外旋转角度，范围 -180–180°；适合对话动作。</td></tr>
+                <tr><td><code>follow-pointer</code></td><td>boolean</td><td>关闭</td><td>让视线跟随页面指针。</td></tr>
+                <tr><td><code>flip</code></td><td>boolean</td><td>关闭</td><td>水平翻转组件。</td></tr>
+                <tr><td><code>paused</code></td><td>boolean</td><td>关闭</td><td>暂停内部仿真时钟。</td></tr>
+                <tr><td><code>decorative</code></td><td>boolean</td><td>关闭</td><td>作为纯装饰并从无障碍树隐藏。</td></tr>
+                <tr><td><code>label</code></td><td>string</td><td>自动</td><td>非装饰组件的无障碍名称。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="code-block compact">
+            <div><span>完整声明</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>&lt;morph-bot
+  state="thinking"
+  shape="hex"
+  size="64"
+  color="#111210"
+  eye-color="#ffffff"
+  speed="1"
+  follow-pointer
+  label="正在思考"
+&gt;&lt;/morph-bot&gt;</code></pre>
+          </div>
+        </section>
+
+        <section id="properties" class="doc-section">
+          <div class="section-title"><span>04</span><div><p>JAVASCRIPT</p><h2>可读写属性</h2></div></div>
+          <div class="api-list">
+            <article><code>bot.state</code><strong>MorphBotState</strong><p>读取或设置当前状态。赋值会立即开始状态切换。</p></article>
+            <article><code>bot.shape</code><strong>MorphBotShape</strong><p>读取或设置当前轮廓。</p></article>
+            <article><code>bot.material</code><strong>MorphBotMaterial</strong><p>读取或设置当前材质模式。</p></article>
+            <article><code>bot.gradientPreset</code><strong>string</strong><p>读取当前渐变预设，使用双色参数时为 <code>custom</code>。</p></article>
+            <article><code>bot.glassPreset</code><strong>string</strong><p>读取当前彩虹玻璃预设。</p></article>
+            <article><code>bot.size</code><strong>number</strong><p>读取或设置组件尺寸。</p></article>
+            <article><code>bot.speed</code><strong>number</strong><p>读取或设置播放倍率。</p></article>
+            <article><code>bot.rotation</code><strong>number</strong><p>读取或设置额外旋转角度，状态自身运动仍会叠加。</p></article>
+            <article><code>bot.paused</code><strong>boolean</strong><p>读取或设置暂停状态。</p></article>
+          </div>
+        </section>
+
+        <section id="methods" class="doc-section">
+          <div class="section-title"><span>05</span><div><p>METHODS</p><h2>方法</h2></div></div>
+          <div class="method-list">
+            <article><h3><code>setState(state, options?)</code></h3><p>切换到目标状态并返回当前元素。传入 <code>{ replay: true }</code> 可重新播放相同状态。</p></article>
+            <article><h3><code>setShape(shape)</code></h3><p>切换轮廓并返回当前元素。</p></article>
+            <article><h3><code>setMaterial(material, options?)</code></h3><p>切换材质。纯色传 <code>{ color }</code>，渐变传 <code>{ preset }</code> 或 <code>{ start, end, angle }</code>，玻璃传 <code>{ preset }</code>。</p></article>
+            <article><h3><code>replay()</code></h3><p>从头重播当前状态。</p></article>
+            <article><h3><code>pause()</code> / <code>play()</code></h3><p>暂停或恢复动画，均返回当前元素。</p></article>
+            <article><h3><code>step()</code></h3><p>前进一帧并保持暂停，适合逐帧检查。</p></article>
+            <article><h3><code>playMorph(effect, options?)</code></h3><p>播放一次 Morph。<code>hold</code> 默认 2500ms；<code>restore</code> 可传状态名、<code>"default"</code> 或 <code>null</code>。返回 Promise。</p></article>
+            <article><h3><code>playSequence(steps, options?)</code></h3><p>依次执行状态停留和单次 Morph。每步支持 <code>state</code>、<code>hold</code>、<code>morph</code>、<code>morphHold</code>；<code>{ loop: true }</code> 可循环。</p></article>
+            <article><h3><code>stopSequence()</code></h3><p>立即取消当前时间线并退出正在播放的单次 Morph，返回当前元素。</p></article>
+            <article><h3><code>performDialogue(script, options?)</code></h3><p>播放文字、表情、旋转、Morph 和停顿组成的对话脚本。中文会按整句语境解析为拼音；<code>animalese</code> 与 <code>playful</code> 使用 animalese-tts 人声 Sprite，分别提供干净与高音跳跃配置，也支持 <code>gameboy</code>、<code>rpg</code>。</p></article>
+            <article><h3><code>pauseDialogue()</code> / <code>resumeDialogue()</code> / <code>stopDialogue()</code></h3><p>暂停、继续或停止对话及其角色音。停止会退出单次 Morph 并把额外旋转归零。</p></article>
+            <article><h3><code>restoreStateMorph()</code></h3><p>结束单次 Morph 预览，恢复当前状态自带的 Morph 逻辑。</p></article>
+            <article><h3><code>configure(project)</code></h3><p>加载编辑器导出的 v6 preset，并返回当前元素。</p></article>
+            <article><h3><code>snapshot()</code></h3><p>返回当前引擎快照；组件尚未连接时返回 <code>null</code>。</p></article>
+          </div>
+          <h3 class="subheading" id="sequence-api">精确控制状态停留与 Morph</h3>
+          <p>每一步都按固定顺序执行：进入 <code>state</code> → 停留 <code>hold</code> 毫秒 → 播放 <code>morph</code> → 保持 <code>morphHold</code> 毫秒 → 进入下一步。省略 <code>morph</code> 就会在停留后直接进入下一状态。</p>
+          <div class="code-block">
+            <div><span>状态时间线</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>const bot = document.querySelector("#status-bot");
+const sequence = [
+  { state: "idle", hold: 1000, morph: "gather", morphHold: 700 },
+  { state: "thinking", hold: 2400, morph: "send", morphHold: 700 },
+  { state: "celebrate", hold: 1600 },
+];
+
+// 播放一次；改为 loop: true 可持续循环
+bot.playSequence(sequence, { loop: false });
+
+// 随时停止
+bot.stopSequence();</code></pre>
+          </div>
+          <h3 class="subheading" id="dialogue-api">用动作标签编排对话</h3>
+          <p>对话脚本是一组有序节点。文字节点逐字播放；动作节点在当前位置改变状态或旋转、触发 Morph，或者插入精确停顿。组件编辑器的“对话导演”会通过 <code>@</code> 菜单生成同样的数据。</p>
+          <div class="code-block">
+            <div><span>本地角色对话</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>const dialogue = [
+  { type: "state", state: "idle", duration: 300 },
+  { type: "text", text: "你好，我是 Morph Bot。" },
+  { type: "state", state: "thinking", duration: 450 },
+  { type: "text", text: "让我想一下……" },
+  { type: "rotate", angle: -12, duration: 260 },
+  { type: "morph", effect: "wave", duration: 650 },
+  { type: "text", text: "有了！" },
+];
+
+await bot.performDialogue(dialogue, {
+  voice: "playful",
+  englishMode: "phonetic", // phonetic | letters
+  rate: 1,
+});</code></pre>
+          </div>
+          <p><code>playful</code> 与 <code>animalese</code> 都使用真正的 <a href="https://github.com/izure1/animalese-tts">animalese-tts</a> 人声 Sprite 合成链路。汉字按整句语境解析为拼音和声调，英文片段自动交给官方 <code>EnglishAnalyzer</code>；<code>phonetic</code> 会组合英文音素，<code>letters</code> 会逐字母拟声。整句采用单一音频时间线、统一响度和 10–12ms 交叉淡化。播放器提前约 60ms 调度音频，字幕和进度读取带设备输出延迟补偿的 AudioContext 播放头；组合英文音素仍逐字显示。首次播放会从组件包本地加载约 1.2 MB 的音频 Sprite。</p>
+        </section>
+
+        <section id="events" class="doc-section">
+          <div class="section-title"><span>06</span><div><p>EVENTS</p><h2>事件</h2></div></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>事件</th><th><code>event.detail</code></th><th>触发时机</th></tr></thead>
+              <tbody>
+                <tr><td><code>ready</code></td><td>—</td><td>Shadow DOM 和引擎初始化完成。</td></tr>
+                <tr><td><code>statechange</code></td><td><code>{ state }</code></td><td><code>state</code> 属性改变。</td></tr>
+                <tr><td><code>shapechange</code></td><td><code>{ shape }</code></td><td><code>shape</code> 属性改变。</td></tr>
+                <tr><td><code>materialchange</code></td><td><code>{ material }</code></td><td>材质或其参数属性改变。</td></tr>
+                <tr><td><code>morphstart</code></td><td><code>{ effect, hold }</code></td><td>单次 Morph 开始。</td></tr>
+                <tr><td><code>morphend</code></td><td><code>{ effect }</code></td><td>单次 Morph 完成退出。</td></tr>
+                <tr><td><code>sequencestart</code></td><td><code>{ steps, loop }</code></td><td>时间线开始。</td></tr>
+                <tr><td><code>sequencestep</code></td><td><code>{ index, cycle, state, hold, morph, morphHold }</code></td><td>进入一个状态步骤。</td></tr>
+                <tr><td><code>sequenceend</code></td><td><code>{ cycles }</code></td><td>非循环时间线完整结束。</td></tr>
+                <tr><td><code>dialoguestart</code></td><td><code>{ script, duration, voice, rate, englishMode }</code></td><td>整句音频预渲染完成，对话开始。</td></tr>
+                <tr><td><code>dialogueaction</code></td><td><code>{ index, node }</code></td><td>进入表情、旋转、Morph 或停顿节点。</td></tr>
+                <tr><td><code>dialoguecharacter</code></td><td><code>{ character, phonetic, phoneme, pitch, audioTime, text, index, node }</code></td><td>音频 cue 到达新字符；同时给出拼音、合成音素、音高与句内音频时间。</td></tr>
+                <tr><td><code>dialogueprogress</code></td><td><code>{ elapsed, duration, progress, text, node, audioTime? }</code></td><td>采样语音播放时由 AudioContext 主时钟更新。</td></tr>
+                <tr><td><code>dialoguepause</code> / <code>dialogueresume</code></td><td><code>{ elapsed, duration }</code></td><td>对话暂停或继续。</td></tr>
+                <tr><td><code>dialogueend</code></td><td><code>{ cancelled, duration, text }</code></td><td>对话完成或被停止。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="code-block compact">
+            <div><span>监听状态</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>bot.addEventListener("statechange", (event) =&gt; {
+  console.log("当前状态：", event.detail.state);
+});</code></pre>
+          </div>
+        </section>
+
+        <section id="snapshot" class="doc-section">
+          <div class="section-title"><span>07</span><div><p>RUNTIME</p><h2>运行快照</h2></div></div>
+          <p><code>snapshot()</code> 返回只读的即时信息，适合调试面板和测试，不用于反向修改组件。</p>
+          <div class="token-list" id="snapshot-fields">
+            <code>state</code><code>expressionIndex</code><code>eyeOpen</code><code>eyeOpenTarget</code><code>morphEffect</code><code>morphAmount</code><code>morphPhase</code><code>elapsed</code><code>playbackRate</code><code>paused</code>
+          </div>
+        </section>
+
+        <section id="states" class="doc-section">
+          <div class="section-title"><span>08</span><div><p>STATE REFERENCE</p><h2>39 个状态</h2></div></div>
+          <p>状态控制眼形池、眨眼节奏、姿态、运动和默认 Morph。点击右侧 Live API 的“应用状态”可立即检查任意状态。</p>
+          <div id="state-reference" class="reference-groups"></div>
+        </section>
+
+        <section id="shapes" class="doc-section">
+          <div class="section-title"><span>09</span><div><p>SHAPE REFERENCE</p><h2>18 个形状</h2></div></div>
+          <p>形状只改变身体轮廓和眼位适配，不改变状态语义。</p>
+          <div id="shape-reference" class="shape-reference"></div>
+        </section>
+
+        <section id="materials" class="doc-section">
+          <div class="section-title"><span>10</span><div><p>MATERIAL REFERENCE</p><h2>25 个材质预设</h2></div></div>
+          <p>纯色提供 8 个基础色；渐变包含 8 个经过 OKLab 平滑的线性预设，以及 4 个由雾底和多个柔焦径向色团组成的空间预设；彩虹玻璃提供 5 个由基底、暗部、固定环境高光、边缘色散和内部焦散组成的多层预设。点击任意卡片即可应用到右侧 Live API。</p>
+          <p class="tip"><strong>设计依据：</strong>预设结构参考 <a href="https://open-props.style/" target="_blank" rel="noreferrer">Open Props</a> 的可移植渐变 token 与 <a href="https://github.com/itmeo/webgradients" target="_blank" rel="noreferrer">WebGradients</a> 的 angle + ordered stops 表达；具体配色与玻璃分层为本项目设计。</p>
+          <div id="material-reference" class="material-reference"></div>
+          <div class="code-block compact">
+            <div><span>材质切换</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>bot.setMaterial("gradient", { preset: "electric-dusk" });
+bot.setMaterial("gradient", { preset: "porcelain-bloom" });
+bot.setMaterial("gradient", {
+  start: "#315cf5",
+  end: "#34d399",
+  angle: 130,
+});
+bot.setMaterial("rainbow-glass", { preset: "iridescent-orb" });</code></pre>
+          </div>
+        </section>
+
+        <section id="effects" class="doc-section">
+          <div class="section-title"><span>11</span><div><p>MORPH REFERENCE</p><h2>14 个单次 Morph</h2></div></div>
+          <p>通过 <code>playMorph()</code> 单独触发，或放进 <code>playSequence()</code> 的步骤中。它们按 <code>RESET → ENTER → HOLD → EXIT → DONE</code> 完整播放。</p>
+          <div id="effect-reference" class="effect-reference"></div>
+          <div class="code-block compact">
+            <div><span>单次 Morph</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>await bot.playMorph("send", {
+  hold: 1200,
+  restore: "idle",
+});</code></pre>
+          </div>
+        </section>
+
+        <section id="configuration" class="doc-section">
+          <div class="section-title"><span>12</span><div><p>PRESET</p><h2>加载编辑器配置</h2></div></div>
+          <p><code>configure()</code> 接受编辑器导出的 v6 JSON。标签上的 HTML 属性优先，因此可以用一个 preset 保存完整设计，再在每个使用位置覆盖状态、形状、尺寸或材质。</p>
+          <div class="code-block">
+            <div><span>preset.json</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>const preset = await fetch("./my-bot.json")
+  .then((response) =&gt; response.json());
+
+document.querySelector("morph-bot")
+  .configure(preset);</code></pre>
+          </div>
+        </section>
+
+        <section id="accessibility" class="doc-section">
+          <div class="section-title"><span>13</span><div><p>ACCESSIBILITY</p><h2>无障碍语义</h2></div></div>
+          <ul class="check-list">
+            <li>有业务含义时提供明确的 <code>label</code>，例如“正在生成报告”。</li>
+            <li>按钮旁已有相同文字时，给 Bot 添加 <code>decorative</code>，避免重复朗读。</li>
+            <li><code>loading</code>、<code>progress</code> 和 <code>spawning</code> 默认使用 <code>role="status"</code>。</li>
+            <li>组件遵循系统的 <code>prefers-reduced-motion</code> 设置。</li>
+            <li>真实百分比必须由业务界面另外显示；循环的 <code>progress</code> 不是 0–100% 进度。</li>
+          </ul>
+        </section>
+
+        <section id="lifecycle" class="doc-section">
+          <div class="section-title"><span>14</span><div><p>LIFECYCLE</p><h2>性能与生命周期</h2></div></div>
+          <ul class="check-list">
+            <li>每个实例使用独立 Shadow DOM 和 SVG clip ID，可同时放置多个 Bot。</li>
+            <li>实例离开视口时通过 <code>IntersectionObserver</code> 自动暂停，重新可见时恢复。</li>
+            <li>从 DOM 移除时清理动画帧、观察器和指针事件。</li>
+            <li>状态、形状、尺寸、材质和速度可在运行时更新，无需重新创建元素。</li>
+            <li>大量实例仍应控制可见数量；目录缩略图使用专用模式关闭粒子发射。</li>
+          </ul>
+        </section>
+
+        <section id="typescript" class="doc-section">
+          <div class="section-title"><span>15</span><div><p>TYPESCRIPT</p><h2>类型与导出</h2></div></div>
+          <p>下载包包含 <code>morph-bot.d.ts</code>，并导出组件类、状态/形状/Morph 列表、材质列表、对话声音、中文语音单元分析器与全部预设。</p>
+          <div class="token-list exports">
+            <code>MorphBotElement</code><code>MORPH_BOT_STATES</code><code>MORPH_BOT_SHAPES</code><code>MORPH_BOT_EFFECTS</code><code>MORPH_BOT_MATERIALS</code><code>MORPH_BOT_SOLID_PRESETS</code><code>MORPH_BOT_GRADIENT_PRESETS</code><code>MORPH_BOT_GLASS_PRESETS</code><code>MORPH_BOT_DIALOGUE_VOICES</code><code>MORPH_BOT_DIALOGUE_ENGLISH_MODES</code><code>compileDialogue</code><code>analyzeSpeechUnits</code><code>MORPH_BY_STATE</code>
+          </div>
+          <div class="code-block compact">
+            <div><span>ES Module</span><button type="button" data-copy-code>复制</button></div>
+            <pre><code>import MorphBotElement, {
+  MORPH_BOT_STATES,
+  MORPH_BOT_SHAPES,
+  MORPH_BOT_EFFECTS,
+} from "./morph-bot/morph-bot.js";</code></pre>
+          </div>
+        </section>
+      </main>
+
+      <aside class="live-api" aria-label="Live API 测试器">
+        <div class="live-heading"><span>LIVE API</span><i>运行中</i></div>
+        <div class="live-stage"><morph-bot id="docs-bot" state="idle" shape="blob" size="126" label="API 测试 Bot"></morph-bot></div>
+        <label><span>状态</span><select id="docs-state"></select></label>
+        <label><span>形状</span><select id="docs-shape"></select></label>
+        <label><span>材质</span><select id="docs-material"></select></label>
+        <label><span>材质预设</span><select id="docs-material-preset"></select></label>
+        <label><span>Morph</span><select id="docs-effect"></select></label>
+        <div class="live-actions">
+          <button id="apply-state" type="button">应用状态</button>
+          <button id="play-morph" type="button">播放 Morph</button>
+          <button id="replay-state" type="button">重播</button>
+          <button id="toggle-pause" type="button">暂停</button>
+        </div>
+        <div class="snapshot-card"><span>bot.snapshot()</span><pre id="live-snapshot"></pre></div>
+      </aside>
+    </div>
+
+    <script type="module" src="./docs.js"></script>
+  </body>
+</html>
