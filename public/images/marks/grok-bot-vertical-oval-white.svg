@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grok Bot mark: face layout computation (product ID: bean) -->
+  <!-- Recipe weight: 0.96 | App picker: vertical-oval -->
+  <g class="grok-bot-mark" data-product-id="bean" data-picker-shape="vertical-oval">
+    <path class="grok-bot-mark__head" d="M 44.2705,114.2705 A 70,105 0 1,1 184.2705,114.2705 A 70,105 0 1,1 44.2705,114.2705 Z" fill="#FFFFFF"/>
+    <g class="grok-bot-mark__eyes">
+      <ellipse cx="88.50" cy="70.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 88.50 70.00)"/>
+    <ellipse cx="126.50" cy="65.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 126.50 65.00)"/>
+    </g>
+  </g>
+</svg>

@@ -6,8 +6,9 @@
 1. `identify_agent` - Identify with name + mark → unlocks mutating tools
 2. `list_products` - Browse available products
 3. `add_to_cart` - Add items (uses your identity mark)
-4. `create_checkout` - Get payment URL
-5. `get_order` - Check order status
+4. `preview_cart` - **Preview your mark on products BEFORE checkout** (RECOMMENDED)
+5. `create_checkout` - Get payment URL
+6. `get_order` - Check order status
 
 ## Tool Call Examples
 
@@ -260,7 +261,106 @@
 }
 ```
 
-### 5. create_checkout
+### 5. preview_cart (CALL BEFORE CHECKOUT)
+
+**Call:** 
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "preview_cart"
+  }
+}
+```
+
+**Response (with hexagon+orange mark):**
+```json
+{
+  "success": true,
+  "identity": {
+    "name": "Grok Bot",
+    "defaultMark": {
+      "shape": "hexagon",
+      "color": "orange"
+    }
+  },
+  "items": [
+    {
+      "productId": "tee-001",
+      "productName": "forbotsonly Tee",
+      "quantity": 1,
+      "mark": {
+        "shape": "hexagon",
+        "color": "orange"
+      },
+      "previews": {
+        "markCloseup": {
+          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-hexagon-orange.svg",
+          "description": "Close-up of your hexagon mark in orange"
+        },
+        "flatLayMock": {
+          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-hexagon-orange.svg",
+          "description": "Flat-lay tee with hexagon mark in orange on left chest (wearer's left)",
+          "note": "Full flat-lay composite coming soon - currently showing mark only"
+        }
+      }
+    }
+  ],
+  "message": "Preview ready for 1 item(s). Check the previews to verify your mark appears correctly before checkout.",
+  "next_step": "Review preview images to confirm your mark (shape + color) is correct, then call create_checkout to purchase"
+}
+```
+
+**Response (with cloud+teal mark override):**
+```json
+{
+  "success": true,
+  "identity": {
+    "name": "Shopping Bot",
+    "defaultMark": {
+      "shape": "cloud",
+      "color": "teal"
+    }
+  },
+  "items": [
+    {
+      "productId": "tee-001",
+      "productName": "forbotsonly Tee",
+      "quantity": 1,
+      "mark": {
+        "shape": "cloud",
+        "color": "teal"
+      },
+      "previews": {
+        "markCloseup": {
+          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-cloud-teal.svg",
+          "description": "Close-up of your cloud mark in teal"
+        },
+        "flatLayMock": {
+          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-cloud-teal.svg",
+          "description": "Flat-lay tee with cloud mark in teal on left chest (wearer's left)",
+          "note": "Full flat-lay composite coming soon - currently showing mark only"
+        }
+      }
+    }
+  ],
+  "message": "Preview ready for 1 item(s). Check the previews to verify your mark appears correctly before checkout.",
+  "next_step": "Review preview images to confirm your mark (shape + color) is correct, then call create_checkout to purchase"
+}
+```
+
+**Hard Requirement:** Preview URLs MUST match the cart item's mark. If cart has hexagon+orange, preview shows hexagon+orange. If cart has cloud+teal, preview shows cloud+teal. Never show a hardcoded default mark.
+
+**Empty cart:**
+```json
+{
+  "success": false,
+  "message": "Cart is empty. Add items with add_to_cart first.",
+  "next_step": "Call add_to_cart to add items, then call preview_cart to see your mark on the products"
+}
+```
+
+### 6. create_checkout
 
 **Call:**
 ```json
@@ -287,7 +387,7 @@
 }
 ```
 
-### 6. get_order
+### 7. get_order
 
 **Call:**
 ```json
