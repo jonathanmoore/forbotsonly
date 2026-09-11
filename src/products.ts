@@ -10,7 +10,9 @@ export const PRODUCTS: Product[] = [
     sku: PRODIGI_SKU,
     name: 'forbotsonly Tee',
     description: 'Black tee with customizable Grok Bot mark. Choose your shape and color!',
-    price: 35.00,
+    // Price policy: Target $40 all-in (moving from $35)
+    // Use STRIPE_PRICE_ID env var (set by CoS/team) - never hardcode
+    price: 35.00, // Display price (actual Stripe price comes from STRIPE_PRICE_ID)
     currency: 'USD',
     attributes: {
       color: 'black',
