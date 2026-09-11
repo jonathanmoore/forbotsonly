@@ -1,10 +1,10 @@
 // Dragon foil shaders - PURE SILVER/CHROME metallic foil effect
 // Target: Silvery raised bevel, NO rainbow (from JM reference images)
-// FIX #23 (iterate 4): RESTORE DYNAMIC RANGE - dark recesses + bright highlights
-// - Achromatic palette: vec3(0.35) → vec3(0.95) for proper contrast
+// FIX #23 (iterate 5): REMOVE BUGGY CONTRAST - was brightening and washing out
+// - Achromatic palette: vec3(0.35) → vec3(0.95) for proper contrast (from PR #38)
 // - Threshold logic: foilIntensity > 0.2 ? silver : baseRGB (no mixing)
 // - LOW ambient (0.28) to allow specular/fresnel to show as moving highlights
-// - Eliminates peach/cream AND flat white disc
+// - FIXED: Removed pow(lighting, 1.0/contrast) which was compressing dynamic range
 
 export const vertexShader = `
   varying vec2 vUv;
@@ -168,8 +168,8 @@ export const fragmentShader = `
                     vec3(0.95) * specRim * 1.2 +             // Rim specular (bright white)
                     vec3(0.88) * fresnelFactor * 0.9;        // Fresnel edge glow
     
-    // Apply contrast boost for metallic pop
-    lighting = pow(lighting, vec3(1.0 / uFoilContrast));
+    // REMOVED BUGGY CONTRAST: was pow(lighting, 1.0/uFoilContrast) which BRIGHTENED
+    // and compressed range, washing out to flat white. Natural lighting range is correct.
     
     // Subtle animated shimmer on highlights
     float shimmer = sin(uTime * 1.2 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
