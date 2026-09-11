@@ -517,7 +517,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     if (product && process.env.PRODIGI_API_KEY) {
       try {
         const prodigiOrder = await prodigiClient.createOrder({
-          shippingMethod: 'Standard',
+          shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
           recipient: {
             name: session.customer_details?.name || 'Customer',
             address: {
