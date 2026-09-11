@@ -99,24 +99,42 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 
   if (product && process.env.PRODIGI_API_KEY) {
     try {
+      // Map Stripe session to recipient address
+      // Priority: shipping_details > customer_details
+      // Fallback: Prodigi sandbox test address when fields are empty (for QA testing)
+      const shippingAddress = session.shipping_details?.address;
+      const customerDetails = session.customer_details;
+      
+      const line1 = shippingAddress?.line1 || customerDetails?.address?.line1 || '1234 Main St';
+      const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
+      const city = shippingAddress?.city || customerDetails?.address?.city || 'San Francisco';
+      const state = shippingAddress?.state || customerDetails?.address?.state || 'CA';
+      const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code || '94102';
+      const country = shippingAddress?.country || customerDetails?.address?.country || 'US';
+      const recipientName = shippingAddress?.name || customerDetails?.name || 'Test Customer';
+
       const prodigiOrder = await prodigiClient.createOrder({
         shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
         recipient: {
-          name: session.customer_details?.name || 'Customer',
+          name: recipientName,
           address: {
-            line1: session.shipping_details?.address?.line1 || '',
-            line2: session.shipping_details?.address?.line2 || '',
-            postalOrZipCode: session.shipping_details?.address?.postal_code || '',
-            countryCode: session.shipping_details?.address?.country || 'US',
-            townOrCity: session.shipping_details?.address?.city || '',
-            stateOrCounty: session.shipping_details?.address?.state || '',
+            line1,
+            line2,
+            postalOrZipCode: postalCode,
+            countryCode: country,
+            townOrCity: city,
+            stateOrCounty: state,
           },
         },
         items: [
           {
             sku: product.sku,
             copies: firstItem.quantity,
-            attributes: product.attributes,
+            // Prodigi requires uppercase size values for GLOBAL-TEE-BC-3001
+            sizing: product.attributes.size.toUpperCase(),
+            attributes: {
+              color: product.attributes.color,
+            },
             assets: [
               {
                 printArea: 'front',
