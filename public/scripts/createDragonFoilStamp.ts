@@ -26,8 +26,8 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     width = 600,
     height = 600,
     foilSaturation = 0.11,  // Low saturation for silvery chrome
-    foilOpacity = 0.44,
-    foilContrast = 1.68,
+    foilOpacity = 0.85,     // Higher opacity for strong metallic replacement
+    foilContrast = 1.85,    // Increased contrast for metallic pop
   } = options;
 
   // Scene setup
