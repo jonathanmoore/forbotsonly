@@ -121,9 +121,16 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
 
     // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-    const artworkUrl = `${publicUrl}/images/grok-bot-hexagon-orange.svg`;
+    
+    // Build artwork URL from order line item's mark (shape + color)
+    // Prodigi API accepts ONLY JPG, PNG, or PDF (NOT SVG)
+    // Uses POSITIONED full-canvas PNG: 2480×3507px with 360×360px mark on left chest
+    // Per PRODUCT_IMAGERY.md: wearer's left = right side of front-facing canvas, ~3" below HPS
+    const mark = firstItem.mark;
+    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
 
-    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}, artwork: ${artworkUrl}`);
+    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
+    console.log(`[Prodigi] Artwork URL (positioned): ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
 
     // Build address object, omitting line2 if empty/whitespace
     const address: Record<string, string> = {
@@ -147,9 +154,10 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
         {
           sku: product.sku,
           copies: firstItem.quantity,
-          // sizing is print strategy enum (fillPrintArea | fitPrintArea | stretchToPrintArea)
-          // NOT apparel size - apparel size goes in attributes.size
-          sizing: 'fillPrintArea',
+          // sizing: fitPrintArea for pre-positioned full-canvas PNG
+          // Our PNG is 2480×3507px (full printArea.front) with mark already positioned on left chest
+          // Do NOT use fillPrintArea on bare logos (stretches incorrectly)
+          sizing: 'fitPrintArea',
           attributes: {
             color: product.attributes.color,
             size: firstItem.size.toLowerCase(), // Apparel size from cart (lowercase)
