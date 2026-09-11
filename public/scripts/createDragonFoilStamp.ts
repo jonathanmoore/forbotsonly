@@ -7,10 +7,10 @@ export interface DragonFoilStampOptions {
   foilSrc: string;
   width?: number;
   height?: number;
-  // JM Dragon foil conventions
-  foilSaturation?: number;  // Not used (achromatic forced) - kept for API compatibility
-  foilOpacity?: number;     // Not used (threshold replacement) - kept for API compatibility
-  foilContrast?: number;    // 1.65 default (contrast boost on naturally darker base)
+  // JM Dragon foil compositor parameters (ported from jonathanmoore.com)
+  foilSaturation?: number;  // ~0.11: desaturates rainbow → chrome/silver
+  foilOpacity?: number;     // ~0.44: blend strength of foil over colored base
+  foilContrast?: number;    // ~1.68: contrast adjustment for foil lighting
 }
 
 export interface DragonFoilStamp {
@@ -25,9 +25,9 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     foilSrc,
     width = 600,
     height = 600,
-    foilSaturation = 0.0,   // Forced achromatic (parameter not used in shader)
-    foilOpacity = 1.0,      // Threshold replacement (parameter not used in shader)
-    foilContrast = 1.65,    // Lower contrast for natural darker base (not 1.75)
+    foilSaturation = 0.11,  // JM default: desaturates rainbow to chrome
+    foilOpacity = 0.44,     // JM default: blend strength over orange base
+    foilContrast = 1.68,    // JM default: contrast boost for foil lighting
   } = options;
 
   // Scene setup
