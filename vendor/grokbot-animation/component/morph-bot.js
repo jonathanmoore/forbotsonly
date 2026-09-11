@@ -9,13 +9,7 @@ import {
   SOLID_PRESETS,
   resolveMaterial,
 } from "./materials.js";
-import {
-  compileDialogue,
-  DIALOGUE_ENGLISH_MODES,
-  DIALOGUE_VOICES,
-  DialogueDirector,
-} from "./runtime/dialogue-director.js";
-import { analyzeSpeechUnits } from "./runtime/speech-unit-analyzer.js";
+// Dialogue system removed - decorative mode only
 
 export const MORPH_BOT_STATES = STATE_IDS;
 export const MORPH_BOT_SHAPES = SHAPE_IDS;
@@ -24,9 +18,7 @@ export const MORPH_BOT_MATERIALS = MATERIAL_IDS;
 export const MORPH_BOT_SOLID_PRESETS = SOLID_PRESETS;
 export const MORPH_BOT_GRADIENT_PRESETS = GRADIENT_PRESETS;
 export const MORPH_BOT_GLASS_PRESETS = GLASS_PRESETS;
-export const MORPH_BOT_DIALOGUE_VOICES = DIALOGUE_VOICES;
-export const MORPH_BOT_DIALOGUE_ENGLISH_MODES = DIALOGUE_ENGLISH_MODES;
-export { analyzeSpeechUnits, compileDialogue, MORPH_BY_STATE };
+export { MORPH_BY_STATE };
 
 const DEFAULT_CHARACTER = Object.freeze({
   color: "#0b0b0b",
@@ -147,7 +139,6 @@ export class MorphBotElement extends HTMLElementBase {
     this._intersectionObserver = null;
     this._morphMonitor = 0;
     this._sequenceToken = 0;
-    this._dialogueDirector = null;
     this._componentId = `morph-bot-${++componentCounter}`;
     if (this.attachShadow) this.attachShadow({ mode: "open" });
   }
@@ -177,8 +168,6 @@ export class MorphBotElement extends HTMLElementBase {
   disconnectedCallback() {
     this._morphMonitor += 1;
     this._sequenceToken += 1;
-    this._dialogueDirector?.stop();
-    this._dialogueDirector = null;
     this._intersectionObserver?.disconnect();
     this._intersectionObserver = null;
     this._engine?.destroy();
@@ -378,29 +367,7 @@ export class MorphBotElement extends HTMLElementBase {
     return this;
   }
 
-  performDialogue(script, options = {}) {
-    if (!this._engine) return Promise.reject(new Error("morph-bot is not connected"));
-    this.stopSequence();
-    if (!this._dialogueDirector) this._dialogueDirector = new DialogueDirector(this);
-    return this._dialogueDirector.play(script, options);
-  }
-
-  pauseDialogue() {
-    this._dialogueDirector?.pause();
-    return this;
-  }
-
-  resumeDialogue() {
-    this._dialogueDirector?.resume();
-    return this;
-  }
-
-  stopDialogue() {
-    this._dialogueDirector?.stop({ restorePause: true });
-    this.restoreStateMorph();
-    this.rotation = 0;
-    return this;
-  }
+  // Dialogue methods removed - decorative mode only
 
   _waitForSequence(duration, token) {
     if (duration <= 0) return Promise.resolve(token === this._sequenceToken);
