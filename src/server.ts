@@ -142,10 +142,13 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
         {
           sku: product.sku,
           copies: firstItem.quantity,
-          // Prodigi requires uppercase size values for GLOBAL-TEE-BC-3001
-          sizing: product.attributes.size.toUpperCase(),
+          // CRITICAL: sizing must be lowercase (e.g., "m", not "M")
+          // validValues: m, l, s, xl, 2xl, 3xl, 4xl, 5xl
+          sizing: product.attributes.size.toLowerCase(),
+          // CRITICAL: attributes must include BOTH color AND size
           attributes: {
             color: product.attributes.color,
+            size: product.attributes.size.toLowerCase(),
           },
           assets: [
             {
