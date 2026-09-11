@@ -1,0 +1,204 @@
+name: Prodigi Print Areas Investigation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - merch/prodigi-print-areas-343f
+
+jobs:
+  check-print-areas:
+    runs-on: ubuntu-latest
+    
+    env:
+      PRODIGI_API_KEY: ${{ secrets.PRODIGI_API_KEY }}
+      PRODIGI_API_BASE_URL: ${{ secrets.PRODIGI_API_BASE_URL || 'https://api.sandbox.prodigi.com' }}
+    
+    steps:
+      - name: Query GLOBAL-TEE-BC-3001
+        id: sku1
+        run: |
+          echo "Querying GLOBAL-TEE-BC-3001..."
+          
+          # Query the API (never echo the key)
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o response1.json \
+            -H "X-API-Key: ${PRODIGI_API_KEY}" \
+            "${PRODIGI_API_BASE_URL}/v4.0/products/GLOBAL-TEE-BC-3001")
+          
+          echo "http_code_1=${HTTP_CODE}" >> $GITHUB_OUTPUT
+          
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ GLOBAL-TEE-BC-3001 found (HTTP ${HTTP_CODE})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract and format the key fields using jq
+            jq -r '
+              .product |
+              "## SKU: " + .sku + "\n\n" +
+              "**Description:** " + .description + "\n\n" +
+              "### Attributes\n" +
+              (
+                if .attributes then
+                  (.attributes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                else
+                  "No attributes found"
+                end
+              ) + "\n\n" +
+              "### Print Areas\n" +
+              (
+                if .printAreas then
+                  (.printAreas | to_entries | map("- `" + .key + "` (required: " + (.value.required | tostring) + ")") | join("\n"))
+                else
+                  "No print areas found"
+                end
+              ) + "\n"
+            ' response1.json >> $GITHUB_STEP_SUMMARY
+            
+            # Find black variant
+            echo "### Black Variant Details" >> $GITHUB_STEP_SUMMARY
+            BLACK_VARIANT=$(jq '.product.variants[] | select(.attributes.color // .attributes.Color | test("black"; "i"))' response1.json | jq -s '.[0]')
+            
+            if [ "$BLACK_VARIANT" != "null" ] && [ -n "$BLACK_VARIANT" ]; then
+              echo "$BLACK_VARIANT" | jq -r '
+                "**Color:** " + (.attributes.color // .attributes.Color) + "\n\n" +
+                "**Print Area Sizes:**\n" +
+                (
+                  if .printAreaSizes then
+                    (.printAreaSizes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                  else
+                    "No print area sizes found"
+                  end
+                ) + "\n\n" +
+                "**Variant Attributes:**\n" +
+                (.attributes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+              ' >> $GITHUB_STEP_SUMMARY
+            else
+              echo "*Black variant not found. Showing first available variant:*" >> $GITHUB_STEP_SUMMARY
+              FIRST_VARIANT=$(jq '.product.variants[0]' response1.json)
+              echo "$FIRST_VARIANT" | jq -r '
+                "\n**Color:** " + (.attributes.color // .attributes.Color // "N/A") + "\n\n" +
+                "**Print Area Sizes:**\n" +
+                (
+                  if .printAreaSizes then
+                    (.printAreaSizes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                  else
+                    "No print area sizes found"
+                  end
+                ) + "\n"
+              ' >> $GITHUB_STEP_SUMMARY
+              
+              echo "\n**Available colors:**" >> $GITHUB_STEP_SUMMARY
+              jq -r '.product.variants[].attributes.color // .product.variants[].attributes.Color' response1.json | sort -u | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ GLOBAL-TEE-BC-3001 returned HTTP ${HTTP_CODE}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -f response1.json ]; then
+              echo "Response:" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              cat response1.json >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Query TEE-PKT-CC-6030
+        id: sku2
+        run: |
+          echo "Querying TEE-PKT-CC-6030..."
+          
+          # Query the API (never echo the key)
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o response2.json \
+            -H "X-API-Key: ${PRODIGI_API_KEY}" \
+            "${PRODIGI_API_BASE_URL}/v4.0/products/TEE-PKT-CC-6030")
+          
+          echo "http_code_2=${HTTP_CODE}" >> $GITHUB_OUTPUT
+          
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ TEE-PKT-CC-6030 found (HTTP ${HTTP_CODE})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract and format the key fields using jq
+            jq -r '
+              .product |
+              "## SKU: " + .sku + "\n\n" +
+              "**Description:** " + .description + "\n\n" +
+              "### Attributes\n" +
+              (
+                if .attributes then
+                  (.attributes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                else
+                  "No attributes found"
+                end
+              ) + "\n\n" +
+              "### Print Areas\n" +
+              (
+                if .printAreas then
+                  (.printAreas | to_entries | map("- `" + .key + "` (required: " + (.value.required | tostring) + ")") | join("\n"))
+                else
+                  "No print areas found"
+                end
+              ) + "\n"
+            ' response2.json >> $GITHUB_STEP_SUMMARY
+            
+            # Find black variant
+            echo "### Black Variant Details" >> $GITHUB_STEP_SUMMARY
+            BLACK_VARIANT=$(jq '.product.variants[] | select(.attributes.color // .attributes.Color | test("black"; "i"))' response2.json | jq -s '.[0]')
+            
+            if [ "$BLACK_VARIANT" != "null" ] && [ -n "$BLACK_VARIANT" ]; then
+              echo "$BLACK_VARIANT" | jq -r '
+                "**Color:** " + (.attributes.color // .attributes.Color) + "\n\n" +
+                "**Print Area Sizes:**\n" +
+                (
+                  if .printAreaSizes then
+                    (.printAreaSizes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                  else
+                    "No print area sizes found"
+                  end
+                ) + "\n\n" +
+                "**Variant Attributes:**\n" +
+                (.attributes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+              ' >> $GITHUB_STEP_SUMMARY
+            else
+              echo "*Black variant not found. Showing first available variant:*" >> $GITHUB_STEP_SUMMARY
+              FIRST_VARIANT=$(jq '.product.variants[0]' response2.json)
+              echo "$FIRST_VARIANT" | jq -r '
+                "\n**Color:** " + (.attributes.color // .attributes.Color // "N/A") + "\n\n" +
+                "**Print Area Sizes:**\n" +
+                (
+                  if .printAreaSizes then
+                    (.printAreaSizes | to_entries | map("- **" + .key + ":** " + (.value | tostring)) | join("\n"))
+                  else
+                    "No print area sizes found"
+                  end
+                ) + "\n"
+              ' >> $GITHUB_STEP_SUMMARY
+              
+              echo "\n**Available colors:**" >> $GITHUB_STEP_SUMMARY
+              jq -r '.product.variants[].attributes.color // .product.variants[].attributes.Color' response2.json | sort -u | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ TEE-PKT-CC-6030 returned HTTP ${HTTP_CODE}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -f response2.json ]; then
+              echo "Response:" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              cat response2.json >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Upload JSON artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prodigi-responses
+          path: |
+            response*.json
+          if-no-files-found: ignore
