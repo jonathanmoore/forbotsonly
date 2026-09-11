@@ -1,4 +1,6 @@
-# Fix Summary: #23 Iteration 8 - Restore Metallic Pewter/Chrome
+# Fix Summary: #23 Iteration 8 - Restore Metallic Pewter/Chrome (Historical)
+
+**Note**: This document describes a dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `HUMAN-PAGE.md` for current state.
 
 **Issue:** #23 iterate 8 - Matte white appearance instead of metallic pewter/chrome  
 **Branch:** `cursor/iterate-8-metallic-pewter-b9ad`  

@@ -2,7 +2,7 @@
 
 Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi fulfillment.
 
-**This store is for agents.** Human visitors see a **dragon foil holographic sticker** of the Grok Bot mark (orange hexagon) on a full black page. Agents interact via WebMCP tools.
+**This store is for agents.** Human visitors see a **dashed outline morph-bot** on a black void with fine static grain. Agents interact via WebMCP tools.
 
 ## Built with Grok Bot
 
@@ -10,8 +10,8 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 
 ## Features
 
-- **Dragon foil human page**: Full black page with holographic Grok Bot sticker (Three.js shader effect)
-- **Faceless storefront**: No human catalog UI beyond the foil sticker
+- **Minimal human page**: Black void with dashed-outline animated morph-bot and fine grain overlay
+- **Faceless storefront**: No human catalog UI beyond the minimal page
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
 - **Identity-based gate**: Identify with name + mark (shape + color)
 - **Mark carries through**: Identity mark becomes default for cart items (can override)
@@ -24,7 +24,7 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 ```
 ┌─────────────────────────────────────────┐
 │         Human Visitor                   │
-│   (sees dragon foil sticker only)       │
+│  (sees outline morph-bot + grain only)  │
 └─────────────────────────────────────────┘
                  │
                  │ WebMCP tools
@@ -64,33 +64,28 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 
 ## Human-Facing Page
 
-### Dragon Foil Sticker
+### Outline Morph-Bot
 
-The landing page features a **dragon foil holographic sticker** of the Grok Bot mark (orange hexagon) on a full black background.
+The landing page features a **dashed dark charcoal outline** of an animated morph-bot on a black void with fine static grain overlay.
 
-**Implementation:**
-- Three.js-based shader effect with holographic rainbow iridescence
-- Mouse-reactive animation (follows cursor movement)
-- Idle shimmer/morph when not hovering
-- Two-texture system:
-  - **Silhouette**: Grey shape on transparent background
-  - **Foil mask**: Black body with white figure cutouts (bright = foil, dark = matte)
-- Generated client-side from SVG using canvas API
-- Fallback to static SVG if WebGL unavailable
+**Current Implementation (2026-09-11):**
+- Animated web component from vendored grokbot-animation
+- **Outline-only rendering**: Dashed stroke (`#2a2a2a`, ~1.8px, 8-4 dash pattern), no fill on body or eyes
+- **Fine grain overlay**: SVG fractal noise with high `baseFrequency` (~4.2), opacity ~0.05, in-place SMIL seed animation (no x/y translate)
+- Shape morphing and eye animation driven by component
+- Pointer-reactive states (idle, curious, excited)
+- Mobile and desktop centered
+- Fallback to static SVG outline if component fails
 
 **Technical Stack:**
-- `three` library for WebGL rendering
-- Custom vertex and fragment shaders for foil effect
-- Real-time fresnel rim lighting
-- Animated rainbow color generation based on UV coordinates and time
-- Smooth mouse tracking with easing
+- Vendored `morph-bot` web component (English-only, no Chinese dialogue features)
+- Pure SVG rendering with Shadow DOM
+- CSS-based outline mode injection
+- Smooth state transitions and pointer following
 
 **Files:**
-- `public/index.html` - Landing page
-- `public/scripts/createDragonFoilStamp.ts` - Three.js scene and animation
-- `public/scripts/dragonFoilShaders.ts` - Vertex and fragment shaders
-- `public/scripts/createGrokBotStampTextures.ts` - Texture generation from SVG
-- `public/images/grok-bot-hexagon-orange.svg` - Source mark (placeholder)
+- `public/index.html` - Landing page with outline styling
+- `public/vendor/grokbot-animation/` - Vendored animation component (English-only)
 
 ### Prerequisites
 
@@ -116,13 +111,13 @@ bun run server
 
 Server runs on http://localhost:3001 by default.
 
-Start the frontend (to see dragon foil human page):
+Start the frontend (to see outline morph-bot human page):
 
 ```bash
 bun run dev
 ```
 
-Frontend runs on http://localhost:3000 with the holographic Grok Bot sticker.
+Frontend runs on http://localhost:3000 with the dashed outline animated morph-bot.
 
 ### Test Prodigi Connection
 
@@ -788,24 +783,26 @@ bun run server
 ```
 forbotsonly/
 ├── public/
-│   └── index.html          # Human-facing "for agents" page
+│   ├── index.html                      # Human-facing "for agents" page
+│   └── vendor/grokbot-animation/       # Vendored animation component (English-only)
 ├── src/
-│   ├── server.ts           # Main server with WebMCP + webhook handling
-│   ├── store.ts            # In-memory session, cart, order state
-│   ├── products.ts         # Product catalog (single tee)
-│   ├── stripe.ts           # Stripe checkout integration
-│   ├── prodigi.ts          # Prodigi API client
-│   └── types.ts            # TypeScript types
+│   ├── server.ts                       # Main server with WebMCP + webhook handling
+│   ├── store.ts                        # In-memory session, cart, order state
+│   ├── products.ts                     # Product catalog (single tee)
+│   ├── stripe.ts                       # Stripe checkout integration
+│   ├── prodigi.ts                      # Prodigi API client
+│   └── types.ts                        # TypeScript types
 ├── scripts/
-│   └── ping.ts             # Prodigi connection test
-├── .env.example            # Environment variable template
-├── .gitignore              # Git ignore rules
-├── Dockerfile              # Docker build (for Railway)
-├── railway.toml            # Railway nixpacks configuration
-├── package.json            # Bun dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-├── vite.config.ts          # Vite configuration (for frontend dev)
-└── README.md               # This file
+│   └── ping.ts                         # Prodigi connection test
+├── assets/marks/                       # 8×11 SVG mark pack
+├── .env.example                        # Environment variable template
+├── .gitignore                          # Git ignore rules
+├── Dockerfile                          # Docker build (for Railway)
+├── railway.toml                        # Railway nixpacks configuration
+├── package.json                        # Bun dependencies and scripts
+├── tsconfig.json                       # TypeScript configuration
+├── vite.config.ts                      # Vite configuration (for frontend dev)
+└── README.md                           # This file
 ```
 
 ## Related Issues
