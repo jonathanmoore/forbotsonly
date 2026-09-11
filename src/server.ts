@@ -123,32 +123,36 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
     const artworkUrl = `${publicUrl}/images/grok-bot-hexagon-orange.svg`;
 
-    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${product.attributes.size.toUpperCase()}, artwork: ${artworkUrl}`);
+    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${product.attributes.size}, artwork: ${artworkUrl}`);
+
+    // Build address object, omitting line2 if empty/whitespace
+    const address: Record<string, string> = {
+      line1,
+      postalOrZipCode: postalCode,
+      countryCode: country,
+      townOrCity: city,
+      stateOrCounty: state,
+    };
+    if (line2 && line2.trim()) {
+      address.line2 = line2;
+    }
 
     const prodigiOrder = await prodigiClient.createOrder({
       shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
       recipient: {
         name: recipientName,
-        address: {
-          line1,
-          line2,
-          postalOrZipCode: postalCode,
-          countryCode: country,
-          townOrCity: city,
-          stateOrCounty: state,
-        },
+        address,
       },
       items: [
         {
           sku: product.sku,
           copies: firstItem.quantity,
-          // CRITICAL: sizing must be lowercase (e.g., "m", not "M")
-          // validValues: m, l, s, xl, 2xl, 3xl, 4xl, 5xl
-          sizing: product.attributes.size.toLowerCase(),
-          // CRITICAL: attributes must include BOTH color AND size
+          // sizing is print strategy enum (fillPrintArea | fitPrintArea | stretchToPrintArea)
+          // NOT apparel size - apparel size goes in attributes.size
+          sizing: 'fillPrintArea',
           attributes: {
             color: product.attributes.color,
-            size: product.attributes.size.toLowerCase(),
+            size: product.attributes.size,
           },
           assets: [
             {
