@@ -43,7 +43,12 @@ export class ProdigiClient {
   constructor(config: ProdigiConfig) {
     this.apiKey = config.apiKey;
     // Default to sandbox for safety; live deployments must explicitly set PRODIGI_BASE_URL
+    // IMPORTANT: baseUrl must be HOST ONLY (e.g., https://api.prodigi.com), NOT including /v4.0
+    // Paths in request methods already include /v4.0/Orders, etc.
     this.baseUrl = config.baseUrl || process.env.PRODIGI_BASE_URL || 'https://api.sandbox.prodigi.com';
+    
+    // Strip any trailing /v4.0 or similar path suffixes to prevent double-path issues
+    this.baseUrl = this.baseUrl.replace(/\/v\d+\.\d+.*$/, '');
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {

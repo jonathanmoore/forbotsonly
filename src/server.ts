@@ -342,6 +342,34 @@ const TOOL_DEFINITIONS = {
       required: ['orderId'],
     },
   },
+  recover_paid_checkout: {
+    name: 'recover_paid_checkout',
+    description: 'ADMIN TOOL: Recover an orphaned paid checkout session. Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. Idempotent - safe to call multiple times. DO NOT create a new charge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stripeCheckoutSessionId: {
+          type: 'string',
+          description: 'Stripe checkout session ID (e.g., "cs_live_...")',
+        },
+        orderId: {
+          type: 'string',
+          description: 'Optional: Restore exact order ID (e.g., "ord_1789089764884_hh1rzcckj")',
+        },
+        shape: {
+          type: 'string',
+          description: 'Optional: Mark shape for recreated order (defaults to hexagon)',
+          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+        },
+        color: {
+          type: 'string',
+          description: 'Optional: Mark color for recreated order (defaults to orange)',
+          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+        },
+      },
+      required: ['stripeCheckoutSessionId'],
+    },
+  },
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
@@ -666,6 +694,118 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       };
     }
     
+    case 'recover_paid_checkout': {
+      const { stripeCheckoutSessionId, orderId: requestedOrderId, shape, color } = args;
+      
+      if (!stripeCheckoutSessionId) {
+        throw new Error('stripeCheckoutSessionId is required');
+      }
+      
+      // Retrieve Stripe session
+      const session = await getCheckoutSession(stripeCheckoutSessionId);
+      if (!session) {
+        throw new Error(`Stripe session ${stripeCheckoutSessionId} not found`);
+      }
+      
+      // Require payment_status === paid
+      if (session.payment_status !== 'paid') {
+        throw new Error(`Stripe session ${stripeCheckoutSessionId} is not paid (status: ${session.payment_status})`);
+      }
+      
+      // Check if order already exists (by session ID or by explicit orderId)
+      let order: Order | undefined;
+      
+      if (requestedOrderId) {
+        order = getOrder(requestedOrderId);
+      } else {
+        order = findOrderByStripeSession(stripeCheckoutSessionId);
+      }
+      
+      // If order is missing, recreate it
+      if (!order) {
+        console.log(`[Recovery] Order not found - recreating from Stripe session ${stripeCheckoutSessionId}`);
+        
+        // Use provided orderId or extract from session metadata
+        const orderId = requestedOrderId || session.metadata?.orderId || `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Create order with tee-001 + mark
+        const markShape = shape || 'hexagon';
+        const markColor = color || 'orange';
+        
+        const cart: Cart = {
+          items: [
+            {
+              productId: 'tee-001',
+              quantity: 1,
+              mark: { shape: markShape, color: markColor },
+            },
+          ],
+          sessionId: session.id,
+        };
+        
+        order = createOrder(session.id, cart, orderId);
+        order.status = 'paid';
+        updateOrderStripeSession(orderId, stripeCheckoutSessionId);
+        
+        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor})`);
+      } else {
+        console.log(`[Recovery] Order ${order.id} already exists`);
+        
+        // Ensure order is marked as paid
+        if (order.status === 'pending') {
+          updateOrderStatus(order.id, 'paid');
+          console.log(`[Recovery] Updated order ${order.id} status to paid`);
+        }
+        
+        // Ensure Stripe session ID is set
+        if (!order.stripeCheckoutSessionId) {
+          updateOrderStripeSession(order.id, stripeCheckoutSessionId);
+          console.log(`[Recovery] Linked order ${order.id} to Stripe session ${stripeCheckoutSessionId}`);
+        }
+      }
+      
+      // If paid but missing prodigiOrderId, create Prodigi order
+      if (!order.prodigiOrderId) {
+        console.log(`[Recovery] Order ${order.id} missing prodigiOrderId - creating Prodigi order`);
+        const prodigiOrderId = await createProdigiOrderForOrder(order.id, session);
+        
+        if (prodigiOrderId) {
+          updateOrderProdigiId(order.id, prodigiOrderId);
+          console.log(`[Recovery] ✅ Created Prodigi order ${prodigiOrderId} for ${order.id}`);
+        } else {
+          console.error(`[Recovery] ❌ Failed to create Prodigi order for ${order.id}`);
+        }
+      } else {
+        console.log(`[Recovery] Order ${order.id} already has Prodigi order ${order.prodigiOrderId}`);
+      }
+      
+      // Re-fetch order with latest updates
+      const recoveredOrder = getOrder(order.id);
+      if (!recoveredOrder) {
+        throw new Error('Order not found after recovery');
+      }
+      
+      const items = recoveredOrder.items.map(item => {
+        const product = getProduct(item.productId);
+        return {
+          productId: item.productId,
+          quantity: item.quantity,
+          mark: item.mark,
+          product,
+        };
+      });
+      
+      return {
+        success: true,
+        recovered: true,
+        order: {
+          ...recoveredOrder,
+          items,
+        },
+        message: `Recovery complete. Order ${recoveredOrder.id} is ${recoveredOrder.status}${recoveredOrder.prodigiOrderId ? ` with Prodigi order ${recoveredOrder.prodigiOrderId}` : ' (Prodigi order pending)'}`,
+      };
+    }
+    
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
@@ -836,6 +976,21 @@ serve({
         return errorResponse('Method not allowed', 405);
       }
       return handleWebhook(req);
+    }
+    
+    if (url.pathname === '/recover-paid-checkout') {
+      if (req.method !== 'POST') {
+        return errorResponse('Method not allowed', 405);
+      }
+      
+      try {
+        const body = await req.json();
+        const sessionId = 'recovery-session';
+        const result = await handleToolCall('recover_paid_checkout', body, sessionId);
+        return jsonResponse(result, 200);
+      } catch (err: any) {
+        return errorResponse(err.message, 400);
+      }
     }
     
     if (url.pathname === '/health') {
