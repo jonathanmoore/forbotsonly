@@ -1,75 +1,106 @@
-# Animated Foil Sticker Integration
+# Human Page Evolution: Foil to Outline
 
-## Summary
+## Current State (2026-09-11 Locked)
 
-Replaced the static Three.js dragon foil sticker on the human page with an animated version driven by the `grokbot-animation` component from [iduu/grokbot-animation](https://github.com/iduu/grokbot-animation).
+The human-facing page now features a **dashed dark charcoal outline** of an animated morph-bot on a black void with fine static grain.
 
-## Changes
+### Current Implementation
+- **Vendored Component**: `public/vendor/grokbot-animation/` (English-only, no Chinese dialogue)
+- **Rendering**: Dashed outline only (`#2a2a2a`, ~1.8px, 8-4 dash pattern), **no fill** on body or eyes
+- **Grain Overlay**: Fine SVG fractal noise with `baseFrequency='4.2'`, opacity `0.05`, in-place SMIL seed animation (**no x/y translate**)
+- **Animation**: Shape morphing and eye animation from morph-bot component
+- **States**: Idle cycling (curious, playful, happy), pointer-reactive
+- **Design**: Minimal Abloh-style aesthetic — black void, tiny muted copy, no marketing chrome
 
-### 1. Vendored grokbot-animation Component
-- **Location**: `public/vendor/grokbot-animation/`
-- Full component runtime including:
-  - `morph-bot.js` - Web Component for animated Grok Bot
-  - `grok-bot-engine.js` - Animation engine with spring physics
-  - `original-data.js` - Official geometry data (shapes, eyes, expressions)
-  - `materials.js` - Material system (solid, gradient, rainbow-glass)
-  - `runtime/` - Core animation systems (physics, particles, morphing, etc.)
-
-### 2. Updated Human Page (`public/index.html`)
-- Removed Three.js foil stamp implementation
-- Integrated `<morph-bot>` web component
-- Configuration:
-  - **State**: `idle` with automatic cycling through `curious`, `playful`, `happy`
-  - **Shape**: `blob` (classic Grok Bot silhouette)
-  - **Material**: `rainbow-glass` with `opal` preset
-  - **Features**: Pointer following, interactive state transitions
-  - **Size**: 320px (matches original foil sticker dimensions)
-
-### 3. Material Selection: Opal Glass
-The `opal` rainbow-glass preset provides a chrome/holographic foil effect with:
-- **Higher sheen** (0.9) for metallic appearance
-- **Subtle pastels** (white, light cyan/purple/pink) closer to chrome/pewter
-- **Less saturated** than rainbow presets, matches minimal aesthetic
-- **Light-reactive** surface that follows pointer movement
-- Soft specular highlights similar to foil material
-
-### 4. Interactive Behavior
-- **Idle**: Automatically cycles through subtle emotional states (3-5s intervals)
-- **Hover**: Switches to `curious` state, pauses cycling
-- **Click**: Triggers `excited` state with animation, returns to idle after 1.5s
-- **Pointer**: Eyes and form follow cursor across viewport (built-in `follow-pointer` attribute)
-
-## Technical Details
-
-### Animation System
-The morph-bot component uses:
-- **Shape morphing**: 96-point path interpolation with spring physics
-- **Eye animation**: 48-point eye rings with 25+ expression variations
-- **State system**: 39 distinct emotional/task states from x.ai reference
-- **Physics**: Damped spring simulation for smooth, organic motion
-- **Render**: Pure SVG (no WebGL/Canvas) with Shadow DOM encapsulation
-
-### Material System
-The `rainbow-glass` material applies:
-- Multi-stop gradient with ordered color stops (OKLab interpolation)
-- Dynamic environment lighting (highlights, shadows, caustics)
-- Rotation-invariant light field (light stays fixed while bot rotates)
-- Rim lighting and edge dispersion effects
-
-### CSS Enhancements
-```css
-#foil-stamp {
-  filter: contrast(1.15) brightness(1.05);
-}
-
-#foil-stamp morph-bot {
-  filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
+### Technical Details
+```html
+<!-- Outline-only styling injected into shadow DOM -->
+.grok-bot-mark__head,
+.grok-bot-mark__eye,
+.morph-part {
+  fill: none !important;
+  stroke: #2a2a2a !important;
+  stroke-width: 1.8 !important;
+  stroke-dasharray: 8 4 !important;
+  stroke-linecap: round !important;
 }
 ```
 
-These filters amplify the chrome/metallic appearance without affecting the minimal page aesthetic.
+### Fine Grain Overlay
+```css
+body::before {
+  background-image: url("data:image/svg+xml,...
+    <feTurbulence 
+      type='fractalNoise' 
+      baseFrequency='4.2' 
+      numOctaves='4' 
+      seed='1'>
+      <!-- SMIL seed animation: in-place static fuzz, no translate -->
+      <animate attributeName='seed' values='1;10;50;...' dur='0.6s' repeatCount='indefinite'/>
+    </feTurbulence>
+  ...");
+  opacity: 0.05;
+}
+```
 
-## Verification
+---
+
+## Historical: Dragon Foil Era (Pre-2026-09-11)
+
+Previous iterations explored holographic foil effects that are **no longer live**. These are documented here for historical reference.
+
+### Phase 1: Three.js Dragon Foil
+- Custom WebGL shaders for metallic iridescence
+- Two-texture system (silhouette + foil mask)
+- Fresnel rim lighting, rainbow color animation
+- Mouse-reactive shimmer and pointer tracking
+- **Files** (legacy): `public/scripts/createDragonFoilStamp.ts`, `dragonFoilShaders.ts`, `createGrokBotStampTextures.ts`
+
+### Phase 2: Opal Rainbow-Glass
+- Replaced Three.js with grokbot-animation component
+- `rainbow-glass` material with `opal` preset
+- Chrome/pewter effect with 0.9 sheen
+- Subtle pastels (white, cyan, purple, pink)
+- Light-reactive surface following pointer
+- **Status**: Replaced by outline-only rendering
+
+### Phase 3: Outline + Fine Grain (Current)
+- Removed all foil/chrome/glass effects
+- Dashed dark charcoal outline only
+- Fine grain overlay with in-place SMIL animation
+- Minimal, archive-calm aesthetic
+- **Live as of**: 2026-09-11
+
+---
+
+## Technical Architecture (Current)
+
+### Vendored Component
+- **Location**: `public/vendor/grokbot-animation/`
+- **Trimmed**: English-only runtime, no Chinese TTS/pinyin/dialogue features
+- **Core Files**:
+  - `morph-bot.js` - Web Component
+  - `original-data.js` - Official geometry (96-point shapes, 48-point eyes)
+  - `materials.js` - Material system (solid, gradient, rainbow-glass)
+
+### Animation System
+The morph-bot component provides:
+- **Shape morphing**: 96-point path interpolation with spring physics
+- **Eye animation**: 48-point eye rings with 25+ expression variations
+- **State system**: 39 distinct emotional/task states
+- **Physics**: Damped spring simulation for smooth, organic motion
+- **Render**: Pure SVG with Shadow DOM encapsulation
+
+### Outline Mode Override
+Current implementation injects CSS into shadow DOM to force outline-only rendering:
+- Removes all fills
+- Applies dashed stroke styling
+- Hides particles, rings, glyphs, gradients
+- Disables chrome/glass filters
+
+---
+
+## Verification (Current State)
 
 ### Local Testing
 ```bash
@@ -78,50 +109,44 @@ npm run dev
 # Open http://localhost:3000
 ```
 
-**Expected behavior**:
-1. Page loads with animated Grok Bot sticker on black void
-2. Sticker has holographic opal material (subtle chrome/pewter shimmer)
-3. Eyes and shape morph subtly in idle state
-4. Pointer movement causes bot to follow cursor
-5. Hover triggers `curious` state (wider eyes, slight tilt)
-6. Click triggers `excited` state (jumping, rapid animation)
+**Expected behavior (2026-09-11)**:
+1. Black void with fine grain overlay
+2. Dashed dark charcoal outline morph-bot (no fill, no chrome/glass effects)
+3. Shape and eye morphing in idle state
+4. Pointer following and state transitions
+5. Hover triggers `curious` state
+6. Click triggers `excited` state
+7. Tiny muted "§ This store is for agents" copy only
 
-### Railway Preview
-The branch is deployed to Railway. Access the preview URL from the Railway dashboard or PR checks.
-
-## Design Constraints Met
+### Design Constraints Met (Current)
 
 ✅ **Abloh-minimal aesthetic**: Black void, tiny muted copy, no marketing chrome  
-✅ **Foil/holographic vibe**: Prism glass material provides metallic shimmer  
+✅ **Outline-only rendering**: Dashed dark charcoal stroke, no fill on body/eyes  
+✅ **Fine grain overlay**: High `baseFrequency` (~4.2), in-place SMIL animation  
 ✅ **Animation**: Shape morph + eyes driven by grokbot-animation runtime  
-✅ **Pointer reactive**: Built-in `follow-pointer` attribute maintained  
-✅ **No regression**: Page structure and minimal UI unchanged  
+✅ **English-only vendor**: No Chinese TTS/pinyin/dialogue features  
+✅ **Pointer reactive**: Built-in follow-pointer attribute maintained  
 
-## Out of Scope
+---
 
-- ❌ Print mark SVG pack (separate PR #53)
-- ❌ Stripe/Prodigi/identify endpoints (unchanged)
-- ❌ Three.js dragon foil shaders (fully replaced, not augmented)
+## Component Notes
 
-## Dependencies
+The vendored grokbot-animation component is trimmed for forbotsonly:
+- **English-only**: Chinese dialogue features not used
+- **Self-contained**: No external npm dependencies at runtime
+- **Bundled libraries** (unused in current integration):
+  - `pinyin-pro` 3.29.3 (MIT) - Chinese phonetic analysis
+  - `animalese-tts` 1.1.3 (MIT) - Speech synthesis
 
-The vendored component is self-contained with no external npm dependencies for runtime. It includes:
-- `pinyin-pro` 3.29.3 (MIT) - Chinese phonetic analysis for dialogue system
-- `animalese-tts` 1.1.3 (MIT) - Speech synthesis for dialogue system
+See `public/vendor/grokbot-animation/README.md` for component docs.
 
-These are only used if the dialogue API is invoked (not used in current integration).
+---
 
-## Future Enhancements
+## Historical Reference
 
-Possible improvements:
-1. **Custom chrome material**: Replace rainbow-glass with pure chrome/pewter shader closer to original Three.js foil
-2. **Shape selection**: Allow different shapes (hexagon, cloud, pill) via query param or random
-3. **State triggers**: Connect bot states to MCP agent events (e.g., `thinking` during purchase flow)
-4. **Performance**: Lazy-load component only when sticker enters viewport
+For details on the dragon foil Three.js implementation (pre-outline era), see:
+- Legacy shader files under `public/scripts/` (if present, unused)
+- Git history for PR #25, #28, #33 (foil iterations)
+- `FIX-SUMMARY-PR*.md` files for technical shader details
 
-## References
-
-- Source component: https://github.com/iduu/grokbot-animation
-- Component docs: `public/vendor/grokbot-animation/README.md`
-- Material presets: `public/vendor/grokbot-animation/materials.js`
-- Original data: `public/vendor/grokbot-animation/original-data.js`
+**Note**: Dragon foil / opal glass / chrome effects are **not live** as of 2026-09-11. Current page is outline-only with fine grain.

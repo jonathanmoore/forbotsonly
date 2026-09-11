@@ -1,6 +1,8 @@
-# PR #55: Animated Foil Sticker - Implementation Summary
+# PR #55: Animated Foil Sticker - Implementation Summary (Historical)
 
-## Completed Work
+**Note**: This document describes PR #55 which implemented the opal glass animated foil sticker. This has since been superseded by the current outline-only rendering (locked 2026-09-11). See `FOIL-STICKER-ANIMATION.md` for current state.
+
+## Completed Work (Historical)
 
 Successfully animated the human-page foil sticker using the grokbot-animation component from iduu/grokbot-animation, maintaining the Abloh-minimal black void aesthetic with holographic/foil vibe.
 

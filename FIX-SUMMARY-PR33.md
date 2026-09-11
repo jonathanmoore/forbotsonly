@@ -1,4 +1,6 @@
-# Fix Summary: PR #33 - Eliminate Peach by Brightening Metallic Base
+# Fix Summary: PR #33 - Eliminate Peach by Brightening Metallic Base (Historical)
+
+**Note**: This document describes the dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `FOIL-STICKER-ANIMATION.md` for current state.
 
 ## Issue #23 QA History
 - **PR #25**: Added JM chrome/pewter shader → Still peach

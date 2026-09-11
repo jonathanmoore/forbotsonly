@@ -6,7 +6,7 @@
 
 ## What forbotsonly Is
 
-**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a single dragon-foil holographic sticker of the Grok Bot mark (orange hexagon) on a full black page. Agents shop via WebMCP tools.
+**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a dashed dark charcoal outline of an animated morph-bot on a black void with fine static grain. Agents shop via WebMCP tools.
 
 ### Product
 - **One SKU**: Black tee (Prodigi `GLOBAL-TEE-BC-3001`, Bella+Canvas-class)
@@ -16,7 +16,7 @@
 - **Customization**: Soft identity — agent name + mark (shape + color from 8 shapes × 11 colors)
 
 ### Stack
-- **Frontend**: Vite, Bun, TypeScript, web components, Three.js (dragon foil shader)
+- **Frontend**: Vite, Bun, TypeScript, web components (vendored morph-bot, English-only)
 - **Backend**: Bun server, WebMCP over HTTP, session management
 - **Payment**: Stripe Checkout + Link
 - **Fulfillment**: Prodigi Print API (sandbox → live)
@@ -94,11 +94,11 @@ graph TD
 **Role**: Human-page and live Railway visual verification
 
 **What they did**:
-- Verified dragon foil shader against official Grok Bot mark on every PR
-- **Phase 2 foil bar** (post-mark-pack PR #9): PASS only if official overflow-eyes Grok Bot face clearly visible under silver metallic foil + pointer/tilt shimmer — not peach, not flat white, not empty rainbow blobs
+- Verified human page rendering against product spec on every PR
+- **Initial foil era** (historical): Verified dragon foil shader iterations through PRs #25, #28, #33 — silver metallic foil with official overflow-eyes Grok Bot face visible under shimmer
+- **Current outline era** (2026-09-11): PASS only if dashed dark charcoal outline (#2a2a2a, ~1.8px, 8-4 dash) with no fill on body/eyes, fine grain overlay (baseFrequency ~4.2, opacity ~0.05, in-place SMIL animation)
 - Filed GitHub issues labeled `qa` with screenshots on FAIL
-- Iterated foil shader QA loops: Issues #14, #15, #22 (centering), #23 (peach→silver through PRs #25, #28, #33)
-- Verified sticker centering fix (#22) held through subsequent shader changes
+- Verified sticker centering, state transitions, pointer following
 - Confirmed Railway auto-deploys matched built assets
 - Closed issues on PASS with screenshot + Railway URL
 
@@ -178,14 +178,29 @@ graph TD
 - Mark choices carried through cart → checkout → order
 - `assets/marks/pocket-grok-bot-{shape}-{color}.svg` added
 
-### Phase 2: Dragon Foil Human Page + QA Bar
+### Phase 2: Human Page Evolution (Historical → Current)
+
+#### Phase 2a: Dragon Foil Era (Historical)
 - **Human-facing page**: Full black page with Three.js holographic dragon foil sticker of Grok Bot mark
-- **QA bar set by Chief of Staff**: Official overflow-eyes Grok Bot face must be clearly visible under silver metallic foil + pointer/tilt shimmer
+- **QA bar**: Official overflow-eyes Grok Bot face must be clearly visible under silver metallic foil + pointer/tilt shimmer
 - **Foil iteration loop** (Issues #14, #15, #23):
-  - PR #25: Added JM chrome/pewter shader → QA FAIL: still peach
+  - PR #25: Added chrome/pewter shader → QA FAIL: still peach
   - PR #28: Fixed to use `mix()` blending + bevel normals → QA FAIL: still peach
-  - PR #33: **PASS candidate**: Brightened metallic base (0.45→0.65 chrome, 0.3→0.75 ambient multiplier, 0.85→0.92 foil opacity) → eliminated peach, clear silver shimmer
-- **Centering fix** (Issue #22, held through shader changes): Sticker window-centered, not viewport-dependent
+  - PR #33: **PASS**: Brightened metallic base (0.45→0.65 chrome, 0.3→0.75 ambient multiplier, 0.85→0.92 foil opacity) → eliminated peach, clear silver shimmer
+- **Centering fix** (Issue #22): Sticker window-centered, not viewport-dependent
+
+#### Phase 2b: Animated Foil with Opal Glass (Historical)
+- Replaced Three.js with grokbot-animation component
+- `rainbow-glass` material with `opal` preset for chrome/pewter effect
+- Shape morphing, eye animation, pointer-reactive states
+- **Status**: Superseded by outline-only rendering
+
+#### Phase 2c: Outline + Fine Grain (Current as of 2026-09-11)
+- **Rendering**: Dashed dark charcoal outline only (#2a2a2a, ~1.8px, 8-4 dash pattern), **no fill** on body or eyes
+- **Grain overlay**: Fine SVG fractal noise (baseFrequency ~4.2, opacity ~0.05, in-place SMIL seed animation, **no x/y translate**)
+- **Animation**: Shape morphing and eye animation from vendored morph-bot component (English-only)
+- **QA bar**: Outline-only with fine grain, no foil/chrome/opal/rainbow-glass effects
+- **Design**: Abloh-minimal aesthetic — black void, tiny muted copy, no marketing chrome
 
 ### Phase 3: Stripe + Prodigi Integration (Test Mode)
 - **Stripe Checkout**: Test mode with 4242 card stubs
@@ -225,12 +240,11 @@ graph TD
   - Manual recovery of orphaned orders without re-charging customers
 - **Outcome**: Both orders successfully fulfilled via Prodigi, no duplicate charges
 
-### Phase 7: Ready for Demo (As of ~2026-09-11)
+### Phase 7: Ready for Demo (As of 2026-09-11)
 - **Proven live end-to-end**: Shopping bot → Stripe Link → Prodigi fulfillment → shipped tees
-- **Human page**: Silver metallic dragon foil sticker (PR #33 pending final QA PASS)
+- **Human page**: Dashed outline morph-bot with fine grain overlay (locked 2026-09-11)
 - **Agent flow**: Documented in `TOOL_EXAMPLES.md`, `docs/mcp.md`
 - **Open follow-up work**:
-  - Foil silver vs white/peach still iterating with QA (PR #33 deployed)
   - Custom domain HTTPS cert reliability (use Railway URL for demos)
   - Stripe receipt emails not configured
   - Optional `preview_cart` images before checkout (low priority)
@@ -283,33 +297,32 @@ The code is functional production software. The Git history, issues, and PRs are
 ```
 forbotsonly/
 ├── public/
-│   ├── index.html                        # Dragon foil human page
-│   ├── scripts/
-│   │   ├── createDragonFoilStamp.ts      # Three.js scene setup
-│   │   ├── dragonFoilShaders.ts          # Vertex/fragment shaders (PR #33 brightened)
-│   │   └── createGrokBotStampTextures.ts # SVG→canvas texture generation
-│   └── images/
-│       └── grok-bot-hexagon-orange.svg   # Hero mark
+│   ├── index.html                        # Outline morph-bot human page (2026-09-11)
+│   ├── vendor/grokbot-animation/         # Vendored animation component (English-only)
+│   └── scripts/                          # (legacy foil shaders if present, unused)
 ├── src/
 │   ├── server.ts                         # WebMCP + webhook handler
 │   ├── store.ts                          # Durable file-backed state
 │   ├── products.ts                       # Product catalog
 │   ├── stripe.ts                         # Stripe Checkout integration
 │   └── prodigi.ts                        # Prodigi API client
-├── assets/marks/                         # 8×11 SVG mark pack (PR #9)
+├── assets/marks/                         # 8×11 SVG mark pack
 ├── docs/
 │   ├── mcp.md                            # MCP protocol docs
 │   ├── qa-connector-session.md           # Session stickiness for connectors
 │   └── GROK-BOT-ORCHESTRATION.md         # This file
 ├── TOOL_EXAMPLES.md                      # Agent buyer flow examples
 ├── WORK-COMPLETE.md                      # Historical work log
-├── FIX-SUMMARY-PR33.md                   # Shader fix technical summary
+├── FOIL-STICKER-ANIMATION.md             # Human page evolution (foil → outline)
 └── README.md                             # Main project docs
 ```
 
 ### Key GitHub Work
 - **Wayfinder**: Issues #3 (vision), #4 (auth follow-up), #5 (minimal tools)
-- **Foil iterations**: Issues #14, #15, #22 (centering), #23 (peach→silver); PRs #25, #28, #33
+- **Human page evolution**:
+  - Foil era (historical): Issues #14, #15, #22 (centering), #23 (peach→silver); PRs #25, #28, #33
+  - Opal glass era (historical): PR #55 (animated foil with rainbow-glass/opal)
+  - Outline era (current): 2026-09-11 locked — dashed outline + fine grain
 - **Prodigi fixes**: PRs #31 (address mapping + sizing), #32 (retry paid orders), #34 (API path casing)
 - **MCP session**: PR #16 area (sessionId argument support for connectors)
 - **Recovery**: PR for durable storage + `recover_paid_checkout` tool
