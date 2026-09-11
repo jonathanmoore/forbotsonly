@@ -7,10 +7,10 @@ export interface DragonFoilStampOptions {
   foilSrc: string;
   width?: number;
   height?: number;
-  // JM Dragon foil compositor parameters (ported from jonathanmoore.com)
-  foilSaturation?: number;  // ~0.11: desaturates rainbow → chrome/silver
-  foilOpacity?: number;     // ~0.44: blend strength of foil over colored base
-  foilContrast?: number;    // ~1.68: contrast adjustment for foil lighting
+  // JM Dragon foil conventions
+  foilSaturation?: number;  // 0.0 = fully achromatic chrome/pewter (no color tint)
+  foilOpacity?: number;     // 0.95 default (high for strong metallic replacement)
+  foilContrast?: number;    // 1.75 default (enhanced metallic pop)
 }
 
 export interface DragonFoilStamp {
@@ -25,9 +25,9 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     foilSrc,
     width = 600,
     height = 600,
-    foilSaturation = 0.11,  // JM default: desaturates rainbow to chrome
-    foilOpacity = 0.44,     // JM default: blend strength over orange base
-    foilContrast = 1.68,    // JM default: contrast boost for foil lighting
+    foilSaturation = 0.0,   // Fully achromatic for cool pewter/chrome (no tint)
+    foilOpacity = 0.95,     // Very high opacity for strong metallic replacement over orange
+    foilContrast = 1.75,    // Tuned contrast for metallic pop without over-brightening
   } = options;
 
   // Scene setup
