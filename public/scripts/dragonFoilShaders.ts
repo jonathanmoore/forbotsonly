@@ -35,21 +35,22 @@ export const fragmentShader = `
   
   // Chrome/pewter metallic with proper specular range
   vec3 chromeHighlight(float t, float saturation) {
-    // Metallic silver with full luminance range (dark→bright)
-    vec3 darkPewter = vec3(0.45, 0.44, 0.43);      // Dark pewter shadow
-    vec3 midSilver = vec3(0.75, 0.76, 0.77);       // Mid silver
-    vec3 brightChrome = vec3(0.95, 0.96, 0.98);    // Bright chrome highlight
+    // CRITICAL FIX: Brighter palette to ensure silver reads clearly over orange
+    // Biased toward mid-bright silver (not dark pewter) to avoid peach mixing
+    vec3 darkSilver = vec3(0.65, 0.64, 0.63);      // Lighter base (was 0.45 pewter)
+    vec3 midSilver = vec3(0.82, 0.83, 0.84);       // Brighter mid (was 0.75)
+    vec3 brightChrome = vec3(0.96, 0.97, 0.99);    // Bright chrome highlight
     
     float phase = fract(t);
     vec3 baseColor;
     
     // Smooth transition through metallic range
     if (phase < 0.33) {
-      baseColor = mix(darkPewter, midSilver, phase * 3.0);
+      baseColor = mix(darkSilver, midSilver, phase * 3.0);
     } else if (phase < 0.67) {
       baseColor = mix(midSilver, brightChrome, (phase - 0.33) * 3.0);
     } else {
-      baseColor = mix(brightChrome, darkPewter, (phase - 0.67) * 3.0);
+      baseColor = mix(brightChrome, darkSilver, (phase - 0.67) * 3.0);
     }
     
     // Very low saturation for pure metallic chrome
@@ -119,12 +120,13 @@ export const fragmentShader = `
     vec3 surfaceNormal = calculateBevelNormal(vUv, tFoil, 2.5);
     
     // Combined motion input: mouse + tilt
-    vec2 motionOffset = (vUv - uMouse) * 0.5 + uTilt * 0.3;
+    // Increased motion influence for more obvious pointer-driven highlight changes
+    vec2 motionOffset = (vUv - uMouse) * 0.8 + uTilt * 0.4;  // Increased from 0.5, 0.3
     float motionDist = length(motionOffset);
     
-    // Dynamic light direction from motion
-    vec3 lightDir1 = normalize(vec3(motionOffset.x, motionOffset.y, 0.8));
-    vec3 lightDir2 = normalize(vec3(-motionOffset.x * 0.5, -motionOffset.y * 0.5, 0.6));
+    // Dynamic light direction from motion - stronger XY influence for visible sweeping
+    vec3 lightDir1 = normalize(vec3(motionOffset.x * 1.2, motionOffset.y * 1.2, 0.7));
+    vec3 lightDir2 = normalize(vec3(-motionOffset.x * 0.7, -motionOffset.y * 0.7, 0.5));
     vec3 rimLight = normalize(vec3(0.0, 0.0, 1.0));
     
     // Rotate chrome phase for shimmer
@@ -146,19 +148,20 @@ export const fragmentShader = `
     // Fresnel rim for metallic edges
     float fresnelFactor = fresnel(viewDir, surfaceNormal, 3.0);
     
-    // Ambient metallic base (darker pewter)
-    vec3 ambient = chromeColor * 0.3;
+    // CRITICAL FIX: Bright ambient base to avoid orange+darkGray=peach
+    // Metallic surfaces reflect environment → must be bright to read as silver, not pewter
+    vec3 ambient = chromeColor * 0.75;  // Increased from 0.3 → bright silver base
     
     // Diffuse-like term (metallic surfaces still have some directionality)
-    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.4;
+    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.6;  // Increased from 0.4
     
     // Combine lighting layers
     vec3 lighting = ambient + 
                     chromeColor * diffuse +
-                    chromeColor * spec1 * 0.8 +
-                    chromeColor * spec2 * 0.4 +
-                    vec3(0.95, 0.96, 0.98) * specRim * 0.6 +
-                    vec3(0.85, 0.86, 0.88) * fresnelFactor * 0.5;
+                    chromeColor * spec1 * 1.0 +  // Increased from 0.8
+                    chromeColor * spec2 * 0.6 +  // Increased from 0.4
+                    vec3(0.95, 0.96, 0.98) * specRim * 0.8 +  // Increased from 0.6
+                    vec3(0.85, 0.86, 0.88) * fresnelFactor * 0.6;  // Increased from 0.5
     
     // Apply contrast boost for metallic pop
     lighting = pow(lighting, vec3(1.0 / uFoilContrast));
