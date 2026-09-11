@@ -105,6 +105,129 @@
       z-index: 2;
     }
     
+    /* View toggle control: small, muted, top-right corner */
+    .view-toggle {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    
+    .view-toggle button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.2s ease;
+      padding: 4px 8px;
+    }
+    
+    .view-toggle button:hover {
+      opacity: 0.6;
+    }
+    
+    .view-toggle button.active {
+      opacity: 0.8;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+    
+    .view-toggle .separator {
+      opacity: 0.3;
+    }
+    
+    /* Agent view: instructional content */
+    .agent-content {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 480px;
+      width: 90%;
+      padding: 40px;
+      z-index: 5;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    body[data-view="agent"] .agent-content {
+      display: block;
+      opacity: 1;
+    }
+    
+    body[data-view="agent"] .sticker-container {
+      opacity: 0.15;
+      pointer-events: none;
+    }
+    
+    body[data-view="agent"] .message {
+      display: none;
+    }
+    
+    .agent-content h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      opacity: 0.8;
+    }
+    
+    .agent-content .section {
+      margin-bottom: 20px;
+      font-size: 12px;
+      line-height: 1.6;
+      opacity: 0.7;
+    }
+    
+    .agent-content .section-title {
+      font-weight: 600;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+    
+    .agent-content ul {
+      list-style: none;
+      padding-left: 16px;
+    }
+    
+    .agent-content li {
+      margin-bottom: 6px;
+      position: relative;
+    }
+    
+    .agent-content li::before {
+      content: '→';
+      position: absolute;
+      left: -16px;
+      opacity: 0.5;
+    }
+    
+    .agent-content code {
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 11px;
+    }
+    
+    .agent-content .emphasis {
+      opacity: 1;
+      font-weight: 500;
+    }
+    
     /* Mobile centering: ensure bot is truly centered on small viewports */
     @media (max-width: 768px) {
       body {
@@ -122,6 +245,23 @@
         bottom: max(20px, env(safe-area-inset-bottom, 20px));
         left: max(20px, env(safe-area-inset-left, 20px));
       }
+      
+      .view-toggle {
+        top: max(20px, env(safe-area-inset-top, 20px));
+        right: max(20px, env(safe-area-inset-right, 20px));
+      }
+      
+      .agent-content {
+        padding: 32px 24px;
+      }
+      
+      .agent-content h1 {
+        font-size: 12px;
+      }
+      
+      .agent-content .section {
+        font-size: 11px;
+      }
     }
     
     @media (max-width: 480px) {
@@ -136,17 +276,122 @@
         bottom: max(16px, env(safe-area-inset-bottom, 16px));
         left: max(16px, env(safe-area-inset-left, 16px));
       }
+      
+      .view-toggle {
+        font-size: 10px;
+        gap: 6px;
+        top: max(16px, env(safe-area-inset-top, 16px));
+        right: max(16px, env(safe-area-inset-right, 16px));
+      }
+      
+      .view-toggle button {
+        padding: 4px 6px;
+      }
+      
+      .agent-content {
+        padding: 24px 20px;
+      }
     }
   </style>
 </head>
 <body>
+  <!-- View toggle control -->
+  <div class="view-toggle">
+    <button id="toggle-human" class="active">Human</button>
+    <span class="separator">/</span>
+    <button id="toggle-agent">Agent</button>
+  </div>
+  
+  <!-- Human view (default): morph-bot + minimal label -->
   <div class="sticker-container">
     <div id="foil-stamp"></div>
   </div>
   <div class="message">§ This store is for agents</div>
   
+  <!-- Agent view: instructional content -->
+  <div class="agent-content">
+    <h1>This store is for agents (WebMCP)</h1>
+    
+    <div class="section">
+      <div class="section-title">Discovery</div>
+      <ul>
+        <li>Connect via <code>/.well-known/mcp.json</code></li>
+        <li>Tools: <code>identify_agent</code>, <code>list_products</code>, <code>get_product</code>, <code>add_to_cart</code>, <code>preview_cart</code>, <code>create_checkout</code></li>
+      </ul>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Identity</div>
+      <ul>
+        <li>Call <code>identify_agent</code> with <span class="emphasis">name</span>, <span class="emphasis">shape</span>, and <span class="emphasis">color</span></li>
+        <li>Verify your profile mark exists (or get a random one assigned)</li>
+        <li>Empty identity → store assigns random — <span class="emphasis">never invent defaults</span></li>
+      </ul>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Shopping flow</div>
+      <ul>
+        <li><code>identify_agent</code> → browse/list products</li>
+        <li>Add to cart (size required for apparel)</li>
+        <li><code>preview_cart</code> → verify before checkout</li>
+        <li><code>create_checkout</code> → $40 all-in, Standard shipping</li>
+      </ul>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Note</div>
+      Commerce stays WebMCP-only — paste this as a prompt or agent instruction
+    </div>
+  </div>
+  
   <script type="module">
     import '/vendor/grokbot-animation/morph-bot.js';
+    
+    // View toggle logic
+    function initViewToggle() {
+      const humanBtn = document.getElementById('toggle-human');
+      const agentBtn = document.getElementById('toggle-agent');
+      
+      // Get initial view from URL param or localStorage (default: human)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('view');
+      const savedView = localStorage.getItem('forbotsonly-view');
+      const initialView = urlView || savedView || 'human';
+      
+      function setView(view) {
+        document.body.setAttribute('data-view', view);
+        
+        if (view === 'human') {
+          humanBtn.classList.add('active');
+          agentBtn.classList.remove('active');
+        } else {
+          humanBtn.classList.remove('active');
+          agentBtn.classList.add('active');
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('forbotsonly-view', view);
+        
+        // Update URL without reload
+        const newUrl = new URL(window.location);
+        if (view === 'agent') {
+          newUrl.searchParams.set('view', 'agent');
+        } else {
+          newUrl.searchParams.delete('view');
+        }
+        window.history.replaceState({}, '', newUrl);
+      }
+      
+      humanBtn.addEventListener('click', () => setView('human'));
+      agentBtn.addEventListener('click', () => setView('agent'));
+      
+      // Set initial view
+      setView(initialView);
+    }
+    
+    // Initialize toggle first
+    initViewToggle();
     
     async function init() {
       try {
