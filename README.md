@@ -227,7 +227,7 @@ Lists all available products with mark customization options.
       "sku": "GLOBAL-TEE-BC-3001",
       "name": "forbotsonly Tee",
       "description": "Black tee with customizable Grok Bot mark. Choose your shape and color!",
-      "price": 35.00,
+      "price": 40.00,
       "currency": "USD",
       "attributes": {
         "color": "black",
@@ -261,7 +261,7 @@ Gets detailed information about a specific product.
   "product": {
     "id": "tee-001",
     "name": "forbotsonly Tee",
-    "price": 35.00,
+    "price": 40.00,
     ...
   }
 }
@@ -351,7 +351,7 @@ Gets the current cart contents with product details, mark choices, and total.
     ],
     "sessionId": "sess_..."
   },
-  "total": 35.00,
+  "total": 40.00,
   "currency": "USD"
 }
 ```

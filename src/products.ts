@@ -10,7 +10,7 @@ export const PRODUCTS: Product[] = [
     sku: PRODIGI_SKU,
     name: 'forbotsonly Tee',
     description: 'Black tee with customizable Grok Bot mark. Choose your shape and color!',
-    price: 35.00,
+    price: 40.00,
     currency: 'USD',
     attributes: {
       color: 'black',
