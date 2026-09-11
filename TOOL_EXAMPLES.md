@@ -332,9 +332,8 @@
           "description": "Close-up of your hexagon mark in orange"
         },
         "flatLayMock": {
-          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-hexagon-orange.svg",
-          "description": "Flat-lay tee with hexagon mark in orange on left chest (wearer's left)",
-          "note": "Full flat-lay composite coming soon - currently showing mark only"
+          "url": "https://web-production-493046.up.railway.app/images/previews/flatlay-hexagon-orange.svg",
+          "description": "Black tee flat-lay with hexagon mark in orange on left chest (wearer's left)"
         }
       }
     }
@@ -370,9 +369,8 @@
           "description": "Close-up of your cloud mark in teal"
         },
         "flatLayMock": {
-          "url": "https://web-production-493046.up.railway.app/images/marks/grok-bot-cloud-teal.svg",
-          "description": "Flat-lay tee with cloud mark in teal on left chest (wearer's left)",
-          "note": "Full flat-lay composite coming soon - currently showing mark only"
+          "url": "https://web-production-493046.up.railway.app/images/previews/flatlay-cloud-teal.svg",
+          "description": "Black tee flat-lay with cloud mark in teal on left chest (wearer's left)"
         }
       }
     }

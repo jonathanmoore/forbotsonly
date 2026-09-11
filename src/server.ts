@@ -674,12 +674,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         const product = getProduct(item.productId);
         const mark = item.mark;
         
-        // Close-up mark URL
+        // Close-up mark URL (direct mark SVG)
         const markUrl = `${origin}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
         
-        // Flat-lay mock (for now, same as mark until we have tee composite images)
-        // TODO: Generate or composite mark onto black tee flat-lay reference
-        const flatLayUrl = markUrl;
+        // Flat-lay mock (composite with mark on black tee, left chest)
+        const flatLayUrl = `${origin}/images/previews/flatlay-${mark.shape}-${mark.color}.svg`;
         
         return {
           productId: item.productId,
@@ -696,8 +695,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             },
             flatLayMock: {
               url: flatLayUrl,
-              description: `Flat-lay tee with ${mark.shape} mark in ${mark.color} on left chest (wearer's left)`,
-              note: 'Full flat-lay composite coming soon - currently showing mark only',
+              description: `Black tee flat-lay with ${mark.shape} mark in ${mark.color} on left chest (wearer's left)`,
             },
           },
         };

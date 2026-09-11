@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="800" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Flat-lay preview: Black tee with vertical-oval mark in purple on left chest -->
+  <defs>
+    <style>
+      .flatlay-background { fill: #F5F5F5; }
+      .tee { fill: #0A0A0A; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="800" class="flatlay-background"/>
+  
+  <!-- Black tee (front-facing flat-lay) -->
+  <g class="tee">
+    
+  <!-- Black tee body (simplified flat-lay) -->
+  <rect x="250" y="150" width="300" height="500" rx="20" fill="#0A0A0A"/>
+  
+  <!-- Neckline -->
+  <ellipse cx="400" cy="150" rx="60" ry="30" fill="#1A1A1A"/>
+  
+  <!-- Left sleeve (viewer's left) -->
+  <rect x="120" y="200" width="130" height="180" rx="15" fill="#0A0A0A"/>
+  
+  <!-- Right sleeve (viewer's right) -->
+  <rect x="550" y="200" width="130" height="180" rx="15" fill="#0A0A0A"/>
+  
+  <!-- Subtle seam lines for dimension -->
+  <line x1="280" y1="200" x2="280" y2="600" stroke="#1A1A1A" stroke-width="2"/>
+  <line x1="520" y1="200" x2="520" y2="600" stroke="#1A1A1A" stroke-width="2"/>
+
+  </g>
+  
+  <!-- Mark on left chest (wearer's left = right side facing tee) -->
+  <g transform="translate(430, 260) scale(0.35)">
+    <!-- Grok Bot mark: face layout computation (product ID: bean) -->
+  <!-- Recipe weight: 0.96 | App picker: vertical-oval -->
+  <g class="grok-bot-mark" data-product-id="bean" data-picker-shape="vertical-oval">
+    <path class="grok-bot-mark__head" d="M 44.2705,114.2705 A 70,105 0 1,1 184.2705,114.2705 A 70,105 0 1,1 44.2705,114.2705 Z" fill="#9C27B0"/>
+    <g class="grok-bot-mark__eyes">
+      <ellipse cx="88.50" cy="70.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 88.50 70.00)"/>
+    <ellipse cx="126.50" cy="65.00" rx="6.05" ry="12.00" fill="#0A0A0A" transform="rotate(-22 126.50 65.00)"/>
+    </g>
+  </g>
+  </g>
+</svg>
