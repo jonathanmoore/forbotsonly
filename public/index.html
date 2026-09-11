@@ -105,13 +105,13 @@
       try {
         const container = document.getElementById('foil-stamp');
         
-        // Create morph-bot with holographic prism material for chrome/foil effect
+        // Create morph-bot with holographic opal material for chrome/foil effect
         const bot = document.createElement('morph-bot');
         bot.setAttribute('state', 'idle');
         bot.setAttribute('shape', 'blob');
         bot.setAttribute('size', '320');
         bot.setAttribute('material', 'rainbow-glass');
-        bot.setAttribute('glass-preset', 'prism'); // Prism gives metallic chrome-like shimmer
+        bot.setAttribute('glass-preset', 'opal'); // Opal gives subtle chrome/pewter shimmer (higher sheen)
         bot.setAttribute('follow-pointer', '');
         bot.setAttribute('speed', '0.8'); // Slightly slower for smoother foil-like motion
         bot.setAttribute('decorative', '');
