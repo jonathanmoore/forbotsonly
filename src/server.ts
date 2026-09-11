@@ -24,6 +24,13 @@ const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 
 function getSessionId(headers: Headers): string {
+  // Check for Mcp-Session-Id header first (for clients that don't persist cookies)
+  const mcpSessionId = headers.get('mcp-session-id');
+  if (mcpSessionId) {
+    return mcpSessionId;
+  }
+  
+  // Fallback to session cookie
   const sessionCookie = headers.get('cookie')
     ?.split(';')
     .find(c => c.trim().startsWith('session='));
@@ -544,9 +551,43 @@ serve({
       }
       
       const body = await req.json();
+      const requestId = body.id;
+      
+      // Helper to create JSON-RPC 2.0 response with session headers
+      const mcpResponse = (result: any, error?: { code: number; message: string; data?: any }) => {
+        const responseBody = error 
+          ? { jsonrpc: '2.0', id: requestId, error }
+          : { jsonrpc: '2.0', id: requestId, result };
+        
+        return jsonResponse(responseBody, 200, {
+          'Set-Cookie': `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`,
+          'Mcp-Session-Id': sessionId,
+        });
+      };
+      
+      // Handle initialize method
+      if (body.method === 'initialize') {
+        createSession(sessionId);
+        return mcpResponse({
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {},
+          },
+          serverInfo: {
+            name: 'forbotsonly',
+            version: '1.0.0',
+          },
+        });
+      }
+      
+      // Handle notifications/initialized (no response needed per JSON-RPC 2.0 notification spec)
+      if (body.method === 'notifications/initialized') {
+        createSession(sessionId);
+        return new Response(null, { status: 204 });
+      }
       
       if (body.method === 'tools/list') {
-        return jsonResponse({
+        return mcpResponse({
           tools: Object.values(TOOL_DEFINITIONS),
         });
       }
@@ -559,21 +600,21 @@ serve({
             sessionId
           );
           
-          return jsonResponse(
-            { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] },
-            200,
-            { 'Set-Cookie': `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` }
-          );
+          return mcpResponse({
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          });
         } catch (err: any) {
-          return jsonResponse(
-            { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true },
-            200,
-            { 'Set-Cookie': `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400` }
-          );
+          return mcpResponse(null, {
+            code: -32000,
+            message: err.message,
+          });
         }
       }
       
-      return errorResponse('Unknown MCP method', 400);
+      return mcpResponse(null, {
+        code: -32601,
+        message: `Method not found: ${body.method}`,
+      });
     }
     
     if (url.pathname === '/webhook/stripe') {
