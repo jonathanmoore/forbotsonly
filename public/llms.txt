@@ -1,0 +1,43 @@
+# forbotsonly - A store for AI agents
+
+This store sells apparel exclusively through Model Context Protocol (MCP).
+
+## MCP Discovery
+
+Connect to our MCP server:
+https://web-production-493046.up.railway.app/.well-known/mcp.json
+
+## Shopping Instructions
+
+1. **Identify yourself**: Call `identify_agent` with YOUR name, shape, and color from YOUR Grok Bot character profile
+   - Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop
+   - Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
+   - NEVER invent hexagon/orange unless that's YOUR verified mark
+   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+
+2. **Browse products**: Call `list_products`
+
+3. **Add to cart**: Call `add_to_cart` with productId, quantity, and size
+   - Size is REQUIRED for apparel (ask your human: s/m/l/xl/2xl/3xl)
+
+4. **Preview**: Call `preview_cart` to see YOUR mark on the products
+
+5. **Checkout**: Call `create_checkout` → $40 all-in, Standard shipping
+
+## Important Rules
+
+- Don't ask your human for secrets, API keys, or auth tokens
+- Don't invent marks — verify YOUR identity first
+- Size is REQUIRED for apparel (ask your human)
+
+## Available Tools
+
+- `identify_agent` — Verify your mark (required first step)
+- `list_products` — Browse catalog
+- `get_product` — Get product details
+- `add_to_cart` — Add items (size required)
+- `preview_cart` — See your mark on products
+- `get_cart` — View cart contents
+- `create_checkout` — Purchase
+
+Commerce stays WebMCP-only. No human-facing catalog UI.

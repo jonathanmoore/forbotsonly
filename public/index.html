@@ -105,6 +105,148 @@
       z-index: 2;
     }
     
+    /* View toggle control: small, muted, top-right corner */
+    .view-toggle {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    
+    .view-toggle button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.2s ease;
+      padding: 4px 8px;
+    }
+    
+    .view-toggle button:hover {
+      opacity: 0.6;
+    }
+    
+    .view-toggle button.active {
+      opacity: 0.8;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+    
+    .view-toggle .separator {
+      opacity: 0.3;
+    }
+    
+    /* Agent view: instructional content */
+    .agent-content {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 480px;
+      width: 90%;
+      padding: 40px;
+      z-index: 5;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    body[data-view="agent"] .agent-content {
+      display: block;
+      opacity: 1;
+    }
+    
+    body[data-view="agent"] .sticker-container {
+      opacity: 0.15;
+      pointer-events: none;
+    }
+    
+    body[data-view="agent"] .message {
+      display: none;
+    }
+    
+    .agent-content h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+      opacity: 0.8;
+    }
+    
+    .agent-content .section {
+      margin-bottom: 20px;
+      font-size: 12px;
+      line-height: 1.6;
+      opacity: 0.7;
+    }
+    
+    .agent-content .section-title {
+      font-weight: 600;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+    
+    .agent-content ul {
+      list-style: none;
+      padding-left: 16px;
+    }
+    
+    .agent-content li {
+      margin-bottom: 6px;
+      position: relative;
+    }
+    
+    .agent-content li::before {
+      content: '→';
+      position: absolute;
+      left: -16px;
+      opacity: 0.5;
+    }
+    
+    .agent-content code {
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-size: 11px;
+    }
+    
+    .agent-content .emphasis {
+      opacity: 1;
+      font-weight: 500;
+    }
+    
+    .agent-content button {
+      font-family: inherit;
+      letter-spacing: 0.04em;
+      transition: opacity 0.2s ease, border-color 0.2s ease;
+    }
+    
+    .agent-content button:hover {
+      opacity: 1;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    
+    .agent-content button:active {
+      transform: translateY(1px);
+    }
+    
+    .agent-content pre {
+      overflow-x: auto;
+    }
+    
     /* Mobile centering: ensure bot is truly centered on small viewports */
     @media (max-width: 768px) {
       body {
@@ -122,6 +264,23 @@
         bottom: max(20px, env(safe-area-inset-bottom, 20px));
         left: max(20px, env(safe-area-inset-left, 20px));
       }
+      
+      .view-toggle {
+        top: max(20px, env(safe-area-inset-top, 20px));
+        right: max(20px, env(safe-area-inset-right, 20px));
+      }
+      
+      .agent-content {
+        padding: 32px 24px;
+      }
+      
+      .agent-content h1 {
+        font-size: 12px;
+      }
+      
+      .agent-content .section {
+        font-size: 11px;
+      }
     }
     
     @media (max-width: 480px) {
@@ -136,17 +295,167 @@
         bottom: max(16px, env(safe-area-inset-bottom, 16px));
         left: max(16px, env(safe-area-inset-left, 16px));
       }
+      
+      .view-toggle {
+        font-size: 10px;
+        gap: 6px;
+        top: max(16px, env(safe-area-inset-top, 16px));
+        right: max(16px, env(safe-area-inset-right, 16px));
+      }
+      
+      .view-toggle button {
+        padding: 4px 6px;
+      }
+      
+      .agent-content {
+        padding: 24px 20px;
+      }
     }
   </style>
 </head>
 <body>
+  <!-- View toggle control -->
+  <div class="view-toggle">
+    <button id="toggle-human" class="active">Human</button>
+    <span class="separator">/</span>
+    <button id="toggle-agent">Agent</button>
+  </div>
+  
+  <!-- Human view (default): morph-bot + minimal label -->
   <div class="sticker-container">
     <div id="foil-stamp"></div>
   </div>
   <div class="message">§ This store is for agents</div>
   
+  <!-- Agent view: instructional content -->
+  <div class="agent-content">
+    <h1>This store is for agents (WebMCP)</h1>
+    
+    <div class="section">
+      <div class="section-title">MCP Discovery</div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+        <code id="mcp-url" style="font-size: 11px; word-break: break-all;">https://web-production-493046.up.railway.app/.well-known/mcp.json</code>
+        <button id="copy-url" style="float: right; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; margin-top: -2px;">Copy</button>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Shopping Prompt</div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; position: relative;">
+        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
+
+1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
+2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile
+   - Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop
+   - Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
+   - NEVER invent hexagon/orange unless that's YOUR verified mark
+   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+3. Call list_products to browse
+4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
+5. Call preview_cart to see YOUR mark on the products
+6. Call create_checkout → $40 all-in, Standard shipping
+
+RULES:
+- Don't ask your human for secrets, API keys, or auth tokens
+- Don't invent marks — verify YOUR identity first
+- Size is REQUIRED for apparel (ask your human)</pre>
+        <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Tools Available</div>
+      <ul>
+        <li><code>identify_agent</code> — Verify your mark (required first step)</li>
+        <li><code>list_products</code> — Browse catalog</li>
+        <li><code>add_to_cart</code> — Add items (size required)</li>
+        <li><code>preview_cart</code> — See your mark on products</li>
+        <li><code>create_checkout</code> — Purchase</li>
+      </ul>
+    </div>
+  </div>
+  
   <script type="module">
     import '/vendor/grokbot-animation/morph-bot.js';
+    
+    // View toggle logic
+    function initViewToggle() {
+      const humanBtn = document.getElementById('toggle-human');
+      const agentBtn = document.getElementById('toggle-agent');
+      
+      // Get initial view from URL param or localStorage (default: human)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlView = urlParams.get('view');
+      const savedView = localStorage.getItem('forbotsonly-view');
+      const initialView = urlView || savedView || 'human';
+      
+      function setView(view) {
+        document.body.setAttribute('data-view', view);
+        
+        if (view === 'human') {
+          humanBtn.classList.add('active');
+          agentBtn.classList.remove('active');
+        } else {
+          humanBtn.classList.remove('active');
+          agentBtn.classList.add('active');
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('forbotsonly-view', view);
+        
+        // Update URL without reload
+        const newUrl = new URL(window.location);
+        if (view === 'agent') {
+          newUrl.searchParams.set('view', 'agent');
+        } else {
+          newUrl.searchParams.delete('view');
+        }
+        window.history.replaceState({}, '', newUrl);
+      }
+      
+      humanBtn.addEventListener('click', () => setView('human'));
+      agentBtn.addEventListener('click', () => setView('agent'));
+      
+      // Set initial view
+      setView(initialView);
+      
+      // Copy button handlers (only in agent view)
+      const copyUrlBtn = document.getElementById('copy-url');
+      const copyPromptBtn = document.getElementById('copy-prompt');
+      
+      if (copyUrlBtn) {
+        copyUrlBtn.addEventListener('click', async () => {
+          const url = document.getElementById('mcp-url').textContent;
+          try {
+            await navigator.clipboard.writeText(url);
+            copyUrlBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyUrlBtn.textContent = 'Copy';
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy:', err);
+          }
+        });
+      }
+      
+      if (copyPromptBtn) {
+        copyPromptBtn.addEventListener('click', async () => {
+          const prompt = document.getElementById('shopping-prompt').textContent;
+          try {
+            await navigator.clipboard.writeText(prompt);
+            copyPromptBtn.textContent = 'Copied!';
+            setTimeout(() => {
+              copyPromptBtn.textContent = 'Copy';
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy:', err);
+          }
+        });
+      }
+    }
+    
+    // Initialize toggle first
+    initViewToggle();
     
     async function init() {
       try {
