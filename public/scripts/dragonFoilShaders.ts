@@ -1,7 +1,8 @@
 // Dragon foil shaders - Chrome/pewter metallic foil effect
 // Target: Cool silver metallic with pointer-driven shimmer (JM style)
-// Fix #23 iterate 7: Fully achromatic chrome (sat=0) blended over desaturated base
-// Prevents orange contamination → NO PEACH, pure pewter/chrome bands
+// Fix #23 iterate 8: Restore high-power specular glints (256+) for metallic read
+// Previous #43: Achromatic chrome (sat=0) + hard threshold fixed peach BUT low specular → matte
+// This iter: Keep achromatic + threshold, restore sharp metallic highlights (not matte white)
 
 export const vertexShader = `
   varying vec2 vUv;
@@ -76,6 +77,7 @@ export const fragmentShader = `
     float bottom = texture2D(foilMap, uv - vec2(0.0, texelSize.y)).r;
     
     // Calculate surface normal from height gradients
+    // ITER 8: Increased strength multiplier for more pronounced normal variation
     float dx = (right - left) * strength;
     float dy = (top - bottom) * strength;
     
@@ -123,7 +125,8 @@ export const fragmentShader = `
     float foilIntensity = foilMask.r;
     
     // Calculate surface normal from bevel heightmap
-    vec3 surfaceNormal = calculateBevelNormal(vUv, tFoil, 2.5);
+    // ITER 8: Increased bevel strength for more pronounced normal variation (better specular read)
+    vec3 surfaceNormal = calculateBevelNormal(vUv, tFoil, 4.0);
     
     // Combined motion input: mouse + tilt
     // Increased motion influence for more obvious pointer-driven highlight changes
@@ -146,28 +149,32 @@ export const fragmentShader = `
     float chromePhase = shimmerUV.x * 1.8 + shimmerUV.y * 1.2 + uTime * 0.12;
     vec3 chromeColor = chromeHighlight(chromePhase, uFoilSaturation);
     
-    // Multi-layer specular lighting
-    float spec1 = calculateSpecular(surfaceNormal, lightDir1, viewDir, 32.0);
-    float spec2 = calculateSpecular(surfaceNormal, lightDir2, viewDir, 16.0);
-    float specRim = calculateSpecular(surfaceNormal, rimLight, viewDir, 8.0);
+    // ITER 8 FIX: High-power specular glints for metallic pewter/chrome (not matte white)
+    // JM reference uses ~256 shininess + strong contributions for sharp moving highlights
+    // Previous #43 values (32/16/8 shininess, 0.8/0.4/0.5/0.3 contributions) → matte appearance
+    float spec1 = calculateSpecular(surfaceNormal, lightDir1, viewDir, 256.0);  // Primary sharp glint
+    float spec2 = calculateSpecular(surfaceNormal, lightDir2, viewDir, 128.0);  // Secondary highlight
+    float spec3 = calculateSpecular(surfaceNormal, lightDir1, viewDir, 64.0);   // Broader sheen layer
+    float specRim = calculateSpecular(surfaceNormal, rimLight, viewDir, 32.0);  // Rim accent
     
     // Fresnel rim for metallic edges
     float fresnelFactor = fresnel(viewDir, surfaceNormal, 3.0);
     
-    // CRITICAL: Lower ambient for visible contrast bands (was 0.75, too bright/washed out)
-    // Dark ambient + bright highlights = visible metallic shimmer
-    vec3 ambient = chromeColor * 0.25;  // Low ambient for contrast
+    // Keep low ambient for dark pewter recesses (contrast requirement)
+    vec3 ambient = chromeColor * 0.22;
     
     // Diffuse-like term (metallic surfaces still have some directionality)
     float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.5;
     
-    // Combine lighting layers - ALL grayscale, balanced for visible contrast
+    // ITER 8: Restore strong specular contributions for metallic read
+    // Wide luminance range: dark ambient (0.22) + bright glints (1.5+) = pewter/chrome
     vec3 lighting = ambient + 
                     chromeColor * diffuse +
-                    chromeColor * spec1 * 0.8 +       // Reduced to prevent washout
-                    chromeColor * spec2 * 0.4 +       // Reduced to prevent washout
-                    vec3(0.96) * specRim * 0.5 +      // Reduced rim contribution
-                    vec3(0.86) * fresnelFactor * 0.3; // Reduced fresnel contribution
+                    chromeColor * spec1 * 1.5 +       // Sharp primary glint (boosted)
+                    chromeColor * spec2 * 1.2 +       // Secondary highlight (boosted)
+                    chromeColor * spec3 * 0.8 +       // Broader sheen layer (new)
+                    vec3(0.96) * specRim * 0.9 +      // Rim contribution (boosted)
+                    vec3(0.88) * fresnelFactor * 0.6; // Fresnel contribution (boosted)
     
     // Apply contrast boost for metallic pop
     lighting = pow(lighting, vec3(1.0 / uFoilContrast));
