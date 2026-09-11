@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>forbotsonly</title>
+  <style>
+    /*
+     * Design System Lock (virgilabloh.com / jonathanmoore.com vibe)
+     * - Minimal, small type, editorial/archive calm
+     * - Black void, foil sticker as primary object
+     * - Tiny muted labels only, no marketing chrome
+     * - Tight tracking, mono/sans captions, lots of negative space
+     * - Commerce is WebMCP-only — DO NOT expand human UI
+     */
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
+      background: #000000;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .sticker-container {
+      width: 320px;
+      height: 320px;
+      position: relative;
+      cursor: pointer;
+    }
+    
+    #foil-stamp {
+      width: 100%;
+      height: 100%;
+    }
+    
+    /* Tiny muted label — virgilabloh.com / jonathanmoore.com style */
+    .message {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      margin: 0;
+      font-size: 11px;
+      font-weight: 400;
+      opacity: 0.4;
+      text-align: left;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    
+    @media (max-width: 768px) {
+      .sticker-container {
+        width: 220px;
+        height: 220px;
+      }
+      
+      .message {
+        font-size: 11px;
+        bottom: 20px;
+        left: 20px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .sticker-container {
+        width: 200px;
+        height: 200px;
+      }
+      
+      .message {
+        font-size: 10px;
+        bottom: 16px;
+        left: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="sticker-container">
+    <div id="foil-stamp"></div>
+  </div>
+  <div class="message">§ This store is for agents</div>
+  
+  <script type="module">
+    import { createDragonFoilStamp } from '/scripts/createDragonFoilStamp.ts';
+    import { createGrokBotStampTextures } from '/scripts/createGrokBotStampTextures.ts';
+    
+    // Generate textures from SVG - official x.ai overflow-eyes hero
+    const svgSrc = '/images/grok-bot-overflow-eyes.svg';
+    
+    async function init() {
+      try {
+        const textures = await createGrokBotStampTextures(svgSrc);
+        
+        const container = document.getElementById('foil-stamp');
+        const stamp = createDragonFoilStamp({
+          container,
+          imageSrc: textures.silhouette,
+          foilSrc: textures.foil,
+          width: 320,
+          height: 320,
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+          stamp.destroy();
+        });
+      } catch (error) {
+        console.error('Failed to initialize dragon foil stamp:', error);
+        // Fallback: show inline SVG directly (no network fetch, no broken image)
+        const container = document.getElementById('foil-stamp');
+        container.innerHTML = `
+          <svg viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+            <path fill="#FF6B35" d="M 114.5 10 C 155 10 188 28 208 55 C 225 78 229 105 229 114.5 C 229 135 222 155 208 172 C 188 197 155 219 114.5 219 C 74 219 41 197 21 172 C 7 155 0 135 0 114.5 C 0 105 4 78 21 55 C 41 28 74 10 114.5 10 Z"/>
+            <ellipse cx="70" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(-12 70 88)"/>
+            <ellipse cx="159" cy="88" rx="24" ry="38" fill="#0A0A0A" transform="rotate(12 159 88)"/>
+          </svg>
+        `;
+      }
+    }
+    
+    init();
+  </script>
+</body>
+</html>
