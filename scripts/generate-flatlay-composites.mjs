@@ -24,6 +24,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const MARK_SHAPES = [
+  'blob',
   'circle',
   'vertical-oval',
   'rounded-square',

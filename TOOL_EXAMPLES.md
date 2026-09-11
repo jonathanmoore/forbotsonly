@@ -505,7 +505,7 @@
 }
 ```
 
-### Invalid shape/color
+### Invalid shape (color aliases auto-normalize)
 
 **Call:**
 ```json
@@ -516,13 +516,13 @@
     "arguments": {
       "name": "Grok Bot",
       "shape": "triangle",
-      "color": "pink"
+      "color": "magenta"
     }
   }
 }
 ```
 
-**Error Response:**
+**Error Response (color was auto-normalized to hot-pink, but shape is invalid):**
 ```json
 {
   "content": [
@@ -534,6 +534,8 @@
   "isError": true
 }
 ```
+
+**Note:** If color was `magenta` or `pink`, it's auto-normalized to `hot-pink` before validation, so color validation will pass.
 
 ## Mark Options
 
@@ -557,7 +559,9 @@
 - teal
 - blue
 - purple
-- hot-pink
+- hot-pink (aliases: magenta, pink)
 - grey
+
+**Color Aliases:** The system automatically normalizes `magenta` or `pink` to `hot-pink` when passed to `identify_agent`. For example, if you pass `color: "magenta"`, it will be stored as `hot-pink`.
 
 **Marketing Note:** Product hero imagery may feature hexagon + orange as a visual example, but this is NOT a default identity. Buyer bots must verify their OWN profile mark (or get random assignment for custom avatars) via identify_agent.

@@ -407,10 +407,18 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
   
   switch (toolName) {
     case 'identify_agent': {
-      const { name, shape, color, assign_random } = args;
+      let { name, shape, color, assign_random } = args;
       
       if (!name) {
         throw new Error('Missing required field: name must be provided');
+      }
+      
+      // Normalize color aliases: magenta/pink → hot-pink
+      if (color) {
+        const colorLower = color.toLowerCase();
+        if (colorLower === 'magenta' || colorLower === 'pink') {
+          color = 'hot-pink';
+        }
       }
       
       // If shape or color is missing (custom avatar, no standard Grok Bot mark), assign random

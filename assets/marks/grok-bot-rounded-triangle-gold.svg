@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
-  <!-- Grok Bot mark: face layout computation (product ID: wedge) -->
-  <!-- Recipe weight: 0.94 | App picker: rounded-triangle -->
-  <g class="grok-bot-mark" data-product-id="wedge" data-picker-shape="rounded-triangle">
-    <path class="grok-bot-mark__head" d="M 114.2705,46.53649999999999 Q 114.2705,28.53649999999999 126.87049999999999,41.13649999999999 L 186.2705,166.41649999999998 Q 204.2705,184.41649999999998 177.2705,184.41649999999998 L 51.2705,184.41649999999998 Q 24.2705,184.41649999999998 42.2705,166.41649999999998 L 101.6705,41.13649999999999 Q 114.2705,28.53649999999999 114.2705,46.53649999999999 Z" fill="#F4A261"/>
-    <g class="grok-bot-mark__eyes">
-      <ellipse cx="88.00" cy="68.00" rx="6.02" ry="12.03" fill="#0A0A0A" transform="rotate(-25 88.00 68.00)"/>
-    <ellipse cx="125.00" cy="63.00" rx="6.02" ry="12.03" fill="#0A0A0A" transform="rotate(-25 125.00 63.00)"/>
-    </g>
+  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: wedge) -->
+  <!-- App picker: rounded-triangle | Eyes: randomized contained knockouts (stable seed: rounded-triangle-gold) -->
+  <g class="grok-bot-mark" data-official-id="wedge" data-picker-shape="rounded-triangle">
+    <path class="grok-bot-mark__compound" fill="#F4A261" fill-rule="evenodd" d="M77.26 42.06Q114.27 -22.05 151.28 42.06L216.15 154.43Q253.17 218.53 179.14 218.53L49.4 218.53Q-24.62 218.53 12.39 154.43Z M 93.41,97.49 A 5.53,11.06 -20 0,1 102.39,105.99 A 5.53,11.06 -20 0,1 100.98,118.28 A 5.53,11.06 -20 0,1 92.00,109.78 A 5.53,11.06 -20 0,1 93.41,97.49 Z M 123.70,97.49 A 5.53,11.06 -20 0,1 132.67,105.99 A 5.53,11.06 -20 0,1 131.26,118.28 A 5.53,11.06 -20 0,1 122.28,109.78 A 5.53,11.06 -20 0,1 123.70,97.49 Z"/>
   </g>
 </svg>
