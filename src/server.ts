@@ -677,8 +677,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         // Close-up mark URL (direct mark SVG)
         const markUrl = `${origin}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
         
-        // Flat-lay mock (composite with mark on black tee, left chest)
-        const flatLayUrl = `${origin}/images/previews/flatlay-${mark.shape}-${mark.color}.svg`;
+        // Flat-lay mock (photo-quality BC-3001 PNG composite with mark on black tee, left chest)
+        const flatLayUrl = `${origin}/images/previews/flatlay-${mark.shape}-${mark.color}.png`;
         
         return {
           productId: item.productId,
