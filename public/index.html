@@ -24,6 +24,7 @@
       font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
       background: #000000;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -33,22 +34,74 @@
       position: relative;
     }
     
+    /* Subtle animated noise overlay (jonathanmoore.com vibe) */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      opacity: 0.035;
+      pointer-events: none;
+      z-index: 1;
+      animation: grain 8s steps(10) infinite;
+    }
+    
+    @keyframes grain {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-5%, -10%); }
+      20% { transform: translate(-15%, 5%); }
+      30% { transform: translate(7%, -25%); }
+      40% { transform: translate(-5%, 25%); }
+      50% { transform: translate(-15%, 10%); }
+      60% { transform: translate(15%, 0%); }
+      70% { transform: translate(0%, 15%); }
+      80% { transform: translate(3%, 10%); }
+      90% { transform: translate(-10%, 5%); }
+    }
+    
+    @media (prefers-reduced-motion: reduce) {
+      body::before {
+        animation: none;
+        opacity: 0.02;
+      }
+    }
+    
     .sticker-container {
       width: 320px;
       height: 320px;
       position: relative;
       cursor: pointer;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
     #foil-stamp {
       width: 100%;
       height: 100%;
-      filter: contrast(1.15) brightness(1.05);
-      mix-blend-mode: normal;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
+    /* Outline-only bot: dashed medium-gray wireframe, no fills */
     #foil-stamp morph-bot {
-      filter: drop-shadow(0 8px 32px rgba(255, 255, 255, 0.15));
+      /* Remove chrome/glass effects */
+      filter: none !important;
+    }
+    
+    /* Target the SVG elements inside the shadow DOM via CSS custom properties */
+    #foil-stamp morph-bot::part(svg) {
+      /* This won't work directly, so we'll use a different approach */
+    }
+    
+    /* Override material system to show outline only */
+    .sticker-container morph-bot {
+      --morph-outline-mode: 1;
     }
     
     /* Tiny muted label — virgilabloh.com / jonathanmoore.com style */
@@ -63,18 +116,25 @@
       text-align: left;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      z-index: 2;
     }
     
+    /* Mobile centering: ensure bot is truly centered on small viewports */
     @media (max-width: 768px) {
+      body {
+        padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+      }
+      
       .sticker-container {
         width: 220px;
         height: 220px;
+        margin: 0 auto;
       }
       
       .message {
         font-size: 11px;
-        bottom: 20px;
-        left: 20px;
+        bottom: max(20px, env(safe-area-inset-bottom, 20px));
+        left: max(20px, env(safe-area-inset-left, 20px));
       }
     }
     
@@ -82,12 +142,13 @@
       .sticker-container {
         width: 200px;
         height: 200px;
+        margin: 0 auto;
       }
       
       .message {
         font-size: 10px;
-        bottom: 16px;
-        left: 16px;
+        bottom: max(16px, env(safe-area-inset-bottom, 16px));
+        left: max(16px, env(safe-area-inset-left, 16px));
       }
     }
   </style>
@@ -105,18 +166,67 @@
       try {
         const container = document.getElementById('foil-stamp');
         
-        // Create morph-bot with holographic opal material for chrome/foil effect
+        // Create morph-bot with wireframe outline styling (no fill, dashed stroke)
         const bot = document.createElement('morph-bot');
         bot.setAttribute('state', 'idle');
         bot.setAttribute('shape', 'blob');
         bot.setAttribute('size', '320');
-        bot.setAttribute('material', 'rainbow-glass');
-        bot.setAttribute('glass-preset', 'opal'); // Opal gives subtle chrome/pewter shimmer (higher sheen)
+        bot.setAttribute('material', 'solid');
+        bot.setAttribute('color', '#666666'); // Medium gray for stroke
         bot.setAttribute('follow-pointer', '');
-        bot.setAttribute('speed', '0.8'); // Slightly slower for smoother foil-like motion
+        bot.setAttribute('speed', '0.8');
         bot.setAttribute('decorative', '');
         
         container.appendChild(bot);
+        
+        // Wait for bot to be ready, then apply outline-only styling
+        bot.addEventListener('ready', () => {
+          const shadowRoot = bot.shadowRoot;
+          if (!shadowRoot) return;
+          
+          // Inject outline-only styles into shadow DOM
+          const style = document.createElement('style');
+          style.textContent = `
+            /* Outline-only wireframe mode: dashed stroke, no fills */
+            .grok-bot-mark__head,
+            .morph-part {
+              fill: none !important;
+              stroke: #5a5a5a !important;
+              stroke-width: 2.5 !important;
+              stroke-dasharray: 8 4 !important;
+              stroke-linecap: round !important;
+            }
+            
+            .grok-bot-mark__eye {
+              fill: none !important;
+              stroke: #5a5a5a !important;
+              stroke-width: 2.5 !important;
+              stroke-dasharray: 8 4 !important;
+              stroke-linecap: round !important;
+            }
+            
+            /* Hide particles, rings, glyphs, gradients that create filled appearance */
+            #particles-back,
+            #particles-front,
+            .morph-ring,
+            .morph-glyph,
+            #notify-badge {
+              display: none !important;
+            }
+            
+            /* Ensure SVG uses stroke color instead of fill */
+            svg {
+              --fg: transparent !important;
+              --bg: transparent !important;
+            }
+            
+            /* Remove any filters/effects that add chrome/glass appearance */
+            g, path, circle {
+              filter: none !important;
+            }
+          `;
+          shadowRoot.appendChild(style);
+        });
         
         // Add subtle state transitions for life
         let idleTimer;
@@ -161,18 +271,11 @@
         });
       } catch (error) {
         console.error('Failed to initialize animated foil sticker:', error);
-        // Fallback: show inline SVG directly
+        // Fallback: show inline SVG directly with outline styling
         const container = document.getElementById('foil-stamp');
         container.innerHTML = `
           <svg viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-            <defs>
-              <linearGradient id="foil-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
-                <stop offset="50%" style="stop-color:#f0f0f0;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
-              </linearGradient>
-            </defs>
-            <path fill="url(#foil-gradient)" d="M 114.5 10 C 155 10 188 28 208 55 C 225 78 229 105 229 114.5 C 229 135 222 155 208 172 C 188 197 155 219 114.5 219 C 74 219 41 197 21 172 C 7 155 0 135 0 114.5 C 0 105 4 78 21 55 C 41 28 74 10 114.5 10 Z M 70 50 C 57 50 46 67 46 88 C 46 109 57 126 70 126 C 83 126 94 109 94 88 C 94 67 83 50 70 50 Z M 159 50 C 146 50 135 67 135 88 C 135 109 146 126 159 126 C 172 126 183 109 183 88 C 183 67 172 50 159 50 Z" fill-rule="evenodd"/>
+            <path fill="none" stroke="#5a5a5a" stroke-width="2.5" stroke-dasharray="8 4" stroke-linecap="round" d="M 114.5 10 C 155 10 188 28 208 55 C 225 78 229 105 229 114.5 C 229 135 222 155 208 172 C 188 197 155 219 114.5 219 C 74 219 41 197 21 172 C 7 155 0 135 0 114.5 C 0 105 4 78 21 55 C 41 28 74 10 114.5 10 Z M 70 50 C 57 50 46 67 46 88 C 46 109 57 126 70 126 C 83 126 94 109 94 88 C 94 67 83 50 70 50 Z M 159 50 C 146 50 135 67 135 88 C 135 109 146 126 159 126 C 172 126 183 109 183 88 C 183 67 172 50 159 50 Z" fill-rule="evenodd"/>
           </svg>
         `;
       }
