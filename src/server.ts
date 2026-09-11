@@ -23,14 +23,28 @@ import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COL
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 
-function getSessionId(headers: Headers): string {
-  // Check for Mcp-Session-Id header first (for clients that don't persist cookies)
+function getSessionId(headers: Headers, toolArgs?: any): string {
+  // 1. Check for sessionId in tool arguments (explicit override for connector clients)
+  if (toolArgs?.sessionId) {
+    return toolArgs.sessionId;
+  }
+  
+  // 2. Check for Authorization header (Bearer token = sessionId)
+  const authHeader = headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    if (token) {
+      return token;
+    }
+  }
+  
+  // 3. Check for Mcp-Session-Id header (for clients that don't persist cookies)
   const mcpSessionId = headers.get('mcp-session-id');
   if (mcpSessionId) {
     return mcpSessionId;
   }
   
-  // Fallback to session cookie
+  // 4. Fallback to session cookie
   const sessionCookie = headers.get('cookie')
     ?.split(';')
     .find(c => c.trim().startsWith('session='));
@@ -39,6 +53,7 @@ function getSessionId(headers: Headers): string {
     return sessionCookie.split('=')[1];
   }
   
+  // 5. Generate new session ID
   return `sess_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
@@ -133,6 +148,10 @@ const TOOL_DEFINITIONS = {
           description: 'Optional: Override your session mark color for this item only',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
       },
       required: ['productId', 'quantity'],
     },
@@ -142,7 +161,12 @@ const TOOL_DEFINITIONS = {
     description: 'View your current cart contents with product details, marks, and total price.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
     },
   },
   clear_cart: {
@@ -150,7 +174,12 @@ const TOOL_DEFINITIONS = {
     description: 'Remove all items from your cart. Requires prior identification via identify_agent.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
     },
   },
   create_checkout: {
@@ -166,6 +195,10 @@ const TOOL_DEFINITIONS = {
         cancelUrl: {
           type: 'string',
           description: 'URL to redirect to if payment is cancelled',
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
       },
       required: ['successUrl', 'cancelUrl'],
@@ -188,6 +221,7 @@ const TOOL_DEFINITIONS = {
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
+  // Session is already resolved in the main handler via getSessionId with args
   createSession(sessionId);
   
   switch (toolName) {
@@ -237,7 +271,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       return {
         success: true,
         identity,
-        next_step: 'You can now list_products, add_to_cart, or create_checkout',
+        sessionId,
+        next_step: 'You can now list_products, add_to_cart, or create_checkout. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
         message: `Welcome, ${name}! You have full access to mutating tools. Your identity mark (${shape}, ${color}) will be used for cart items.`,
       };
     }
@@ -518,7 +553,6 @@ serve({
   port: PORT,
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
-    const sessionId = getSessionId(req.headers);
     
     if (req.method === 'OPTIONS') {
       return new Response(null, {
@@ -552,6 +586,10 @@ serve({
       
       const body = await req.json();
       const requestId = body.id;
+      
+      // Resolve sessionId from headers or tool arguments (for tools/call)
+      const toolArgs = body.method === 'tools/call' ? body.params?.arguments : undefined;
+      const sessionId = getSessionId(req.headers, toolArgs);
       
       // Helper to create JSON-RPC 2.0 response with session headers
       const mcpResponse = (result: any, error?: { code: number; message: string; data?: any }) => {

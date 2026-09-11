@@ -21,10 +21,48 @@ The server implements MCP over HTTP using JSON-RPC 2.0.
 
 ### Session Management
 
-Sessions are maintained using two mechanisms (clients can use either or both):
+Sessions are maintained using multiple mechanisms. The server checks these sources in priority order:
 
-- **`Mcp-Session-Id` header**: Durable session ID passed in request header and returned in response header. Recommended for clients that don't persist cookies.
-- **Cookie**: Traditional `session` cookie (HttpOnly, SameSite=Lax, 24-hour expiry). Maintained for backward compatibility.
+1. **`sessionId` tool argument**: Explicit session ID passed as a parameter to tools that support it (`add_to_cart`, `get_cart`, `clear_cart`, `create_checkout`). **Recommended for MCP connector clients** that don't reliably forward session headers between tool calls.
+2. **`Authorization: Bearer <sessionId>` header**: Session ID passed as a Bearer token. Useful for programmatic clients.
+3. **`Mcp-Session-Id` header**: Durable session ID passed in request header and returned in response header. Recommended for direct HTTP clients.
+4. **Cookie**: Traditional `session` cookie (HttpOnly, SameSite=Lax, 24-hour expiry). Maintained for backward compatibility.
+
+#### Connector Client Workflow (When Headers Don't Stick)
+
+If your MCP connector host does not reliably forward `Mcp-Session-Id` headers between tool calls:
+
+1. Call `identify_agent` with your name, shape, and color
+2. Extract the `sessionId` from the response JSON
+3. Pass `sessionId` as an argument to subsequent tool calls (`add_to_cart`, `clear_cart`, `create_checkout`, `get_cart`)
+
+Example:
+```javascript
+// Step 1: Identify
+const identifyResult = await callTool('identify_agent', {
+  name: 'Grok Bot',
+  shape: 'hexagon',
+  color: 'orange'
+});
+const sessionId = identifyResult.sessionId; // Save this!
+
+// Step 2: Use sessionId in subsequent calls
+await callTool('add_to_cart', {
+  productId: 'tee-001',
+  quantity: 1,
+  sessionId: sessionId  // Pass it explicitly
+});
+```
+
+#### Direct HTTP Client Workflow (Headers Stick)
+
+If your client reliably sends headers with every request, use the header-only path:
+
+1. Call `initialize` with an `Mcp-Session-Id` header
+2. The server returns `Mcp-Session-Id` in the response header (and `Set-Cookie`)
+3. Send the same `Mcp-Session-Id` header with every subsequent request
+
+No need to pass `sessionId` as a tool argument.
 
 ### Request Format
 
