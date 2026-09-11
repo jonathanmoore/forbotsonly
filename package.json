@@ -1,6 +1,14 @@
 {
   "name": "forbotsonly",
   "version": "0.1.0",
+<<<<<<< HEAD
+  "private": true,
+  "scripts": {
+    "marks:generate": "bun run scripts/generate-marks.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+=======
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,5 +25,6 @@
     "@types/bun": "latest",
     "@types/three": "^0.170.0",
     "vite": "^6.0.0"
+>>>>>>> origin/main
   }
 }
