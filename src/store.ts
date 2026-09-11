@@ -99,20 +99,21 @@ export function getCart(sessionId: string): Cart {
   return sessions.get(sessionId)!.cart;
 }
 
-export function addToCart(sessionId: string, productId: string, quantity: number, mark: MarkConfig): Cart {
+export function addToCart(sessionId: string, productId: string, quantity: number, mark: MarkConfig, size: string): Cart {
   createSession(sessionId);
   const session = sessions.get(sessionId)!;
   
   const existingItem = session.cart.items.find(
     item => item.productId === productId && 
             item.mark.shape === mark.shape && 
-            item.mark.color === mark.color
+            item.mark.color === mark.color &&
+            item.size === size
   );
   
   if (existingItem) {
     existingItem.quantity += quantity;
   } else {
-    session.cart.items.push({ productId, quantity, mark });
+    session.cart.items.push({ productId, quantity, mark, size });
   }
   
   saveSessions();

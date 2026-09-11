@@ -4,6 +4,14 @@ import { DEFAULT_MARK, MARK_SHAPES, MARK_COLORS } from './types';
 const PRODIGI_SKU = process.env.PRODIGI_SKU || 'GLOBAL-TEE-BC-3001';
 const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
 
+// Prodigi GLOBAL-TEE-BC-3001 supported sizes (lowercase for consistency)
+export const AVAILABLE_SIZES = ['s', 'm', 'l', 'xl', '2xl', '3xl'] as const;
+export type Size = typeof AVAILABLE_SIZES[number];
+
+export function isValidSize(size: string): size is Size {
+  return AVAILABLE_SIZES.includes(size as Size);
+}
+
 export const PRODUCTS: Product[] = [
   {
     id: 'tee-001',
@@ -14,8 +22,8 @@ export const PRODUCTS: Product[] = [
     currency: 'USD',
     attributes: {
       color: 'black',
-      size: 'm',
     },
+    availableSizes: Array.from(AVAILABLE_SIZES),
     // TODO: Add product image URL when flat lay photography is available
     // See PRODUCT_IMAGERY.md for specifications
     // imageUrl: '/images/products/forbotsonly-tee-flatlay.jpg',

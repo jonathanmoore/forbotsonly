@@ -12,8 +12,8 @@ export interface Product {
   currency: string;
   attributes: {
     color: string;
-    size: string;
   };
+  availableSizes: string[];
 }
 
 export interface MarkConfig {
@@ -25,6 +25,7 @@ export interface CartItem {
   productId: string;
   quantity: number;
   mark: MarkConfig;
+  size: string;
 }
 
 export interface Cart {
