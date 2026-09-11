@@ -8,8 +8,8 @@ export interface DragonFoilStampOptions {
   width?: number;
   height?: number;
   // JM Dragon foil conventions
-  foilSaturation?: number;  // 0.11 = chrome/silver (low sat for monochrome metallic)
-  foilOpacity?: number;     // 0.92 default (high for strong replacement over orange)
+  foilSaturation?: number;  // Not used (achromatic forced) - kept for API compatibility
+  foilOpacity?: number;     // Not used (threshold replacement) - kept for API compatibility
   foilContrast?: number;    // 1.75 default (enhanced metallic pop)
 }
 
@@ -25,9 +25,9 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     foilSrc,
     width = 600,
     height = 600,
-    foilSaturation = 0.11,  // Low saturation for silvery chrome
-    foilOpacity = 0.92,     // Very high opacity for strong silver replacement over orange
-    foilContrast = 1.75,    // Tuned contrast for metallic pop without over-brightening
+    foilSaturation = 0.0,   // Forced achromatic (parameter not used in shader)
+    foilOpacity = 1.0,      // Threshold replacement (parameter not used in shader)
+    foilContrast = 1.75,    // Tuned contrast for metallic pop
   } = options;
 
   // Scene setup
