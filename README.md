@@ -407,6 +407,8 @@ Creates a Stripe Checkout session for the cart.
 
 Gets order details by order ID, including mark choices for each item.
 
+**Order Reconciliation:** If the order is `pending` and has a Stripe checkout session ID, `get_order` will automatically check Stripe for the payment status. If payment was completed but the webhook didn't fire (e.g., webhook not configured), the order will be reconciled: status updated to `paid` and Prodigi order created.
+
 **Input:**
 - `orderId` (string, required): Order ID
 
@@ -437,8 +439,10 @@ Gets order details by order ID, including mark choices for each item.
 
 **Order Status:**
 - `pending`: Order created, payment not completed
-- `paid`: Payment successful, Prodigi order placement pending
-- `fulfilled`: Prodigi order placed successfully
+- `paid`: Payment successful, Prodigi order placed or placement pending
+- `fulfilled`: Prodigi order placed successfully (legacy status, same as paid)
+
+**Reconciliation Note:** The in-memory store means reconciliation only works while the server process that created the order is still running. This is acceptable for the demo.
 
 ## Agent Gate
 
@@ -499,6 +503,16 @@ Server receives `checkout.session.completed` webhook at `/webhook/stripe`:
 3. Creates Prodigi order (if `PRODIGI_API_KEY` is set)
 4. Updates order with Prodigi order ID
 
+**Signature Verification:**
+- If `STRIPE_WEBHOOK_SECRET` is configured, webhook signature is verified using Stripe SDK
+- Without webhook secret, webhooks are accepted without verification (testing mode only)
+
+**Order Reconciliation Fallback:**
+If webhooks aren't configured or fail to fire, `get_order` provides automatic reconciliation:
+- Checks Stripe session status when order is pending
+- Fulfills order if payment was completed
+- Same logic as webhook handler (shared `fulfillPaidOrder` function)
+
 ### 4. Prodigi Fulfillment
 
 Prodigi order includes:
@@ -521,6 +535,7 @@ Prodigi order includes:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (for signature verification) | (none, testing mode) |
 | `PRODIGI_BASE_URL` | Prodigi API base URL | `https://api.sandbox.prodigi.com` |
 | `PRODIGI_SKU` | Product SKU | `GLOBAL-TEE-BC-3001` |
 | `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | (not used server-side) |
@@ -585,11 +600,22 @@ Railway will automatically configure health checks using the `/health` endpoint.
 
 After deployment:
 
-1. Get your Railway public URL: `https://your-app.railway.app`
-2. Add Stripe webhook in Stripe Dashboard:
-   - URL: `https://your-app.railway.app/webhook/stripe`
-   - Event: `checkout.session.completed`
-3. Update `PUBLIC_URL` environment variable in Railway (optional, for logs)
+1. Get your Railway public URL (e.g., `https://web-production-493046.up.railway.app`)
+2. Add Stripe webhook in [Stripe Dashboard](https://dashboard.stripe.com/webhooks):
+   - **Endpoint URL**: `https://web-production-493046.up.railway.app/webhook/stripe`
+   - **Events to send**: Select `checkout.session.completed`
+   - After creating, copy the **Signing secret** (starts with `whsec_`)
+3. Add webhook secret to Railway environment:
+   - Go to Railway project → Settings → Variables
+   - Add `STRIPE_WEBHOOK_SECRET` with the signing secret from Stripe
+   - Redeploy if needed
+4. Optional: Update `PUBLIC_URL` environment variable to match Railway domain (for logs)
+
+**Without Webhook Secret:**
+The server will accept webhooks without signature verification (testing mode). For production, always configure `STRIPE_WEBHOOK_SECRET` for security.
+
+**Order Reconciliation:**
+Even without webhooks configured, orders will be reconciled when `get_order` is called. This provides a fallback for testing and demo scenarios where webhook configuration is incomplete.
 
 ## Development Notes
 
