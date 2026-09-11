@@ -190,18 +190,17 @@ const TOOL_DEFINITIONS = {
       properties: {
         successUrl: {
           type: 'string',
-          description: 'URL to redirect to after successful payment',
+          description: 'Optional: URL to redirect to after successful payment. Defaults to the store origin with checkout=success query param.',
         },
         cancelUrl: {
           type: 'string',
-          description: 'URL to redirect to if payment is cancelled',
+          description: 'Optional: URL to redirect to if payment is cancelled. Defaults to the store origin with checkout=cancel query param.',
         },
         sessionId: {
           type: 'string',
           description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
       },
-      required: ['successUrl', 'cancelUrl'],
     },
   },
   get_order: {
@@ -415,10 +414,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Stripe price ID not configured');
       }
       
-      // Build public origin from request headers or env
-      const proto = req.headers.get('x-forwarded-proto') || 'http';
-      const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3001';
-      const origin = process.env.PUBLIC_URL || `${proto}://${host}`;
+      // Build public origin for success/cancel URLs
+      // Use PUBLIC_URL env var (set on Railway) or fallback to Railway preview URL
+      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
       
       // Build success/cancel URLs (use args if provided, otherwise default)
       const successUrl = args.successUrl || `${origin}/?checkout=success&orderId=${order.id}`;
