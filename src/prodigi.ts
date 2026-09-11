@@ -77,14 +77,15 @@ export class ProdigiClient {
    * Get product details by SKU
    */
   async getProduct(sku: string): Promise<ProdigiProduct> {
-    return this.request<ProdigiProduct>(`/v4.0/Products/${sku}`);
+    return this.request<ProdigiProduct>(`/v4.0/products/${sku}`);
   }
 
   /**
    * Create a new order
+   * CRITICAL: Use lowercase /v4.0/orders (not /Orders) - API is case-sensitive
    */
   async createOrder(payload: ProdigiOrderPayload): Promise<ProdigiOrder> {
-    return this.request<ProdigiOrder>('/v4.0/Orders', {
+    return this.request<ProdigiOrder>('/v4.0/orders', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -94,7 +95,7 @@ export class ProdigiClient {
    * Get order details by ID
    */
   async getOrder(id: string): Promise<ProdigiOrder> {
-    return this.request<ProdigiOrder>(`/v4.0/Orders/${id}`);
+    return this.request<ProdigiOrder>(`/v4.0/orders/${id}`);
   }
 }
 
