@@ -1,18 +1,7 @@
-// Dragon foil shaders - JM COMPOSITOR PORT
-// FIX #23 (iterate 6): Port JM's real foil compositor that KEEPS colored base
-// 
-// WHY #37-#40 FAILED: Threshold replacement (`if foilIntensity > 0.2 → lighting only`)
-// discards the orange base, leaving only silver lighting. With nearly-flat bevel normals
-// across the orange head, specular ≈ 1 everywhere → flat white disc. No amount of 
-// constant retuning can fix a compositor that throws away the colored base.
-//
-// JM COMPOSITING (source of truth from jonathanmoore.com dragon foil):
-// - Keep colored base (texColor.rgb / orange silhouette) under foil
-// - Desaturate holographic rainbow via uFoilSaturation (~0.11) → chrome/silver
-// - hardLight(baseColor_beveled, foilTint) then mix(finalBase, foilColor, foilStrength * uFoilOpacity)
-// - foilOpacity ~0.44 allows orange to show through
-// - Specular glints + bevel from foil-map gradients
-// - Pointer drives light position (window space)
+// Dragon foil shaders - Chrome/pewter metallic foil effect
+// Target: Cool silver metallic with pointer-driven shimmer (JM style)
+// Fix #23 iterate 7: Fully achromatic chrome (sat=0) blended over desaturated base
+// Prevents orange contamination → NO PEACH, pure pewter/chrome bands
 
 export const vertexShader = `
   varying vec2 vUv;
@@ -34,7 +23,7 @@ export const fragmentShader = `
   uniform sampler2D tDiffuse;
   uniform sampler2D tFoil;
   uniform vec2 uMouse;
-  uniform vec2 uTilt;
+  uniform vec2 uTilt;       // Device orientation offset
   uniform float uTime;
   uniform float uHover;
   uniform float uFoilSaturation;
@@ -45,64 +34,61 @@ export const fragmentShader = `
   varying vec3 vNormal;
   varying vec3 vViewPosition;
   
+  // Chrome/pewter metallic with proper specular range
+  vec3 chromeHighlight(float t, float saturation) {
+    // CRITICAL: Pure achromatic metallic with STRONG CONTRAST for visible bands
+    // Dark darks + bright brights = visible shimmer (previous palette was too bright/washed out)
+    vec3 darkPewter = vec3(0.28);         // Dark pewter for contrast
+    vec3 midSilver = vec3(0.60);          // Mid silver  
+    vec3 brightChrome = vec3(0.92);       // Bright chrome highlight
+    
+    float phase = fract(t);
+    vec3 baseColor;
+    
+    // Smooth transition through metallic range
+    if (phase < 0.33) {
+      baseColor = mix(darkPewter, midSilver, phase * 3.0);
+    } else if (phase < 0.67) {
+      baseColor = mix(midSilver, brightChrome, (phase - 0.33) * 3.0);
+    } else {
+      baseColor = mix(brightChrome, darkPewter, (phase - 0.67) * 3.0);
+    }
+    
+    // Enforce achromatic chrome when saturation = 0
+    float luma = dot(baseColor, vec3(0.299, 0.587, 0.114));
+    return mix(vec3(luma), baseColor, saturation);
+  }
+  
   // Fresnel effect for metallic rim lighting
   float fresnel(vec3 viewDir, vec3 normal, float power) {
     return pow(1.0 - abs(dot(viewDir, normal)), power);
   }
   
-  // Hard light blend mode (from JM compositor)
-  // Combines base color with overlay using photoshop-style hard light
-  vec3 hardLight(vec3 base, vec3 blend) {
-    vec3 result;
-    result.r = (blend.r < 0.5) ? (2.0 * base.r * blend.r) : (1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r));
-    result.g = (blend.g < 0.5) ? (2.0 * base.g * blend.g) : (1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g));
-    result.b = (blend.b < 0.5) ? (2.0 * base.b * blend.b) : (1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b));
-    return result;
-  }
-  
-  // Calculate surface normal from bevel heightmap
+  // Enhanced bevel/emboss with proper normal mapping
   vec3 calculateBevelNormal(vec2 uv, sampler2D foilMap, float strength) {
     vec2 texelSize = vec2(1.0 / 512.0);
     
+    // Sample height map (foil mask)
     float center = texture2D(foilMap, uv).r;
     float right = texture2D(foilMap, uv + vec2(texelSize.x, 0.0)).r;
     float left = texture2D(foilMap, uv - vec2(texelSize.x, 0.0)).r;
     float top = texture2D(foilMap, uv + vec2(0.0, texelSize.y)).r;
     float bottom = texture2D(foilMap, uv - vec2(0.0, texelSize.y)).r;
     
+    // Calculate surface normal from height gradients
     float dx = (right - left) * strength;
     float dy = (top - bottom) * strength;
     
+    // Normal vector pointing away from surface
     vec3 normal = normalize(vec3(-dx, -dy, 1.0));
     return normal;
   }
   
-  // Calculate specular highlight
+  // Calculate specular highlight from normal and light direction
   float calculateSpecular(vec3 normal, vec3 lightDir, vec3 viewDir, float shininess) {
     vec3 halfDir = normalize(lightDir + viewDir);
     float spec = pow(max(dot(normal, halfDir), 0.0), shininess);
     return spec;
-  }
-  
-  // Holographic rainbow gradient (will be desaturated for chrome look)
-  vec3 rainbowGradient(float t) {
-    // Cycle through spectrum for holographic shimmer
-    t = fract(t);
-    vec3 c;
-    if (t < 0.166) {
-      c = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.5, 0.0), t * 6.0);
-    } else if (t < 0.333) {
-      c = mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 1.0, 0.0), (t - 0.166) * 6.0);
-    } else if (t < 0.5) {
-      c = mix(vec3(1.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), (t - 0.333) * 6.0);
-    } else if (t < 0.666) {
-      c = mix(vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0), (t - 0.5) * 6.0);
-    } else if (t < 0.833) {
-      c = mix(vec3(0.0, 0.0, 1.0), vec3(0.5, 0.0, 1.0), (t - 0.666) * 6.0);
-    } else {
-      c = mix(vec3(0.5, 0.0, 1.0), vec3(1.0, 0.0, 0.0), (t - 0.833) * 6.0);
-    }
-    return c;
   }
   
   void main() {
@@ -110,6 +96,7 @@ export const fragmentShader = `
     vec4 baseColor = texture2D(tDiffuse, vUv);
     vec4 foilMask = texture2D(tFoil, vUv);
     
+    // Early discard for transparent areas
     if (baseColor.a < 0.01) {
       discard;
     }
@@ -118,11 +105,16 @@ export const fragmentShader = `
     vec3 baseRGB = baseColor.rgb;
     float baseLuminance = dot(baseRGB, vec3(0.299, 0.587, 0.114));
     
-    // Force dark matte for eyes - NO foil effect
+    // Force dark matte for eyes - NO foil
     if (baseLuminance < 0.1) {
       gl_FragColor = vec4(baseRGB * 0.8, baseColor.a);
       return;
     }
+    
+    // CRITICAL FIX: Desaturate base where foil will be applied
+    // This prevents orange from contaminating the metallic chrome
+    // Use luminance as the blend base instead of saturated orange
+    vec3 desaturatedBase = vec3(baseLuminance);
     
     // Calculate view direction
     vec3 viewDir = normalize(vViewPosition);
@@ -134,66 +126,80 @@ export const fragmentShader = `
     vec3 surfaceNormal = calculateBevelNormal(vUv, tFoil, 2.5);
     
     // Combined motion input: mouse + tilt
-    vec2 motionOffset = (vUv - uMouse) * 0.8 + uTilt * 0.4;
+    // Increased motion influence for more obvious pointer-driven highlight changes
+    vec2 motionOffset = (vUv - uMouse) * 0.8 + uTilt * 0.4;  // Increased from 0.5, 0.3
     float motionDist = length(motionOffset);
     
-    // Dynamic light direction from pointer/tilt (JM convention)
+    // Dynamic light direction from motion - stronger XY influence for visible sweeping
     vec3 lightDir1 = normalize(vec3(motionOffset.x * 1.2, motionOffset.y * 1.2, 0.7));
     vec3 lightDir2 = normalize(vec3(-motionOffset.x * 0.7, -motionOffset.y * 0.7, 0.5));
     vec3 rimLight = normalize(vec3(0.0, 0.0, 1.0));
     
-    // Rotating shimmer for holographic effect
+    // Rotate chrome phase for shimmer
     float angle = uTime * 0.15 + motionDist * 1.2;
     vec2 shimmerUV = vec2(
       cos(angle) * motionOffset.x - sin(angle) * motionOffset.y,
       sin(angle) * motionOffset.x + cos(angle) * motionOffset.y
     );
     
-    // Generate holographic rainbow
-    float rainbowPhase = shimmerUV.x * 1.8 + shimmerUV.y * 1.2 + uTime * 0.12;
-    vec3 rainbowColor = rainbowGradient(rainbowPhase);
+    // Chrome metallic color (very low saturation silver/pewter)
+    float chromePhase = shimmerUV.x * 1.8 + shimmerUV.y * 1.2 + uTime * 0.12;
+    vec3 chromeColor = chromeHighlight(chromePhase, uFoilSaturation);
     
-    // Desaturate rainbow to chrome/silver (JM foilSaturation ~0.11)
-    float gray = dot(rainbowColor, vec3(0.299, 0.587, 0.114));
-    vec3 chromeColor = mix(vec3(gray), rainbowColor, uFoilSaturation);
-    
-    // Calculate lighting components for foil
+    // Multi-layer specular lighting
     float spec1 = calculateSpecular(surfaceNormal, lightDir1, viewDir, 32.0);
     float spec2 = calculateSpecular(surfaceNormal, lightDir2, viewDir, 16.0);
     float specRim = calculateSpecular(surfaceNormal, rimLight, viewDir, 8.0);
+    
+    // Fresnel rim for metallic edges
     float fresnelFactor = fresnel(viewDir, surfaceNormal, 3.0);
     
-    // Build foil lighting
+    // CRITICAL: Lower ambient for visible contrast bands (was 0.75, too bright/washed out)
+    // Dark ambient + bright highlights = visible metallic shimmer
+    vec3 ambient = chromeColor * 0.25;  // Low ambient for contrast
+    
+    // Diffuse-like term (metallic surfaces still have some directionality)
     float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.5;
-    vec3 foilLighting = chromeColor * (0.4 + diffuse) +              // Base chrome + diffuse
-                        chromeColor * spec1 * 2.0 +                   // Primary specular
-                        chromeColor * spec2 * 1.0 +                   // Secondary specular
-                        vec3(0.95) * specRim * 1.2 +                  // Rim highlights
-                        vec3(0.88) * fresnelFactor * 0.8;             // Fresnel edge
     
-    // Apply contrast adjustment to foil lighting
-    foilLighting = pow(foilLighting, vec3(uFoilContrast));
+    // Combine lighting layers - ALL grayscale, balanced for visible contrast
+    vec3 lighting = ambient + 
+                    chromeColor * diffuse +
+                    chromeColor * spec1 * 0.8 +       // Reduced to prevent washout
+                    chromeColor * spec2 * 0.4 +       // Reduced to prevent washout
+                    vec3(0.96) * specRim * 0.5 +      // Reduced rim contribution
+                    vec3(0.86) * fresnelFactor * 0.3; // Reduced fresnel contribution
     
-    // Subtle shimmer overlay
+    // Apply contrast boost for metallic pop
+    lighting = pow(lighting, vec3(1.0 / uFoilContrast));
+    
+    // Subtle animated shimmer on highlights - pure achromatic
     float shimmer = sin(uTime * 1.2 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
-    foilLighting += vec3(0.92) * shimmer * foilIntensity * 0.05;
+    lighting += vec3(0.92) * shimmer * foilIntensity * 0.04; // Already achromatic
     
-    // JM COMPOSITOR: Keep colored base, blend foil over it
-    // 1. Apply bevel lighting to base (gives depth to orange)
-    float bevelLight = max(0.3, dot(surfaceNormal, lightDir1));
-    vec3 baseWithBevel = baseRGB * bevelLight;
+    // CRITICAL FIX v3: Replace orange with chrome using desaturated base
+    // Root cause: ANY blending/mixing of orange with chrome produces warm peach
+    // Solution: Where foil exists, completely REPLACE orange with chrome (no mix/blend)
+    float foilBlend = foilIntensity * uFoilOpacity;
     
-    // 2. Hard light blend: combines beveled base with foil tint
-    vec3 blendedColor = hardLight(baseWithBevel, foilLighting);
+    // Use pure chrome lighting where foil is strong (>0.5)
+    // Use orange only where foil is absent (<0.2)  
+    // Sharp threshold to prevent warm contamination
+    vec3 finalColor;
+    if (foilBlend > 0.5) {
+      // Foil zone: PURE achromatic chrome, completely replace orange
+      finalColor = lighting;
+    } else if (foilBlend < 0.2) {
+      // No foil: Show orange base
+      finalColor = baseRGB;
+    } else {
+      // Narrow edge: Blend between gray base (not orange!) and chrome
+      float edgeFactor = (foilBlend - 0.2) / 0.3; // 0 at 0.2, 1 at 0.5
+      vec3 grayBase = vec3(baseLuminance * 0.9); // Slightly darkened gray, not orange
+      finalColor = mix(grayBase, lighting, edgeFactor);
+    }
     
-    // 3. Mix base with foil using opacity (JM foilOpacity ~0.44)
-    //    Lower foilIntensity in mask → more orange shows through
-    //    This is KEY: we never fully replace the orange, just overlay silver
-    float foilStrength = foilIntensity * uFoilOpacity;
-    vec3 finalColor = mix(baseWithBevel, blendedColor, foilStrength);
-    
-    // Add hover effect
-    finalColor += vec3(0.06) * uHover * foilIntensity;
+    // Hover effect (subtle brightness boost) - achromatic boost only
+    finalColor += vec3(0.06) * uHover * foilIntensity; // Already achromatic
     
     gl_FragColor = vec4(finalColor, baseColor.a);
   }
