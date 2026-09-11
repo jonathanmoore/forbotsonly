@@ -21,9 +21,9 @@ export async function createCheckoutSession(
   metadata: Record<string, string>,
   successUrl: string,
   cancelUrl: string
-): Promise<string> {
+): Promise<{ url: string; sessionId: string; livemode: boolean } | null> {
   if (!stripe) {
-    return `https://checkout.stripe.com/stub?price=${priceId}&quantity=${quantity}`;
+    return null;
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -40,7 +40,11 @@ export async function createCheckoutSession(
     metadata,
   });
 
-  return session.url || '';
+  return {
+    url: session.url || '',
+    sessionId: session.id,
+    livemode: session.livemode,
+  };
 }
 
 export async function getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {

@@ -415,30 +415,44 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Stripe price ID not configured');
       }
       
-      const checkoutUrl = await createCheckoutSession(
+      // Build public origin from request headers or env
+      const proto = req.headers.get('x-forwarded-proto') || 'http';
+      const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3001';
+      const origin = process.env.PUBLIC_URL || `${proto}://${host}`;
+      
+      // Build success/cancel URLs (use args if provided, otherwise default)
+      const successUrl = args.successUrl || `${origin}/?checkout=success&orderId=${order.id}`;
+      const cancelUrl = args.cancelUrl || `${origin}/?checkout=cancel`;
+      
+      const checkoutSession = await createCheckoutSession(
         priceId,
         firstItem.quantity,
         { orderId: order.id },
-        args.successUrl,
-        args.cancelUrl
+        successUrl,
+        cancelUrl
       );
       
-      if (checkoutUrl.includes('stripe.com/stub')) {
+      if (!checkoutSession) {
         return {
           success: true,
           orderId: order.id,
-          checkoutUrl,
+          checkoutUrl: `https://checkout.stripe.com/stub?price=${priceId}&quantity=${firstItem.quantity}`,
           mode: 'stub',
+          livemode: false,
           message: 'Stripe not configured - returning stub URL. Set STRIPE_SECRET_KEY and STRIPE_PRICE_ID for live checkout.',
           next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
         };
       }
       
+      // Store Stripe session ID on order
+      updateOrderStripeSession(order.id, checkoutSession.sessionId);
+      
       return {
         success: true,
         orderId: order.id,
-        checkoutUrl,
-        mode: 'live',
+        checkoutUrl: checkoutSession.url,
+        livemode: checkoutSession.livemode,
+        mode: checkoutSession.livemode ? 'live' : 'test',
         next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
       };
     }
