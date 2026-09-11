@@ -133,8 +133,8 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
       townOrCity: city,
       stateOrCounty: state,
     };
-    if (line2 && line2.trim()) {
-      address.line2 = line2;
+    if (line2.trim()) {
+      address.line2 = line2.trim();
     }
 
     const prodigiOrder = await prodigiClient.createOrder({
@@ -152,7 +152,7 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
           sizing: 'fillPrintArea',
           attributes: {
             color: product.attributes.color,
-            size: product.attributes.size,
+            size: product.attributes.size.toLowerCase(),
           },
           assets: [
             {
