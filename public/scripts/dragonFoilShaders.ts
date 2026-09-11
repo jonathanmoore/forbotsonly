@@ -1,9 +1,10 @@
 // Dragon foil shaders - PURE SILVER/CHROME metallic foil effect
 // Target: Silvery raised bevel, NO rainbow (from JM reference images)
-// FIX #23 (iterate 3): THRESHOLD REPLACEMENT - no orange/silver mixing
-// - Achromatic palette: vec3(0.70) → vec3(0.95) pure grays
-// - Threshold logic: foilIntensity > 0.2 ? silver : baseRGB
-// - Eliminates peach/cream from orange+silver mix contamination
+// FIX #23 (iterate 4): RESTORE DYNAMIC RANGE - dark recesses + bright highlights
+// - Achromatic palette: vec3(0.35) → vec3(0.95) for proper contrast
+// - Threshold logic: foilIntensity > 0.2 ? silver : baseRGB (no mixing)
+// - LOW ambient (0.28) to allow specular/fresnel to show as moving highlights
+// - Eliminates peach/cream AND flat white disc
 
 export const vertexShader = `
   varying vec2 vUv;
@@ -38,11 +39,11 @@ export const fragmentShader = `
   
   // Chrome/pewter metallic with proper specular range
   vec3 chromeHighlight(float t, float saturation) {
-    // PURE ACHROMATIC SILVER: Eliminate all warm tones
-    // High luminance range (0.70-0.95) to ensure clear silver reads over any base
-    vec3 darkSilver = vec3(0.70);       // Pure gray, no color cast
-    vec3 midSilver = vec3(0.85);        // Bright neutral silver
-    vec3 brightChrome = vec3(0.95);     // Near-white chrome highlight
+    // PURE ACHROMATIC SILVER with PROPER DYNAMIC RANGE
+    // Darker base allows specular highlights to read as moving chrome
+    vec3 darkSilver = vec3(0.35);       // Dark pewter recesses (not 0.70 bright gray)
+    vec3 midSilver = vec3(0.60);        // Mid-tone silver (not 0.85 near-white)
+    vec3 brightChrome = vec3(0.95);     // Bright chrome highlight (preserved)
     
     float phase = fract(t);
     vec3 baseColor;
@@ -151,19 +152,21 @@ export const fragmentShader = `
     // Fresnel rim for metallic edges
     float fresnelFactor = fresnel(viewDir, surfaceNormal, 3.0);
     
-    // PURE SILVER LIGHTING: Very bright base to ensure clear metallic read
-    vec3 ambient = chromeColor * 0.85;  // High ambient for metallic environment reflection
+    // CRITICAL: LOW ambient base to create dynamic range
+    // Dark recesses allow specular/fresnel highlights to read as sweeping chrome
+    vec3 ambient = chromeColor * 0.28;  // LOW ambient (was 0.85 → flat white)
     
     // Diffuse-like term (metallic surfaces still have some directionality)
-    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.7;
+    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.5;
     
-    // Combine lighting layers - all achromatic
+    // Combine lighting layers - balanced for visibility with low ambient
+    // Specular highlights create the "moving chrome" effect over darker base
     vec3 lighting = ambient + 
                     chromeColor * diffuse +
-                    chromeColor * spec1 * 1.2 +
-                    chromeColor * spec2 * 0.7 +
-                    vec3(0.95) * specRim * 0.9 +
-                    vec3(0.88) * fresnelFactor * 0.7;
+                    chromeColor * spec1 * 1.8 +              // Primary highlight (strong)
+                    chromeColor * spec2 * 0.9 +              // Secondary highlight
+                    vec3(0.95) * specRim * 1.2 +             // Rim specular (bright white)
+                    vec3(0.88) * fresnelFactor * 0.9;        // Fresnel edge glow
     
     // Apply contrast boost for metallic pop
     lighting = pow(lighting, vec3(1.0 / uFoilContrast));

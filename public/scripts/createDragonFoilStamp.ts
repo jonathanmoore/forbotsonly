@@ -10,7 +10,7 @@ export interface DragonFoilStampOptions {
   // JM Dragon foil conventions
   foilSaturation?: number;  // Not used (achromatic forced) - kept for API compatibility
   foilOpacity?: number;     // Not used (threshold replacement) - kept for API compatibility
-  foilContrast?: number;    // 1.75 default (enhanced metallic pop)
+  foilContrast?: number;    // 1.65 default (contrast boost on naturally darker base)
 }
 
 export interface DragonFoilStamp {
@@ -27,7 +27,7 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     height = 600,
     foilSaturation = 0.0,   // Forced achromatic (parameter not used in shader)
     foilOpacity = 1.0,      // Threshold replacement (parameter not used in shader)
-    foilContrast = 1.75,    // Tuned contrast for metallic pop
+    foilContrast = 1.65,    // Lower contrast for natural darker base (not 1.75)
   } = options;
 
   // Scene setup
