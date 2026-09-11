@@ -7,6 +7,10 @@ export interface DragonFoilStampOptions {
   foilSrc: string;
   width?: number;
   height?: number;
+  // JM Dragon foil conventions
+  foilSaturation?: number;  // 0.11 = chrome/silver
+  foilOpacity?: number;     // 0.44 default
+  foilContrast?: number;    // 1.68 default
 }
 
 export interface DragonFoilStamp {
@@ -21,6 +25,9 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     foilSrc,
     width = 600,
     height = 600,
+    foilSaturation = 0.11,  // Low saturation for silvery chrome
+    foilOpacity = 0.44,
+    foilContrast = 1.68,
   } = options;
 
   // Scene setup
@@ -49,8 +56,12 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
       tDiffuse: { value: diffuseTexture },
       tFoil: { value: foilTexture },
       uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+      uTilt: { value: new THREE.Vector2(0.0, 0.0) },
       uTime: { value: 0 },
       uHover: { value: 0 },
+      uFoilSaturation: { value: foilSaturation },
+      uFoilOpacity: { value: foilOpacity },
+      uFoilContrast: { value: foilContrast },
     },
     transparent: true,
     side: THREE.DoubleSide,
@@ -61,19 +72,24 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
   const mesh = new THREE.Mesh(geometry, material);
   scene.add(mesh);
 
-  // Mouse tracking
+  // Motion tracking state
   let mouseX = 0.5;
   let mouseY = 0.5;
   let targetMouseX = 0.5;
   let targetMouseY = 0.5;
+  let tiltX = 0.0;
+  let tiltY = 0.0;
+  let targetTiltX = 0.0;
+  let targetTiltY = 0.0;
   let isHovering = false;
   let targetHover = 0;
   let currentHover = 0;
 
+  // Window-level pointer tracking (pointerSpace: 'window' from JM conventions)
   const handleMouseMove = (event: MouseEvent) => {
-    const rect = container.getBoundingClientRect();
-    targetMouseX = (event.clientX - rect.left) / rect.width;
-    targetMouseY = 1.0 - (event.clientY - rect.top) / rect.height;
+    // Normalize to 0-1 across entire window (not just container)
+    targetMouseX = event.clientX / window.innerWidth;
+    targetMouseY = 1.0 - (event.clientY / window.innerHeight);
   };
 
   const handleMouseEnter = () => {
@@ -84,13 +100,55 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
   const handleMouseLeave = () => {
     isHovering = false;
     targetHover = 0;
-    targetMouseX = 0.5;
-    targetMouseY = 0.5;
   };
 
-  container.addEventListener('mousemove', handleMouseMove);
+  // Device orientation support (phone tilt)
+  let orientationPermissionGranted = false;
+  
+  const handleOrientation = (event: DeviceOrientationEvent) => {
+    if (!event.beta || !event.gamma) return;
+    
+    // β (beta): front-to-back tilt (-180 to 180)
+    // γ (gamma): left-to-right tilt (-90 to 90)
+    // Normalize and invert for natural feeling
+    targetTiltX = Math.max(-1, Math.min(1, event.gamma / 45)); // -1 to 1
+    targetTiltY = Math.max(-1, Math.min(1, event.beta / 45));  // -1 to 1
+  };
+
+  // Request orientation permission on iOS 13+
+  const requestOrientationPermission = async () => {
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      try {
+        const permission = await (DeviceOrientationEvent as any).requestPermission();
+        if (permission === 'granted') {
+          orientationPermissionGranted = true;
+          window.addEventListener('deviceorientation', handleOrientation);
+        }
+      } catch (error) {
+        console.log('Orientation permission denied or not supported');
+      }
+    } else {
+      // Non-iOS or older iOS - add listener directly
+      orientationPermissionGranted = true;
+      window.addEventListener('deviceorientation', handleOrientation);
+    }
+  };
+
+  // Auto-request orientation on first user interaction
+  const handleFirstInteraction = () => {
+    if (!orientationPermissionGranted) {
+      requestOrientationPermission();
+    }
+    window.removeEventListener('click', handleFirstInteraction);
+    window.removeEventListener('touchstart', handleFirstInteraction);
+  };
+
+  // Event listeners
+  window.addEventListener('mousemove', handleMouseMove);
   container.addEventListener('mouseenter', handleMouseEnter);
   container.addEventListener('mouseleave', handleMouseLeave);
+  window.addEventListener('click', handleFirstInteraction);
+  window.addEventListener('touchstart', handleFirstInteraction);
 
   // Animation loop
   let animationId: number;
@@ -105,16 +163,21 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
     mouseX += (targetMouseX - mouseX) * 0.1;
     mouseY += (targetMouseY - mouseY) * 0.1;
 
+    // Smooth tilt following
+    tiltX += (targetTiltX - tiltX) * 0.1;
+    tiltY += (targetTiltY - tiltY) * 0.1;
+
     // Smooth hover transition
     currentHover += (targetHover - currentHover) * 0.1;
 
     // Update uniforms
     material.uniforms.uMouse.value.set(mouseX, mouseY);
+    material.uniforms.uTilt.value.set(tiltX, tiltY);
     material.uniforms.uTime.value = elapsed;
     material.uniforms.uHover.value = currentHover;
 
-    // Subtle idle animation
-    if (!isHovering) {
+    // Idle wander when no interaction (subtle drift)
+    if (!isHovering && !orientationPermissionGranted) {
       const idleX = 0.5 + Math.sin(elapsed * 0.5) * 0.1;
       const idleY = 0.5 + Math.cos(elapsed * 0.3) * 0.1;
       targetMouseX = idleX;
@@ -138,10 +201,13 @@ export function createDragonFoilStamp(options: DragonFoilStampOptions): DragonFo
   return {
     destroy: () => {
       cancelAnimationFrame(animationId);
-      container.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handleMouseMove);
       container.removeEventListener('mouseenter', handleMouseEnter);
       container.removeEventListener('mouseleave', handleMouseLeave);
+      window.removeEventListener('deviceorientation', handleOrientation);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
       renderer.dispose();
       geometry.dispose();
       material.dispose();
