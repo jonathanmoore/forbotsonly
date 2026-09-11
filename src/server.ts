@@ -123,9 +123,10 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
     
     // Build artwork URL from order line item's mark (shape + color)
-    // Uses real mark pack: /images/marks/grok-bot-{shape}-{color}.svg
+    // Prodigi API accepts ONLY JPG, PNG, or PDF (NOT SVG)
+    // Uses PNG mark pack: /images/marks/grok-bot-{shape}-{color}.png (800x800px @ 300dpi, transparent)
     const mark = firstItem.mark;
-    const artworkUrl = `${publicUrl}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
+    const artworkUrl = `${publicUrl}/images/marks/grok-bot-${mark.shape}-${mark.color}.png`;
 
     console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
     console.log(`[Prodigi] Artwork URL: ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
