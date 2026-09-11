@@ -1,6 +1,9 @@
-// Dragon foil shaders - Chrome/pewter metallic foil effect
+// Dragon foil shaders - PURE SILVER/CHROME metallic foil effect
 // Target: Silvery raised bevel, NO rainbow (from JM reference images)
-// Spec: foilSaturation 0.11 → nearly monochrome chrome
+// FIX #23 (iterate 3): THRESHOLD REPLACEMENT - no orange/silver mixing
+// - Achromatic palette: vec3(0.70) → vec3(0.95) pure grays
+// - Threshold logic: foilIntensity > 0.2 ? silver : baseRGB
+// - Eliminates peach/cream from orange+silver mix contamination
 
 export const vertexShader = `
   varying vec2 vUv;
@@ -35,11 +38,11 @@ export const fragmentShader = `
   
   // Chrome/pewter metallic with proper specular range
   vec3 chromeHighlight(float t, float saturation) {
-    // CRITICAL FIX: Brighter palette to ensure silver reads clearly over orange
-    // Biased toward mid-bright silver (not dark pewter) to avoid peach mixing
-    vec3 darkSilver = vec3(0.65, 0.64, 0.63);      // Lighter base (was 0.45 pewter)
-    vec3 midSilver = vec3(0.82, 0.83, 0.84);       // Brighter mid (was 0.75)
-    vec3 brightChrome = vec3(0.96, 0.97, 0.99);    // Bright chrome highlight
+    // PURE ACHROMATIC SILVER: Eliminate all warm tones
+    // High luminance range (0.70-0.95) to ensure clear silver reads over any base
+    vec3 darkSilver = vec3(0.70);       // Pure gray, no color cast
+    vec3 midSilver = vec3(0.85);        // Bright neutral silver
+    vec3 brightChrome = vec3(0.95);     // Near-white chrome highlight
     
     float phase = fract(t);
     vec3 baseColor;
@@ -53,9 +56,9 @@ export const fragmentShader = `
       baseColor = mix(brightChrome, darkSilver, (phase - 0.67) * 3.0);
     }
     
-    // Very low saturation for pure metallic chrome
-    float luma = dot(baseColor, vec3(0.299, 0.587, 0.114));
-    return mix(vec3(luma), baseColor, saturation);
+    // Force completely achromatic - ignore saturation parameter for pure silver
+    // (saturation kept in signature for API compatibility but not used)
+    return baseColor;
   }
   
   // Fresnel effect for metallic rim lighting
@@ -148,20 +151,19 @@ export const fragmentShader = `
     // Fresnel rim for metallic edges
     float fresnelFactor = fresnel(viewDir, surfaceNormal, 3.0);
     
-    // CRITICAL FIX: Bright ambient base to avoid orange+darkGray=peach
-    // Metallic surfaces reflect environment → must be bright to read as silver, not pewter
-    vec3 ambient = chromeColor * 0.75;  // Increased from 0.3 → bright silver base
+    // PURE SILVER LIGHTING: Very bright base to ensure clear metallic read
+    vec3 ambient = chromeColor * 0.85;  // High ambient for metallic environment reflection
     
     // Diffuse-like term (metallic surfaces still have some directionality)
-    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.6;  // Increased from 0.4
+    float diffuse = max(0.0, dot(surfaceNormal, lightDir1)) * 0.7;
     
-    // Combine lighting layers
+    // Combine lighting layers - all achromatic
     vec3 lighting = ambient + 
                     chromeColor * diffuse +
-                    chromeColor * spec1 * 1.0 +  // Increased from 0.8
-                    chromeColor * spec2 * 0.6 +  // Increased from 0.4
-                    vec3(0.95, 0.96, 0.98) * specRim * 0.8 +  // Increased from 0.6
-                    vec3(0.85, 0.86, 0.88) * fresnelFactor * 0.6;  // Increased from 0.5
+                    chromeColor * spec1 * 1.2 +
+                    chromeColor * spec2 * 0.7 +
+                    vec3(0.95) * specRim * 0.9 +
+                    vec3(0.88) * fresnelFactor * 0.7;
     
     // Apply contrast boost for metallic pop
     lighting = pow(lighting, vec3(1.0 / uFoilContrast));
@@ -170,13 +172,19 @@ export const fragmentShader = `
     float shimmer = sin(uTime * 1.2 + vUv.x * 10.0 + vUv.y * 8.0) * 0.5 + 0.5;
     lighting += vec3(0.92) * shimmer * foilIntensity * 0.04;
     
-    // MIX (not add) foil over base using foilIntensity and opacity
-    // This is key: REPLACE base color with metallic where foil exists
-    float foilBlend = foilIntensity * uFoilOpacity;
-    vec3 finalColor = mix(baseRGB, lighting, foilBlend);
-    
-    // Hover effect (subtle brightness boost)
-    finalColor += vec3(0.06) * uHover * foilIntensity;
+    // THRESHOLD REPLACEMENT: Completely discard orange where foil exists
+    // This eliminates all orange→silver mixing that was causing peach
+    vec3 finalColor;
+    if (foilIntensity > 0.2) {
+      // Strong foil: use ONLY silver lighting (no baseRGB contamination)
+      finalColor = lighting;
+      
+      // Apply hover effect to silver only
+      finalColor += vec3(0.06) * uHover;
+    } else {
+      // Weak/no foil: show base color (orange face, dark eyes)
+      finalColor = baseRGB;
+    }
     
     gl_FragColor = vec4(finalColor, baseColor.a);
   }
