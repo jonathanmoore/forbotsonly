@@ -16,7 +16,7 @@ import {
   updateOrderStatus,
   findOrderByStripeSession,
 } from './store';
-import { getProduct, listProducts, getStripePriceId } from './products';
+import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
 import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order } from './types';
@@ -123,7 +123,7 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
     const artworkUrl = `${publicUrl}/images/grok-bot-hexagon-orange.svg`;
 
-    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${product.attributes.size}, artwork: ${artworkUrl}`);
+    console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}, artwork: ${artworkUrl}`);
 
     // Build address object, omitting line2 if empty/whitespace
     const address: Record<string, string> = {
@@ -152,7 +152,7 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
           sizing: 'fillPrintArea',
           attributes: {
             color: product.attributes.color,
-            size: product.attributes.size.toLowerCase(),
+            size: firstItem.size.toLowerCase(), // Apparel size from cart (lowercase)
           },
           assets: [
             {
@@ -257,7 +257,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to your cart. Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
+    description: 'Add a product to your cart. REQUIRED: size parameter (s, m, l, xl, 2xl, or 3xl). Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -269,6 +269,11 @@ const TOOL_DEFINITIONS = {
           type: 'number',
           description: 'Quantity to add (minimum: 1)',
           minimum: 1,
+        },
+        size: {
+          type: 'string',
+          description: 'Tee size (required). Ask the user which size they want.',
+          enum: ['s', 'm', 'l', 'xl', '2xl', '3xl'],
         },
         shape: {
           type: 'string',
@@ -285,7 +290,7 @@ const TOOL_DEFINITIONS = {
           description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
       },
-      required: ['productId', 'quantity'],
+      required: ['productId', 'quantity', 'size'],
     },
   },
   get_cart: {
@@ -473,6 +478,25 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Product not found');
       }
       
+      // Validate size (REQUIRED)
+      if (!args.size) {
+        return {
+          success: false,
+          needs_user_input: {
+            size: true,
+          },
+          availableSizes: Array.from(AVAILABLE_SIZES),
+          message: 'Size is required. Ask your human which size they want: s, m, l, xl, 2xl, or 3xl.',
+          next_step: 'Get size from your human user, then retry add_to_cart with size parameter',
+        };
+      }
+      
+      if (!isValidSize(args.size)) {
+        throw new Error(
+          `Invalid size: ${args.size}. Must be one of: ${AVAILABLE_SIZES.join(', ')}`
+        );
+      }
+      
       // Use identity mark as default, allow override
       const shape = args.shape || identity.mark.shape;
       const color = args.color || identity.mark.color;
@@ -493,13 +517,13 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const cart = addToCartStore(sessionId, args.productId, args.quantity, {
         shape,
         color,
-      });
+      }, args.size);
       
       const markUsed = (args.shape || args.color) ? 'custom' : 'identity';
       return {
         success: true,
         cart,
-        message: `Added ${args.quantity}x ${product.name} (${shape}, ${color}) to cart`,
+        message: `Added ${args.quantity}x ${product.name} size ${args.size.toUpperCase()} (${shape}, ${color}) to cart`,
         markSource: markUsed,
         next_step: 'Call get_cart to view your cart, add_to_cart to add more items, or create_checkout to purchase',
       };

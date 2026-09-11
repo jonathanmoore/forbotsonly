@@ -117,9 +117,9 @@
       "price": 40.00,
       "currency": "USD",
       "attributes": {
-        "color": "black",
-        "size": "m"
-      }
+        "color": "black"
+      },
+      "availableSizes": ["s", "m", "l", "xl", "2xl", "3xl"]
     }
   ],
   "markOptions": {
@@ -130,13 +130,13 @@
       "color": "orange"
     }
   },
-  "next_step": "Call add_to_cart with productId and quantity to add items"
+  "next_step": "Call add_to_cart with productId, quantity, and size to add items"
 }
 ```
 
 ### 3. add_to_cart (uses identity mark)
 
-**Call (inherits identity mark):**
+**Call (inherits identity mark, MUST specify size):**
 ```json
 {
   "method": "tools/call",
@@ -144,7 +144,8 @@
     "name": "add_to_cart",
     "arguments": {
       "productId": "tee-001",
-      "quantity": 1
+      "quantity": 1,
+      "size": "l"
     }
   }
 }
@@ -162,18 +163,46 @@
         "mark": {
           "shape": "hexagon",
           "color": "orange"
-        }
+        },
+        "size": "l"
       }
     ],
     "sessionId": "sess_1234567890_abc123"
   },
-  "message": "Added 1x forbotsonly Tee (hexagon, orange) to cart",
+  "message": "Added 1x forbotsonly Tee size L (hexagon, orange) to cart",
   "markSource": "identity",
   "next_step": "Call get_cart to view your cart, add_to_cart to add more items, or create_checkout to purchase"
 }
 ```
 
-**Call (with override):**
+**Call (missing size - agent must ask human):**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "add_to_cart",
+    "arguments": {
+      "productId": "tee-001",
+      "quantity": 1
+    }
+  }
+}
+```
+
+**Response (needs_user_input):**
+```json
+{
+  "success": false,
+  "needs_user_input": {
+    "size": true
+  },
+  "availableSizes": ["s", "m", "l", "xl", "2xl", "3xl"],
+  "message": "Size is required. Ask your human which size they want: s, m, l, xl, 2xl, or 3xl.",
+  "next_step": "Get size from your human user, then retry add_to_cart with size parameter"
+}
+```
+
+**Call (with mark override and size):**
 ```json
 {
   "method": "tools/call",
@@ -182,6 +211,7 @@
     "arguments": {
       "productId": "tee-001",
       "quantity": 1,
+      "size": "m",
       "shape": "circle",
       "color": "blue"
     }
@@ -201,7 +231,8 @@
         "mark": {
           "shape": "hexagon",
           "color": "orange"
-        }
+        },
+        "size": "l"
       },
       {
         "productId": "tee-001",
@@ -209,12 +240,13 @@
         "mark": {
           "shape": "circle",
           "color": "blue"
-        }
+        },
+        "size": "m"
       }
     ],
     "sessionId": "sess_1234567890_abc123"
   },
-  "message": "Added 1x forbotsonly Tee (circle, blue) to cart",
+  "message": "Added 1x forbotsonly Tee size M (circle, blue) to cart",
   "markSource": "custom",
   "next_step": "Call get_cart to view your cart, add_to_cart to add more items, or create_checkout to purchase"
 }
@@ -244,6 +276,7 @@
           "shape": "hexagon",
           "color": "orange"
         },
+        "size": "l",
         "product": {
           "id": "tee-001",
           "name": "forbotsonly Tee",
@@ -317,6 +350,7 @@
           "shape": "hexagon",
           "color": "orange"
         },
+        "size": "l",
         "product": {
           "id": "tee-001",
           "name": "forbotsonly Tee",
@@ -343,7 +377,8 @@
     "name": "add_to_cart",
     "arguments": {
       "productId": "tee-001",
-      "quantity": 1
+      "quantity": 1,
+      "size": "m"
     }
   }
 }
