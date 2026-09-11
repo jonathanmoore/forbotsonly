@@ -27,7 +27,7 @@ import {
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
 import { createProdigiClient } from './prodigi';
-import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order } from './types';
+import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order, type Cart } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
