@@ -1,4 +1,6 @@
-# Human Page Evolution: Foil to Outline
+# Human Page: Outline Morph-Bot (2026-09-11)
+
+*Formerly FOIL-STICKER-ANIMATION.md — renamed to reflect current outline-only implementation.*
 
 ## Current State (2026-09-11 Locked)
 
@@ -35,13 +37,17 @@ body::before {
       baseFrequency='4.2' 
       numOctaves='4' 
       seed='1'>
-      <!-- SMIL seed animation: in-place static fuzz, no translate -->
+      <!-- SMIL seed animation: in-place static fuzz, NO x/y translate -->
       <animate attributeName='seed' values='1;10;50;...' dur='0.6s' repeatCount='indefinite'/>
     </feTurbulence>
   ...");
   opacity: 0.05;
 }
 ```
+
+**Mobile Centered**: Sticker container uses flexbox centering with safe-area insets for mobile viewports.
+
+**Print/Cart Separation**: The human page uses outline-only rendering. Print marks and cart items still use **colored SVG knockouts** from the mark pack (separate system).
 
 ---
 
@@ -150,3 +156,5 @@ For details on the dragon foil Three.js implementation (pre-outline era), see:
 - `FIX-SUMMARY-PR*.md` files for technical shader details
 
 **Note**: Dragon foil / opal glass / chrome effects are **not live** as of 2026-09-11. Current page is outline-only with fine grain.
+
+The human page outline rendering is **separate** from print/cart marks, which still use colored SVG knockouts from the mark pack.

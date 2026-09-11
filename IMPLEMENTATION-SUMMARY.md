@@ -1,6 +1,6 @@
 # PR #55: Animated Foil Sticker - Implementation Summary (Historical)
 
-**Note**: This document describes PR #55 which implemented the opal glass animated foil sticker. This has since been superseded by the current outline-only rendering (locked 2026-09-11). See `FOIL-STICKER-ANIMATION.md` for current state.
+**Note**: This document describes PR #55 which implemented the opal glass animated foil sticker. This has since been superseded by the current outline-only rendering (locked 2026-09-11). See `HUMAN-PAGE.md` for current state.
 
 ## Completed Work (Historical)
 
@@ -93,7 +93,7 @@ Branch deployed to Railway - preview URL available in PR checks.
 
 ## Documentation
 
-- **FOIL-STICKER-ANIMATION.md** - Complete technical documentation
+- **HUMAN-PAGE.md** (formerly FOIL-STICKER-ANIMATION.md) - Human page evolution and current state
 - **public/vendor/grokbot-animation/README.md** - Component usage guide
 - **PR description** - Detailed implementation notes and verification steps
 

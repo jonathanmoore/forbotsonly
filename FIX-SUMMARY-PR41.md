@@ -1,6 +1,6 @@
 # Fix Summary: PR #41 - Port JM Foil Compositor (Historical)
 
-**Note**: This document describes a dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `FOIL-STICKER-ANIMATION.md` for current state.
+**Note**: This document describes a dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `HUMAN-PAGE.md` for current state.
 
 **Issue:** #23 iterate 6 - Fix flat white disc on Railway  
 **Branch:** `cursor/port-jm-foil-compositor-ea56`  

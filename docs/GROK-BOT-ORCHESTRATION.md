@@ -313,7 +313,7 @@ forbotsonly/
 │   └── GROK-BOT-ORCHESTRATION.md         # This file
 ├── TOOL_EXAMPLES.md                      # Agent buyer flow examples
 ├── WORK-COMPLETE.md                      # Historical work log
-├── FOIL-STICKER-ANIMATION.md             # Human page evolution (foil → outline)
+├── HUMAN-PAGE.md                         # Human page evolution (foil → outline)
 └── README.md                             # Main project docs
 ```
 

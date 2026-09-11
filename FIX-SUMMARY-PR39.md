@@ -1,6 +1,6 @@
 # Fix Summary - PR #39: Remove Buggy Contrast Adjustment (Issue #23, Iteration 5) (Historical)
 
-**Note**: This document describes a dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `FOIL-STICKER-ANIMATION.md` for current state.
+**Note**: This document describes a dragon foil Three.js shader fix from the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `HUMAN-PAGE.md` for current state.
 
 ## Problem Statement
 

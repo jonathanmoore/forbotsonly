@@ -1,6 +1,6 @@
 # GitHub Issue #23 Fix Complete - PR #33 Ready for Railway QA (Historical)
 
-**Note**: This document describes PR #33's dragon foil shader fix, part of the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `FOIL-STICKER-ANIMATION.md` for current state.
+**Note**: This document describes PR #33's dragon foil shader fix, part of the historical foil era. The current live page (2026-09-11) uses outline-only rendering with fine grain, not foil effects. See `HUMAN-PAGE.md` for current state.
 
 ## Summary
 Created [PR #33](https://github.com/jonathanmoore/forbotsonly/pull/33) that eliminates the "flat peach" problem by brightening the metallic shader base. This is the third iteration after PR #25 and PR #28 both still showed peach on Railway.
