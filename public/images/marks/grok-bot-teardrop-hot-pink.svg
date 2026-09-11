@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
-  <!-- Grok Bot mark: face layout computation (product ID: teardrop) -->
-  <!-- Recipe weight: 1 | App picker: teardrop | Eyes: transparent knockouts -->
-  <g class="grok-bot-mark" data-product-id="teardrop" data-picker-shape="teardrop">
-    <path class="grok-bot-mark__compound" fill="#E91E63" fill-rule="evenodd" d="M 114.2705,19.2705 C 65.2705,69.2705 44.2705,149.2705 114.2705,199.2705 C 184.2705,149.2705 163.2705,69.2705 114.2705,19.2705 Z M 94.24,70.66 A 5.50,11.00 -20 0,1 103.17,79.12 A 5.50,11.00 -20 0,1 101.76,91.34 A 5.50,11.00 -20 0,1 92.83,82.88 A 5.50,11.00 -20 0,1 94.24,70.66 Z M 126.24,68.66 A 5.50,11.00 -20 0,1 135.17,77.12 A 5.50,11.00 -20 0,1 133.76,89.34 A 5.50,11.00 -20 0,1 124.83,80.88 A 5.50,11.00 -20 0,1 126.24,68.66 Z"/>
+  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: teardrop) -->
+  <!-- App picker: teardrop | Eyes: randomized contained knockouts (stable seed: teardrop-hot-pink) -->
+  <g class="grok-bot-mark" data-official-id="teardrop" data-picker-shape="teardrop">
+    <path class="grok-bot-mark__compound" fill="#E91E63" fill-rule="evenodd" d="M125.97 7.2Q114.27 -7.28 102.57 7.2L43.49 80.31C13.46 117.46 17.28 171.51 52.23 204.08C87.17 236.65 141.37 236.65 176.32 204.08C211.26 171.51 215.08 117.46 185.05 80.31Z M 92.03,93.45 A 6.16,12.32 -20 0,1 102.04,102.92 A 6.16,12.32 -20 0,1 100.46,116.60 A 6.16,12.32 -20 0,1 90.46,107.13 A 6.16,12.32 -20 0,1 92.03,93.45 Z M 131.73,93.45 A 6.16,12.32 -20 0,1 141.73,102.92 A 6.16,12.32 -20 0,1 140.16,116.60 A 6.16,12.32 -20 0,1 130.16,107.13 A 6.16,12.32 -20 0,1 131.73,93.45 Z"/>
   </g>
 </svg>

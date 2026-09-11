@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
-  <!-- Grok Bot mark: face layout computation (product ID: hex) -->
-  <!-- Recipe weight: 0.94 | App picker: hexagon | Eyes: transparent knockouts -->
-  <g class="grok-bot-mark" data-product-id="hex" data-picker-shape="hexagon">
-    <path class="grok-bot-mark__compound" fill="#FF6B35" fill-rule="evenodd" d="M 24.2705,114.2705 L 69.2705,36.32821365940052 L 159.2705,36.32821365940052 L 204.2705,114.2705 L 159.2705,192.21278634059948 L 69.2705,192.21278634059948 Z M 90.49,69.84 A 6.39,12.03 -22 0,1 100.93,78.61 A 6.39,12.03 -22 0,1 99.51,92.16 A 6.39,12.03 -22 0,1 89.07,83.39 A 6.39,12.03 -22 0,1 90.49,69.84 Z M 128.49,66.84 A 6.39,12.03 -22 0,1 138.93,75.61 A 6.39,12.03 -22 0,1 137.51,89.16 A 6.39,12.03 -22 0,1 127.07,80.39 A 6.39,12.03 -22 0,1 128.49,66.84 Z"/>
+  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: hex) -->
+  <!-- App picker: hexagon | Eyes: randomized contained knockouts (stable seed: hexagon-orange) -->
+  <g class="grok-bot-mark" data-official-id="hex" data-picker-shape="hexagon">
+    <path class="grok-bot-mark__compound" fill="#FF6B35" fill-rule="evenodd" d="M217.73 153.04Q217.73 174 199.58 184.48L132.42 223.25Q114.27 233.73 96.12 223.25L28.96 184.48Q10.81 174 10.81 153.04L10.81 75.5Q10.81 54.54 28.96 44.06L96.12 5.29Q114.27 -5.19 132.42 5.29L199.58 44.06Q217.73 54.54 217.73 75.5Z M 88.85,71.76 A 7.00,14.00 -20 0,1 100.22,82.52 A 7.00,14.00 -20 0,1 98.43,98.07 A 7.00,14.00 -20 0,1 87.06,87.31 A 7.00,14.00 -20 0,1 88.85,71.76 Z M 133.08,71.76 A 7.00,14.00 -20 0,1 144.44,82.52 A 7.00,14.00 -20 0,1 142.65,98.07 A 7.00,14.00 -20 0,1 131.29,87.31 A 7.00,14.00 -20 0,1 133.08,71.76 Z"/>
   </g>
 </svg>

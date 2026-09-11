@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
-  <!-- Grok Bot mark: face layout computation (product ID: capsule) -->
-  <!-- Recipe weight: 1 | App picker: horizontal-pill | Eyes: transparent knockouts -->
-  <g class="grok-bot-mark" data-product-id="capsule" data-picker-shape="horizontal-pill">
-    <path class="grok-bot-mark__compound" fill="#E91E63" fill-rule="evenodd" d="M 79.2705,74.2705 L 149.2705,74.2705 A 40,40 0 0,1 149.2705,154.2705 L 79.2705,154.2705 A 40,40 0 0,1 79.2705,74.2705 Z M 91.60,79.54 A 5.50,11.00 -18 0,1 100.23,88.30 A 5.50,11.00 -18 0,1 98.40,100.46 A 5.50,11.00 -18 0,1 89.77,91.70 A 5.50,11.00 -18 0,1 91.60,79.54 Z M 129.60,79.54 A 5.50,11.00 -18 0,1 138.23,88.30 A 5.50,11.00 -18 0,1 136.40,100.46 A 5.50,11.00 -18 0,1 127.77,91.70 A 5.50,11.00 -18 0,1 129.60,79.54 Z"/>
+  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: capsule) -->
+  <!-- App picker: horizontal-pill | Eyes: randomized contained knockouts (stable seed: horizontal-pill-hot-pink) -->
+  <g class="grok-bot-mark" data-official-id="capsule" data-picker-shape="horizontal-pill">
+    <path class="grok-bot-mark__compound" fill="#E91E63" fill-rule="evenodd" d="M41.49 155.71L41.49 72.83C41.49 32.64 74.08 0.05 114.27 0.05C154.47 0.05 187.05 32.64 187.05 72.83L187.05 155.71C187.05 195.91 154.47 228.49 114.27 228.49C74.08 228.49 41.49 195.91 41.49 155.71Z M 93.06,74.60 A 5.67,11.34 -20 0,1 102.26,83.31 A 5.67,11.34 -20 0,1 100.81,95.91 A 5.67,11.34 -20 0,1 91.61,87.19 A 5.67,11.34 -20 0,1 93.06,74.60 Z M 125.12,74.60 A 5.67,11.34 -20 0,1 134.33,83.31 A 5.67,11.34 -20 0,1 132.88,95.91 A 5.67,11.34 -20 0,1 123.67,87.19 A 5.67,11.34 -20 0,1 125.12,74.60 Z"/>
   </g>
 </svg>
