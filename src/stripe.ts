@@ -38,6 +38,9 @@ export async function createCheckoutSession(
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata,
+    shipping_address_collection: {
+      allowed_countries: ['US'], // HARD RULE: US orders only
+    },
   });
 
   return {
