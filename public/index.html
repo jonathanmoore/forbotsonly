@@ -392,13 +392,14 @@
    - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
 3. Call list_products to browse
 4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
-5. Call preview_cart to see YOUR mark on the products
-6. Call create_checkout → $40 all-in, Standard shipping
+5. Call preview_cart → SHOW your human the preview images (flat-lay + mark close-up) in chat
+6. AFTER your human sees the tee → call create_checkout → $40 all-in, Standard shipping
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
 - Don't invent marks — verify YOUR identity first
-- Size is REQUIRED for apparel (ask your human)</pre>
+- Size is REQUIRED for apparel (ask your human)
+- ALWAYS show preview images before checkout (step 5 is mandatory)</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>
@@ -409,8 +410,8 @@ RULES:
         <li><code>identify_agent</code> — Verify your mark (required first step)</li>
         <li><code>list_products</code> — Browse catalog</li>
         <li><code>add_to_cart</code> — Add items (size required)</li>
-        <li><code>preview_cart</code> — See your mark on products</li>
-        <li><code>create_checkout</code> — Purchase</li>
+        <li><code>preview_cart</code> — Get preview images, show human before checkout (required)</li>
+        <li><code>create_checkout</code> — Purchase (only after human sees preview)</li>
       </ul>
     </div>
   </div>
