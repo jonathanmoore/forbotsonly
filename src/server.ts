@@ -89,6 +89,60 @@ async function requireIdentity(sessionId: string): Promise<AgentIdentity | null>
 }
 
 /**
+ * Validate that a Stripe Checkout Session has a complete shipping address.
+ * Returns validated address fields or throws an error if incomplete.
+ * 
+ * NEVER use placeholder/sandbox fallback addresses on live orders.
+ * If address is incomplete, we MUST fail explicitly rather than ship to a fake address.
+ */
+function validateShippingAddress(session: Stripe.Checkout.Session): {
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  recipientName: string;
+} {
+  const shippingAddress = session.shipping_details?.address;
+  const customerDetails = session.customer_details;
+  
+  // Prefer shipping_details, fallback to customer_details
+  const line1 = shippingAddress?.line1 || customerDetails?.address?.line1;
+  const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
+  const city = shippingAddress?.city || customerDetails?.address?.city;
+  const state = shippingAddress?.state || customerDetails?.address?.state;
+  const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code;
+  const country = shippingAddress?.country || customerDetails?.address?.country;
+  const recipientName = shippingAddress?.name || customerDetails?.name;
+  
+  // Validate required fields - NEVER allow empty/missing fields to fall back to placeholders
+  const missingFields: string[] = [];
+  if (!line1) missingFields.push('line1');
+  if (!city) missingFields.push('city');
+  if (!postalCode) missingFields.push('postal_code');
+  if (!country) missingFields.push('country');
+  if (!recipientName) missingFields.push('name');
+  
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Incomplete shipping address from Stripe session ${session.id}. Missing fields: ${missingFields.join(', ')}. ` +
+      `Cannot create Prodigi order without complete address. Check that Stripe Checkout is configured to collect shipping addresses.`
+    );
+  }
+  
+  return {
+    line1: line1!,
+    line2,
+    city: city!,
+    state: state || '', // State is optional for some countries
+    postalCode: postalCode!,
+    country: country!,
+    recipientName: recipientName!,
+  };
+}
+
+/**
  * Create Prodigi order for a given order ID.
  * Returns prodigiOrderId on success, null on failure.
  * Logs detailed error information for troubleshooting.
@@ -116,19 +170,10 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
   try {
     const prodigiClient = createProdigiClient();
 
-    // Map Stripe session to recipient address
-    // Priority: shipping_details > customer_details
-    // Fallback: Prodigi sandbox test address when fields are empty (for QA testing)
-    const shippingAddress = session.shipping_details?.address;
-    const customerDetails = session.customer_details;
-    
-    const line1 = shippingAddress?.line1 || customerDetails?.address?.line1 || '1234 Main St';
-    const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
-    const city = shippingAddress?.city || customerDetails?.address?.city || 'San Francisco';
-    const state = shippingAddress?.state || customerDetails?.address?.state || 'CA';
-    const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code || '94102';
-    const country = shippingAddress?.country || customerDetails?.address?.country || 'US';
-    const recipientName = shippingAddress?.name || customerDetails?.name || 'Test Customer';
+    // Validate shipping address - will throw if incomplete
+    // NEVER use placeholder addresses on production orders
+    const validatedAddress = validateShippingAddress(session);
+    const { line1, line2, city, state, postalCode, country, recipientName } = validatedAddress;
 
     // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
@@ -143,8 +188,8 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
     console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
     console.log(`[Prodigi] Artwork URL (positioned): ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
 
-    // Build address object, omitting line2 if empty/whitespace
-    const address: Record<string, string> = {
+    // Build address object for Prodigi, omitting line2 if empty/whitespace
+    const prodigiAddress: Record<string, string> = {
       line1,
       postalOrZipCode: postalCode,
       countryCode: country,
@@ -152,14 +197,14 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
       stateOrCounty: state,
     };
     if (line2.trim()) {
-      address.line2 = line2.trim();
+      prodigiAddress.line2 = line2.trim();
     }
 
     const prodigiOrder = await prodigiClient.createOrder({
       shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
       recipient: {
         name: recipientName,
-        address,
+        address: prodigiAddress,
       },
       items: [
         {
@@ -658,7 +703,13 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const checkoutSession = await createCheckoutSession(
         priceId,
         firstItem.quantity,
-        { orderId: order.id },
+        { 
+          orderId: order.id,
+          size: firstItem.size,
+          productId: firstItem.productId,
+          markShape: firstItem.mark.shape,
+          markColor: firstItem.mark.color,
+        },
         successUrl,
         cancelUrl
       );
@@ -871,6 +922,28 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         // Use provided orderId or extract from session metadata
         const orderId = requestedOrderId || session.metadata?.orderId || `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
+        // Extract size from Stripe metadata or line items (NEVER hardcode)
+        // Stripe session should have size in metadata from original checkout
+        let size = session.metadata?.size?.toLowerCase() as 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | undefined;
+        
+        // If not in metadata, try to extract from line items description/metadata
+        if (!size && session.line_items?.data?.[0]) {
+          const lineItem = session.line_items.data[0];
+          // Check if size is in line item metadata or description
+          if (lineItem.price?.metadata?.size) {
+            size = lineItem.price.metadata.size.toLowerCase() as 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl';
+          }
+        }
+        
+        // If still no size, we cannot recover - fail explicitly
+        if (!size || !isValidSize(size)) {
+          throw new Error(
+            `Cannot recover order: size not found in Stripe session metadata. ` +
+            `Original size must be stored in session.metadata.size during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
+        
         // Create order with tee-001 + mark
         const markShape = shape || 'hexagon';
         const markColor = color || 'orange';
@@ -881,7 +954,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
               productId: 'tee-001',
               quantity: 1,
               mark: { shape: markShape, color: markColor },
-              size: 'l', // Default size for recovery
+              size,
             },
           ],
           sessionId: session.id,
@@ -891,7 +964,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         order.status = 'paid';
         updateOrderStripeSession(orderId, stripeCheckoutSessionId);
         
-        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor})`);
+        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()}`);
       } else {
         console.log(`[Recovery] Order ${order.id} already exists`);
         
