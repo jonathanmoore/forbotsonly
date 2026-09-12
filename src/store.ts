@@ -87,19 +87,7 @@ async function initPostgres(): Promise<void> {
     // Test connection
     const client = await pool.connect();
     
-    // Create tables if they don't exist
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        session_id TEXT PRIMARY KEY,
-        identity_name TEXT,
-        identity_mark_shape TEXT,
-        identity_mark_color TEXT,
-        cart_items JSONB NOT NULL DEFAULT '[]'::jsonb,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
-
+    // Create orders table only - sessions are always in-memory
     await client.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
@@ -125,7 +113,7 @@ async function initPostgres(): Promise<void> {
     await migrateOrdersFromFile();
 
     usePostgres = true;
-    console.log('[Store] Connected to Postgres - using database storage');
+    console.log('[Store] Connected to Postgres - orders only (sessions in-memory)');
   } catch (err: any) {
     console.error('[Store] Failed to connect to Postgres:', err.message);
     console.log('[Store] Falling back to JSON file storage');
@@ -194,147 +182,69 @@ if (!usePostgres) {
 // ============================================================================
 
 export function createSession(sessionId: string): void {
-  if (usePostgres && pool) {
-    // Postgres mode: upsert session
-    pool.query(
-      `INSERT INTO sessions (session_id, cart_items)
-       VALUES ($1, $2)
-       ON CONFLICT (session_id) DO NOTHING`,
-      [sessionId, JSON.stringify([])]
-    ).catch(err => {
-      console.error('[Store] Failed to create session:', err);
+  // Sessions are always in-memory, regardless of Postgres config
+  if (!sessions.has(sessionId)) {
+    sessions.set(sessionId, {
+      cart: { items: [], sessionId },
     });
-  } else {
-    // JSON file mode
-    if (!sessions.has(sessionId)) {
-      sessions.set(sessionId, {
-        cart: { items: [], sessionId },
-      });
+    // Save to file only if not using Postgres
+    if (!usePostgres) {
       saveSessionsToFile();
     }
   }
 }
 
 export function getSession(sessionId: string) {
-  if (usePostgres && pool) {
-    // Postgres mode: not used directly by server.ts, only internally
-    return null;
-  }
+  // Sessions are always in-memory
   return sessions.get(sessionId);
 }
 
 export function setAgentIdentity(sessionId: string, identity: AgentIdentity): void {
-  if (usePostgres && pool) {
-    pool.query(
-      `INSERT INTO sessions (session_id, identity_name, identity_mark_shape, identity_mark_color, cart_items)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (session_id) DO UPDATE SET
-         identity_name = $2,
-         identity_mark_shape = $3,
-         identity_mark_color = $4,
-         updated_at = NOW()`,
-      [sessionId, identity.name, identity.mark.shape, identity.mark.color, JSON.stringify([])]
-    ).catch(err => {
-      console.error('[Store] Failed to set identity:', err);
-    });
-  } else {
-    const session = sessions.get(sessionId);
-    if (session) {
-      session.identity = identity;
+  // Sessions are always in-memory
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.identity = identity;
+    // Save to file only if not using Postgres
+    if (!usePostgres) {
       saveSessionsToFile();
     }
   }
 }
 
 export function getAgentIdentity(sessionId: string): AgentIdentity | undefined {
-  if (usePostgres && pool) {
-    // Synchronous API but Postgres is async - we need to handle this differently
-    // For now, return undefined and rely on async flow in server.ts
-    // This is a limitation we'll address by making server.ts handle promises
-    return undefined;
-  }
+  // Sessions are always in-memory
   return sessions.get(sessionId)?.identity;
 }
 
 export async function getAgentIdentityAsync(sessionId: string): Promise<AgentIdentity | undefined> {
-  if (usePostgres && pool) {
-    try {
-      const result = await pool.query(
-        `SELECT identity_name, identity_mark_shape, identity_mark_color 
-         FROM sessions WHERE session_id = $1`,
-        [sessionId]
-      );
-      if (result.rows.length > 0 && result.rows[0].identity_name) {
-        return {
-          name: result.rows[0].identity_name,
-          mark: {
-            shape: result.rows[0].identity_mark_shape,
-            color: result.rows[0].identity_mark_color,
-          },
-        };
-      }
-    } catch (err) {
-      console.error('[Store] Failed to get identity:', err);
-    }
-    return undefined;
-  }
+  // Sessions are always in-memory
   return sessions.get(sessionId)?.identity;
 }
 
 export function isIdentified(sessionId: string): boolean {
-  if (usePostgres && pool) {
-    // This is also synchronous - we'll need to handle async in server.ts
-    return false;
-  }
+  // Sessions are always in-memory
   return !!sessions.get(sessionId)?.identity;
 }
 
 export async function isIdentifiedAsync(sessionId: string): Promise<boolean> {
-  if (usePostgres && pool) {
-    const identity = await getAgentIdentityAsync(sessionId);
-    return !!identity;
-  }
+  // Sessions are always in-memory
   return !!sessions.get(sessionId)?.identity;
 }
 
 export function getCart(sessionId: string): Cart {
-  if (usePostgres && pool) {
-    // Synchronous API - return empty cart and log warning
-    console.warn('[Store] getCart called in Postgres mode - use getCartAsync instead');
-    return { items: [], sessionId };
-  }
+  // Sessions are always in-memory
   createSession(sessionId);
   return sessions.get(sessionId)!.cart;
 }
 
 export async function getCartAsync(sessionId: string): Promise<Cart> {
-  if (usePostgres && pool) {
-    try {
-      const result = await pool.query(
-        `SELECT cart_items FROM sessions WHERE session_id = $1`,
-        [sessionId]
-      );
-      if (result.rows.length > 0) {
-        return {
-          items: result.rows[0].cart_items || [],
-          sessionId,
-        };
-      }
-    } catch (err) {
-      console.error('[Store] Failed to get cart:', err);
-    }
-    return { items: [], sessionId };
-  }
+  // Sessions are always in-memory
   createSession(sessionId);
   return sessions.get(sessionId)!.cart;
 }
 
 export function addToCart(sessionId: string, productId: string, quantity: number, mark: MarkConfig, size: string): Cart {
-  if (usePostgres && pool) {
-    console.warn('[Store] addToCart called in Postgres mode - use addToCartAsync instead');
-    return { items: [], sessionId };
-  }
-  
+  // Sessions are always in-memory
   createSession(sessionId);
   const session = sessions.get(sessionId)!;
   
@@ -351,62 +261,25 @@ export function addToCart(sessionId: string, productId: string, quantity: number
     session.cart.items.push({ productId, quantity, mark, size });
   }
   
-  saveSessionsToFile();
+  // Save to file only if not using Postgres
+  if (!usePostgres) {
+    saveSessionsToFile();
+  }
   return session.cart;
 }
 
 export async function addToCartAsync(sessionId: string, productId: string, quantity: number, mark: MarkConfig, size: string): Promise<Cart> {
-  if (usePostgres && pool) {
-    try {
-      // Get current cart
-      const cart = await getCartAsync(sessionId);
-      
-      // Find existing item
-      const existingItem = cart.items.find(
-        item => item.productId === productId && 
-                item.mark.shape === mark.shape && 
-                item.mark.color === mark.color &&
-                item.size === size
-      );
-      
-      if (existingItem) {
-        existingItem.quantity += quantity;
-      } else {
-        cart.items.push({ productId, quantity, mark, size });
-      }
-      
-      // Update in database
-      await pool.query(
-        `INSERT INTO sessions (session_id, cart_items)
-         VALUES ($1, $2)
-         ON CONFLICT (session_id) DO UPDATE SET
-           cart_items = $2,
-           updated_at = NOW()`,
-        [sessionId, JSON.stringify(cart.items)]
-      );
-      
-      return cart;
-    } catch (err) {
-      console.error('[Store] Failed to add to cart:', err);
-      throw err;
-    }
-  }
-  
+  // Sessions are always in-memory
   return addToCart(sessionId, productId, quantity, mark, size);
 }
 
 export function clearCart(sessionId: string): void {
-  if (usePostgres && pool) {
-    pool.query(
-      `UPDATE sessions SET cart_items = $1, updated_at = NOW() WHERE session_id = $2`,
-      [JSON.stringify([]), sessionId]
-    ).catch(err => {
-      console.error('[Store] Failed to clear cart:', err);
-    });
-  } else {
-    const session = sessions.get(sessionId);
-    if (session) {
-      session.cart.items = [];
+  // Sessions are always in-memory
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.cart.items = [];
+    // Save to file only if not using Postgres
+    if (!usePostgres) {
       saveSessionsToFile();
     }
   }
