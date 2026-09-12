@@ -39,7 +39,7 @@ export async function createCheckoutSession(
     cancel_url: cancelUrl,
     metadata,
     shipping_address_collection: {
-      allowed_countries: ['US', 'CA', 'GB', 'AU', 'NZ', 'IE', 'FR', 'DE', 'ES', 'IT', 'NL', 'BE', 'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'PT', 'PL', 'CZ', 'HU', 'RO', 'BG', 'GR', 'HR', 'SI', 'SK', 'EE', 'LV', 'LT', 'LU', 'MT', 'CY'],
+      allowed_countries: ['US'], // HARD RULE: US orders only
     },
   });
 

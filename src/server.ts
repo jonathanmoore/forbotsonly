@@ -92,8 +92,13 @@ async function requireIdentity(sessionId: string): Promise<AgentIdentity | null>
  * Validate that a Stripe Checkout Session has a complete shipping address.
  * Returns validated address fields or throws an error if incomplete.
  * 
- * NEVER use placeholder/sandbox fallback addresses on live orders.
- * If address is incomplete, we MUST fail explicitly rather than ship to a fake address.
+ * HARD RULES (Jonathan's requirements):
+ * 1. NEVER use placeholder/sandbox fallback addresses on live orders
+ * 2. Address source order: Stripe shipping_details → customer_details
+ *    (Link integration TBD - would go after shipping_details if available)
+ * 3. US orders ONLY - reject non-US countries
+ * 4. Incomplete address → fail explicitly with clear error
+ * 5. If no valid address, error instructs to collect from user
  */
 function validateShippingAddress(session: Stripe.Checkout.Session): {
   line1: string;
@@ -107,7 +112,11 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const shippingAddress = session.shipping_details?.address;
   const customerDetails = session.customer_details;
   
-  // Prefer shipping_details, fallback to customer_details
+  // Address source order (Jonathan's rule #2):
+  // 1. Stripe Checkout shipping_details (if complete)
+  // 2. Stripe customer_details.address (fallback)
+  // 3. Link saved shipping (TODO: requires Link integration)
+  // 4. Error → instruct to collect from user
   const line1 = shippingAddress?.line1 || customerDetails?.address?.line1;
   const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
   const city = shippingAddress?.city || customerDetails?.address?.city;
@@ -116,10 +125,20 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const country = shippingAddress?.country || customerDetails?.address?.country;
   const recipientName = shippingAddress?.name || customerDetails?.name;
   
-  // Validate required fields - NEVER allow empty/missing fields to fall back to placeholders
+  // HARD RULE #3: US orders ONLY
+  if (country && country.toUpperCase() !== 'US') {
+    throw new Error(
+      `Non-US shipping address rejected. Prodigi fulfillment is US-only. ` +
+      `Session ${session.id} has country: ${country}. ` +
+      `Cannot create Prodigi order for non-US addresses.`
+    );
+  }
+  
+  // HARD RULE #4: Validate required fields - NEVER allow empty/missing fields
   const missingFields: string[] = [];
   if (!line1) missingFields.push('line1');
   if (!city) missingFields.push('city');
+  if (!state) missingFields.push('state'); // Required for US addresses
   if (!postalCode) missingFields.push('postal_code');
   if (!country) missingFields.push('country');
   if (!recipientName) missingFields.push('name');
@@ -127,7 +146,9 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   if (missingFields.length > 0) {
     throw new Error(
       `Incomplete shipping address from Stripe session ${session.id}. Missing fields: ${missingFields.join(', ')}. ` +
-      `Cannot create Prodigi order without complete address. Check that Stripe Checkout is configured to collect shipping addresses.`
+      `Cannot create Prodigi order without complete address. ` +
+      `REQUIRED: Collect complete US shipping address from customer before retrying. ` +
+      `Do NOT invent or use placeholder addresses.`
     );
   }
   
@@ -135,9 +156,9 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
     line1: line1!,
     line2,
     city: city!,
-    state: state || '', // State is optional for some countries
+    state: state!, // Required for US
     postalCode: postalCode!,
-    country: country!,
+    country: country!.toUpperCase(),
     recipientName: recipientName!,
   };
 }

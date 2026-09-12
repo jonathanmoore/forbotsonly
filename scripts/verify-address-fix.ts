@@ -13,6 +13,11 @@
 import type Stripe from 'stripe';
 
 // Copy of the validation function from src/server.ts
+// HARD RULES (Jonathan's requirements):
+// 1. NEVER use placeholder/sandbox fallback addresses
+// 2. Address source order: shipping_details → customer_details
+// 3. US orders ONLY - reject non-US
+// 4. Incomplete address → fail explicitly
 function validateShippingAddress(session: Stripe.Checkout.Session): {
   line1: string;
   line2: string;
@@ -25,7 +30,6 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const shippingAddress = session.shipping_details?.address;
   const customerDetails = session.customer_details;
   
-  // Prefer shipping_details, fallback to customer_details
   const line1 = shippingAddress?.line1 || customerDetails?.address?.line1;
   const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
   const city = shippingAddress?.city || customerDetails?.address?.city;
@@ -34,10 +38,20 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const country = shippingAddress?.country || customerDetails?.address?.country;
   const recipientName = shippingAddress?.name || customerDetails?.name;
   
-  // Validate required fields - NEVER allow empty/missing fields to fall back to placeholders
+  // HARD RULE: US orders ONLY
+  if (country && country.toUpperCase() !== 'US') {
+    throw new Error(
+      `Non-US shipping address rejected. Prodigi fulfillment is US-only. ` +
+      `Session ${session.id} has country: ${country}. ` +
+      `Cannot create Prodigi order for non-US addresses.`
+    );
+  }
+  
+  // Validate required fields
   const missingFields: string[] = [];
   if (!line1) missingFields.push('line1');
   if (!city) missingFields.push('city');
+  if (!state) missingFields.push('state'); // Required for US
   if (!postalCode) missingFields.push('postal_code');
   if (!country) missingFields.push('country');
   if (!recipientName) missingFields.push('name');
@@ -45,7 +59,8 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   if (missingFields.length > 0) {
     throw new Error(
       `Incomplete shipping address from Stripe session ${session.id}. Missing fields: ${missingFields.join(', ')}. ` +
-      `Cannot create Prodigi order without complete address. Check that Stripe Checkout is configured to collect shipping addresses.`
+      `Cannot create Prodigi order without complete address. ` +
+      `REQUIRED: Collect complete US shipping address from customer before retrying.`
     );
   }
   
@@ -53,9 +68,9 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
     line1: line1!,
     line2,
     city: city!,
-    state: state || '', // State is optional for some countries
+    state: state!,
     postalCode: postalCode!,
-    country: country!,
+    country: country!.toUpperCase(),
     recipientName: recipientName!,
   };
 }
@@ -219,31 +234,102 @@ try {
   }
 }
 
-// Test Case 7: Optional fields (line2, state) should be allowed empty
-console.log('Test 7: Optional fields (line2, state) empty - should pass');
+// Test Case 7: HARD RULE - Non-US addresses rejected (UK)
+console.log('Test 7: Non-US address (UK) - should be rejected');
 try {
   const session7 = {
-    id: 'cs_test_optional_empty',
+    id: 'cs_test_non_us_uk',
     shipping_details: {
       address: {
         line1: '10 Downing Street',
         city: 'London',
+        state: '',
         postal_code: 'SW1A 2AA',
-        country: 'GB',
-        // No line2, no state (common in UK)
+        country: 'GB', // Non-US
       },
       name: 'Winston Churchill',
     },
   } as Stripe.Checkout.Session;
   
   const result7 = validateShippingAddress(session7);
-  console.log('✅ PASS - Address validated successfully (optional fields empty):');
-  console.log(`   ${result7.recipientName}`);
-  console.log(`   ${result7.line1}`);
-  console.log(`   ${result7.city}, ${result7.postalCode}`);
-  console.log(`   ${result7.country}`);
-  console.log(`   line2: "${result7.line2}" (empty is OK)`);
-  console.log(`   state: "${result7.state}" (empty is OK)\n`);
+  console.log(`❌ FAIL - Should have rejected non-US address but got: ${result7.country}\n`);
+} catch (err: any) {
+  console.log('✅ PASS - Correctly rejected non-US address');
+  console.log(`   Error: ${err.message}\n`);
+}
+
+// Test Case 8: HARD RULE - Non-US addresses rejected (Canada)
+console.log('Test 8: Non-US address (Canada) - should be rejected');
+try {
+  const session8 = {
+    id: 'cs_test_non_us_ca',
+    shipping_details: {
+      address: {
+        line1: '123 Maple Street',
+        city: 'Toronto',
+        state: 'ON',
+        postal_code: 'M5H 2N2',
+        country: 'CA', // Non-US
+      },
+      name: 'Test User',
+    },
+  } as Stripe.Checkout.Session;
+  
+  const result8 = validateShippingAddress(session8);
+  console.log(`❌ FAIL - Should have rejected non-US address but got: ${result8.country}\n`);
+} catch (err: any) {
+  console.log('✅ PASS - Correctly rejected non-US address');
+  console.log(`   Error: ${err.message}\n`);
+}
+
+// Test Case 9: HARD RULE - State required for US addresses
+console.log('Test 9: Missing state (required for US) - should fail');
+try {
+  const session9 = {
+    id: 'cs_test_missing_state',
+    shipping_details: {
+      address: {
+        line1: '123 Real Street',
+        city: 'Austin',
+        state: undefined, // Missing - required for US
+        postal_code: '78701',
+        country: 'US',
+      },
+      name: 'John Doe',
+    },
+  } as any;
+  
+  const result9 = validateShippingAddress(session9);
+  console.log(`❌ FAIL - Should have thrown error for missing state\n`);
+} catch (err: any) {
+  console.log('✅ PASS - Correctly rejected missing state');
+  console.log(`   Error: ${err.message}\n`);
+}
+
+// Test Case 10: Optional line2 is allowed empty
+console.log('Test 10: Optional line2 empty - should pass');
+try {
+  const session10 = {
+    id: 'cs_test_no_line2',
+    shipping_details: {
+      address: {
+        line1: '123 Real Street',
+        city: 'Austin',
+        state: 'TX',
+        postal_code: '78701',
+        country: 'US',
+        // No line2 (optional)
+      },
+      name: 'John Doe',
+    },
+  } as Stripe.Checkout.Session;
+  
+  const result10 = validateShippingAddress(session10);
+  console.log('✅ PASS - Address validated (line2 optional):');
+  console.log(`   ${result10.recipientName}`);
+  console.log(`   ${result10.line1}`);
+  console.log(`   ${result10.city}, ${result10.state} ${result10.postalCode}`);
+  console.log(`   line2: "${result10.line2}" (empty is OK)\n`);
 } catch (err: any) {
   console.log(`❌ FAIL - Unexpected error: ${err.message}\n`);
 }
@@ -252,12 +338,19 @@ try {
 console.log('═══════════════════════════════════════════════════════════');
 console.log('✅ Verification Complete!');
 console.log('');
-console.log('Key Takeaways:');
-console.log('1. Complete addresses are accepted');
-console.log('2. Incomplete addresses are REJECTED (not silently fixed)');
-console.log('3. NO placeholder values used (1234 Main St, San Francisco, etc.)');
-console.log('4. Error messages clearly identify missing fields');
-console.log('5. Optional fields (line2, state) are allowed to be empty');
+console.log('HARD RULES ENFORCED (Jonathan\'s requirements):');
+console.log('1. ✅ NEVER use placeholder addresses (1234 Main St, etc.)');
+console.log('2. ✅ Address source: shipping_details → customer_details');
+console.log('3. ✅ US orders ONLY - non-US addresses rejected');
+console.log('4. ✅ Incomplete addresses fail explicitly (no silent fixes)');
+console.log('5. ✅ recover_paid_checkout: no hardcoded size');
 console.log('');
-console.log('Result: Production orders will NEVER ship to fake addresses');
+console.log('Validation Rules:');
+console.log('- Complete US addresses are accepted');
+console.log('- Incomplete addresses are REJECTED with clear errors');
+console.log('- Non-US addresses are REJECTED (US-only fulfillment)');
+console.log('- State is REQUIRED for US addresses');
+console.log('- line2 is optional');
+console.log('');
+console.log('Result: Production orders will NEVER ship to fake/non-US addresses');
 console.log('═══════════════════════════════════════════════════════════');
