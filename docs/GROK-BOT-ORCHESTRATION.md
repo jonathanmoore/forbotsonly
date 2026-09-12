@@ -240,10 +240,34 @@ graph TD
   - Manual recovery of orphaned orders without re-charging customers
 - **Outcome**: Both orders successfully fulfilled via Prodigi, no duplicate charges
 
-### Phase 7: Ready for Demo (As of 2026-09-11)
-- **Proven live end-to-end**: Shopping bot → Stripe Link → Prodigi fulfillment → shipped tees
+### Phase 7: Order Approval Workflow (Security Lock)
+- **Critical security requirement from Jonathan**: After Stripe payment succeeds, do NOT create Prodigi order yet
+- **Manual review gate**: All paid orders held for Jonathan's secure manual review
+- **New order flow**:
+  1. Customer pays → order marked `awaiting_approval` (no Prodigi yet)
+  2. Jonathan reviews shipping address, tee size, mark/artwork via secure admin API
+  3. Approve → creates Prodigi order
+  4. Deny → refunds Stripe, no Prodigi order
+- **Admin interface**:
+  - `GET /admin/orders/:id` - View order details (address, size, mark, artwork URL)
+  - `POST /admin/orders/:id/approve` - Approve and create Prodigi order
+  - `POST /admin/orders/:id/deny` - Deny and refund via Stripe
+  - Secured by `FULFILLMENT_REVIEW_SECRET` environment variable
+- **US-only shipping**: Hard-fail on non-US addresses, no sandbox fallbacks
+- **Privacy**: Orders and addresses NEVER exposed publicly (no listing endpoint)
+- **Idempotency**: Approve/deny operations safe to call multiple times
+- **Documentation**: `docs/ADMIN-REVIEW.md` for admin usage guide
+
+### Phase 8: Ready for Production (Current State)
+- **Proven live end-to-end with manual approval**: Shopping bot → Stripe Link → Jonathan review → Prodigi fulfillment → shipped tees
 - **Human page**: Dashed outline morph-bot with fine grain overlay (locked 2026-09-11)
 - **Agent flow**: Documented in `TOOL_EXAMPLES.md`, `docs/mcp.md`
+- **Admin review**: Documented in `docs/ADMIN-REVIEW.md`
+- **Security locks in place**:
+  - Manual approval gate before fulfillment
+  - US-only shipping (no fallbacks)
+  - Private admin API (no public address exposure)
+  - Idempotent approve/deny operations
 - **Open follow-up work**:
   - Custom domain HTTPS cert reliability (use Railway URL for demos)
   - Stripe receipt emails not configured
@@ -261,8 +285,16 @@ For full examples with JSON request/response payloads, see [`TOOL_EXAMPLES.md`](
 2. **`list_products`** — Browse available products (currently one tee) + mark options
 3. **`add_to_cart`** — Add items (uses identity mark by default, can override per-item)
 4. **`get_cart`** — View cart contents with mark choices and total
-5. **`create_checkout`** — Get Stripe Checkout session URL
-6. **`get_order`** — Check order status (pending → paid → fulfilled)
+5. **`create_checkout`** — Get Stripe Checkout session URL (US-only shipping addresses)
+6. **`get_order`** — Check order status (pending → awaiting_approval → paid → fulfilled)
+
+### Order Status Flow (With Manual Approval Gate)
+```
+pending → [Customer pays] → awaiting_approval → [Admin approves] → paid → fulfilled
+                                               ↘ [Admin denies] → refunded
+```
+
+**Note**: After payment completes, orders are held in `awaiting_approval` status for manual review. Jonathan (or authorized admins) must approve each order via the admin API before Prodigi fulfillment begins. See [`docs/ADMIN-REVIEW.md`](ADMIN-REVIEW.md) for admin workflow.
 
 ### Admin Recovery Flow
 - **`recover_paid_checkout`** — Admin tool to recover orphaned paid orders (checks Stripe, fulfills if paid, no re-charge)
@@ -310,6 +342,7 @@ forbotsonly/
 ├── docs/
 │   ├── mcp.md                            # MCP protocol docs
 │   ├── qa-connector-session.md           # Session stickiness for connectors
+│   ├── ADMIN-REVIEW.md                   # Admin approval workflow guide
 │   └── GROK-BOT-ORCHESTRATION.md         # This file
 ├── TOOL_EXAMPLES.md                      # Agent buyer flow examples
 ├── WORK-COMPLETE.md                      # Historical work log

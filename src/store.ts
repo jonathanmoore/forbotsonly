@@ -97,7 +97,14 @@ async function initPostgres(): Promise<void> {
         prodigi_order_id TEXT,
         items JSONB NOT NULL,
         created_at BIGINT NOT NULL,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        approved_at BIGINT,
+        denied_at BIGINT,
+        refund_id TEXT,
+        shipping_address JSONB,
+        customer_email TEXT,
+        customer_name TEXT,
+        customer_phone TEXT
       )
     `);
 
@@ -137,8 +144,8 @@ async function migrateOrdersFromFile(): Promise<void> {
 
     for (const [orderId, order] of fileOrders.entries()) {
       await pool.query(
-        `INSERT INTO orders (id, session_id, status, stripe_checkout_session_id, prodigi_order_id, items, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO orders (id, session_id, status, stripe_checkout_session_id, prodigi_order_id, items, created_at, approved_at, denied_at, refund_id, shipping_address, customer_email, customer_name, customer_phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (id) DO NOTHING`,
         [
           order.id,
@@ -148,6 +155,13 @@ async function migrateOrdersFromFile(): Promise<void> {
           order.prodigiOrderId || null,
           JSON.stringify(order.items),
           order.createdAt,
+          order.approvedAt || null,
+          order.deniedAt || null,
+          order.refundId || null,
+          order.shippingAddress ? JSON.stringify(order.shippingAddress) : null,
+          order.customerEmail || null,
+          order.customerName || null,
+          order.customerPhone || null,
         ]
       );
     }
@@ -316,7 +330,7 @@ export function createOrder(sessionId: string, cart: Cart, orderId?: string): Or
   return order;
 }
 
-export async function createOrderAsync(sessionId: string, cart: Cart, orderId?: string): Promise<Order> {
+export async function createOrderAsync(sessionId: string, cart: Cart, orderId?: string, shippingAddress?: Order['shippingAddress'], customerContact?: { email?: string; name?: string; phone?: string }): Promise<Order> {
   const id = orderId || `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const order: Order = {
     id,
@@ -324,14 +338,18 @@ export async function createOrderAsync(sessionId: string, cart: Cart, orderId?: 
     status: 'pending',
     items: [...cart.items],
     createdAt: Date.now(),
+    shippingAddress,
+    customerEmail: customerContact?.email,
+    customerName: customerContact?.name,
+    customerPhone: customerContact?.phone,
   };
   
   if (usePostgres && pool) {
     try {
       await pool.query(
-        `INSERT INTO orders (id, session_id, status, items, created_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [order.id, order.sessionId, order.status, JSON.stringify(order.items), order.createdAt]
+        `INSERT INTO orders (id, session_id, status, items, created_at, shipping_address, customer_email, customer_name, customer_phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [order.id, order.sessionId, order.status, JSON.stringify(order.items), order.createdAt, shippingAddress ? JSON.stringify(shippingAddress) : null, customerContact?.email || null, customerContact?.name || null, customerContact?.phone || null]
       );
       return order;
     } catch (err) {
@@ -370,6 +388,13 @@ export async function getOrderAsync(orderId: string): Promise<Order | undefined>
           prodigiOrderId: row.prodigi_order_id,
           items: row.items,
           createdAt: row.created_at,
+          approvedAt: row.approved_at,
+          deniedAt: row.denied_at,
+          refundId: row.refund_id,
+          shippingAddress: row.shipping_address,
+          customerEmail: row.customer_email,
+          customerName: row.customer_name,
+          customerPhone: row.customer_phone,
         };
       }
     } catch (err) {
@@ -459,6 +484,13 @@ export async function findOrderByStripeSessionAsync(stripeSessionId: string): Pr
           prodigiOrderId: row.prodigi_order_id,
           items: row.items,
           createdAt: row.created_at,
+          approvedAt: row.approved_at,
+          deniedAt: row.denied_at,
+          refundId: row.refund_id,
+          shippingAddress: row.shipping_address,
+          customerEmail: row.customer_email,
+          customerName: row.customer_name,
+          customerPhone: row.customer_phone,
         };
       }
     } catch (err) {
@@ -469,6 +501,79 @@ export async function findOrderByStripeSessionAsync(stripeSessionId: string): Pr
   return Array.from(orders.values()).find(
     order => order.stripeCheckoutSessionId === stripeSessionId
   );
+}
+
+export function updateOrderShippingAddress(orderId: string, address: Order['shippingAddress']): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET shipping_address = $1, updated_at = NOW() WHERE id = $2`,
+      [address ? JSON.stringify(address) : null, orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to update order shipping address:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.shippingAddress = address;
+      saveOrdersToFile();
+    }
+  }
+}
+
+export function updateOrderCustomerContact(orderId: string, contact: { email?: string; name?: string; phone?: string }): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET customer_email = $1, customer_name = $2, customer_phone = $3, updated_at = NOW() WHERE id = $4`,
+      [contact.email || null, contact.name || null, contact.phone || null, orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to update order customer contact:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.customerEmail = contact.email;
+      order.customerName = contact.name;
+      order.customerPhone = contact.phone;
+      saveOrdersToFile();
+    }
+  }
+}
+
+export function updateOrderApproval(orderId: string, approvedAt: number): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET approved_at = $1, status = $2, updated_at = NOW() WHERE id = $3`,
+      [approvedAt, 'paid', orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to update order approval:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.approvedAt = approvedAt;
+      order.status = 'paid';
+      saveOrdersToFile();
+    }
+  }
+}
+
+export function updateOrderDenial(orderId: string, deniedAt: number, refundId: string): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET denied_at = $1, refund_id = $2, status = $3, updated_at = NOW() WHERE id = $4`,
+      [deniedAt, refundId, 'refunded', orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to update order denial:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.deniedAt = deniedAt;
+      order.refundId = refundId;
+      order.status = 'refunded';
+      saveOrdersToFile();
+    }
+  }
 }
 
 // Export a function to check if using Postgres

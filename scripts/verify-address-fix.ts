@@ -36,7 +36,7 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const state = shippingAddress?.state || customerDetails?.address?.state;
   const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code;
   const country = shippingAddress?.country || customerDetails?.address?.country;
-  const recipientName = shippingAddress?.name || customerDetails?.name;
+  const recipientName = session.shipping_details?.name || customerDetails?.name;
   
   // HARD RULE: US orders ONLY
   if (country && country.toUpperCase() !== 'US') {

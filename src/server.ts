@@ -23,14 +23,42 @@ import {
   findOrderByStripeSession,
   findOrderByStripeSessionAsync,
   isUsingPostgres,
+  updateOrderShippingAddress,
+  updateOrderApproval,
+  updateOrderDenial,
+  updateOrderCustomerContact,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
-import { createCheckoutSession, isStripeConfigured, getCheckoutSession } from './stripe';
+import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
 import { createProdigiClient } from './prodigi';
 import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order, type Cart } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+const FULFILLMENT_REVIEW_SECRET = process.env.FULFILLMENT_REVIEW_SECRET;
+const ORDER_REVIEW_WEBHOOK_URL = process.env.ORDER_REVIEW_WEBHOOK_URL;
+
+function verifyAdminSecret(headers: Headers): boolean {
+  if (!FULFILLMENT_REVIEW_SECRET) {
+    console.error('[Admin] FULFILLMENT_REVIEW_SECRET not configured');
+    return false;
+  }
+  
+  // Check Authorization header: Bearer <secret>
+  const authHeader = headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    return token === FULFILLMENT_REVIEW_SECRET;
+  }
+  
+  // Check X-Admin-Secret header
+  const secretHeader = headers.get('x-admin-secret');
+  if (secretHeader === FULFILLMENT_REVIEW_SECRET) {
+    return true;
+  }
+  
+  return false;
+}
 
 function getSessionId(headers: Headers, toolArgs?: any): string {
   // 1. Check for sessionId in tool arguments (explicit override for connector clients)
@@ -123,7 +151,7 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
   const state = shippingAddress?.state || customerDetails?.address?.state;
   const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code;
   const country = shippingAddress?.country || customerDetails?.address?.country;
-  const recipientName = shippingAddress?.name || customerDetails?.name;
+  const recipientName = session.shipping_details?.name || customerDetails?.name;
   
   // HARD RULE #3: US orders ONLY
   if (country && country.toUpperCase() !== 'US') {
@@ -167,11 +195,26 @@ function validateShippingAddress(session: Stripe.Checkout.Session): {
  * Create Prodigi order for a given order ID.
  * Returns prodigiOrderId on success, null on failure.
  * Logs detailed error information for troubleshooting.
+ * REQUIRES: Order must have shipping address stored (US-only, no fallbacks).
  */
-async function createProdigiOrderForOrder(orderId: string, session: Stripe.Checkout.Session): Promise<string | null> {
+async function createProdigiOrderForOrder(orderId: string): Promise<string | null> {
   const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
   if (!order) {
     console.error(`[Prodigi] Order ${orderId} not found`);
+    return null;
+  }
+
+  // Require shipping address (no fallbacks)
+  if (!order.shippingAddress) {
+    console.error(`[Prodigi] Order ${orderId} missing shipping address - cannot create Prodigi order`);
+    return null;
+  }
+  
+  const address = order.shippingAddress;
+  
+  // Validate US-only
+  if (address.country !== 'US') {
+    console.error(`[Prodigi] Order ${orderId} has non-US address (${address.country}) - rejected`);
     return null;
   }
 
@@ -191,11 +234,9 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
   try {
     const prodigiClient = createProdigiClient();
 
-    // Validate shipping address - will throw if incomplete
-    // NEVER use placeholder addresses on production orders
-    const validatedAddress = validateShippingAddress(session);
-    const { line1, line2, city, state, postalCode, country, recipientName } = validatedAddress;
-
+    // Note: Address already validated and stored by fulfillPaidOrder when order entered awaiting_approval
+    // No need to re-validate here - use the stored validated address
+    
     // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
     
@@ -208,23 +249,24 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
 
     console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
     console.log(`[Prodigi] Artwork URL (positioned): ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
+    console.log(`[Prodigi] Shipping to: ${address.name}, ${address.city}, ${address.state} ${address.postalCode}, ${address.country}`);
 
-    // Build address object for Prodigi, omitting line2 if empty/whitespace
+    // Build Prodigi address object from stored validated address, omitting line2 if empty/whitespace
     const prodigiAddress: Record<string, string> = {
-      line1,
-      postalOrZipCode: postalCode,
-      countryCode: country,
-      townOrCity: city,
-      stateOrCounty: state,
+      line1: address.line1,
+      postalOrZipCode: address.postalCode,
+      countryCode: address.country,
+      townOrCity: address.city,
+      stateOrCounty: address.state,
     };
-    if (line2.trim()) {
-      prodigiAddress.line2 = line2.trim();
+    if (address.line2 && address.line2.trim()) {
+      prodigiAddress.line2 = address.line2.trim();
     }
 
     const prodigiOrder = await prodigiClient.createOrder({
       shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
       recipient: {
-        name: recipientName,
+        name: address.name,
         address: prodigiAddress,
       },
       items: [
@@ -272,9 +314,74 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
 }
 
 /**
+ * Fire webhook notification for order review.
+ * Sends non-sensitive summary to configured ORDER_REVIEW_WEBHOOK_URL.
+ */
+async function notifyOrderForReview(orderId: string, order: Order): Promise<void> {
+  if (!ORDER_REVIEW_WEBHOOK_URL) {
+    console.log(`[Webhook] ORDER_REVIEW_WEBHOOK_URL not configured - skipping notification for ${orderId}`);
+    return;
+  }
+  
+  try {
+    const firstItem = order.items[0];
+    const product = getProduct(firstItem.productId);
+    const mark = firstItem.mark;
+    const publicUrl = process.env.PUBLIC_URL || 'https://forbotsonly.com';
+    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+    
+    // Non-sensitive payload: orderId, size, mark, artwork URL
+    // Full address included if webhook is trusted (user must configure trusted webhook URL)
+    const payload = {
+      orderId: order.id,
+      status: order.status,
+      createdAt: order.createdAt,
+      item: {
+        productId: firstItem.productId,
+        productName: product?.name,
+        size: firstItem.size,
+        quantity: firstItem.quantity,
+        mark: {
+          shape: mark.shape,
+          color: mark.color,
+        },
+      },
+      artworkUrl,
+      // Customer contact (from Stripe Checkout/Link)
+      customer: {
+        email: order.customerEmail,
+        name: order.customerName,
+        phone: order.customerPhone,
+      },
+      // Include shipping address (trusted webhook, private)
+      shippingAddress: order.shippingAddress,
+    };
+    
+    const response = await fetch(ORDER_REVIEW_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'forbotsonly-order-review/1.0',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      console.error(`[Webhook] Failed to notify ${ORDER_REVIEW_WEBHOOK_URL} for order ${orderId}: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`[Webhook] ✅ Notified ${ORDER_REVIEW_WEBHOOK_URL} for order ${orderId}`);
+    }
+  } catch (err: any) {
+    console.error(`[Webhook] Error notifying for order ${orderId}:`, err.message);
+  }
+}
+
+/**
  * Shared order fulfillment logic.
  * Called by both webhook handler and get_order reconciliation.
- * Updates order status to 'paid', creates Prodigi order, and stores Prodigi ID.
+ * Updates order status to 'awaiting_approval' and stores shipping address + customer contact.
+ * Does NOT create Prodigi order - that happens after manual approval.
+ * Fires webhook notification for review.
  */
 async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Session): Promise<void> {
   const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
@@ -282,14 +389,61 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
     throw new Error('Order not found');
   }
 
-  // Update order status to paid
-  updateOrderStatus(orderId, 'paid');
+  // Extract and validate shipping address (US-only)
+  const shippingAddress = session.shipping_details?.address;
+  const customerDetails = session.customer_details;
+  
+  const country = shippingAddress?.country || customerDetails?.address?.country || null;
+  
+  // US-only validation: Reject if not US
+  if (!country || country.toUpperCase() !== 'US') {
+    console.error(`[Order] Order ${orderId} rejected: Non-US address (country: ${country})`);
+    throw new Error(`Only US shipping addresses are supported. Received country: ${country || 'unknown'}`);
+  }
+  
+  // Validate required address fields
+  const line1 = shippingAddress?.line1 || customerDetails?.address?.line1;
+  const city = shippingAddress?.city || customerDetails?.address?.city;
+  const state = shippingAddress?.state || customerDetails?.address?.state;
+  const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code;
+  const recipientName = session.shipping_details?.name || customerDetails?.name;
+  
+  if (!line1 || !city || !state || !postalCode || !recipientName) {
+    console.error(`[Order] Order ${orderId} rejected: Missing required address fields`);
+    throw new Error('Missing required shipping address fields');
+  }
+  
+  const address: Order['shippingAddress'] = {
+    name: recipientName ?? '',
+    line1,
+    line2: shippingAddress?.line2 || customerDetails?.address?.line2 || undefined,
+    city,
+    state,
+    postalCode,
+    country: 'US',
+  };
+  
+  // Extract customer contact from Stripe Checkout/Link
+  // These come from the payment session, NOT from agent input or hardcoded defaults
+  const customerContact = {
+    email: customerDetails?.email || undefined,
+    name: customerDetails?.name || undefined,
+    phone: customerDetails?.phone || undefined,
+  };
+  
+  // Update order: status -> awaiting_approval, store shipping address + customer contact
+  updateOrderStatus(orderId, 'awaiting_approval');
   updateOrderStripeSession(orderId, session.id);
-
-  // Create Prodigi order if API key is configured
-  const prodigiOrderId = await createProdigiOrderForOrder(orderId, session);
-  if (prodigiOrderId) {
-    updateOrderProdigiId(orderId, prodigiOrderId);
+  updateOrderShippingAddress(orderId, address);
+  updateOrderCustomerContact(orderId, customerContact);
+  
+  console.log(`[Order] Order ${orderId} marked as awaiting_approval with US address and customer contact`);
+  
+  // Fire webhook notification for review
+  // Re-fetch order to get updated fields
+  const updatedOrder = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+  if (updatedOrder) {
+    await notifyOrderForReview(orderId, updatedOrder);
   }
 }
 
@@ -832,8 +986,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         try {
           const session = await getCheckoutSession(order.stripeCheckoutSessionId);
           if (session && session.payment_status === 'paid') {
-            // Payment completed but webhook didn't fire - fulfill now
-            console.log(`[Reconciliation] Order ${order.id} is pending but Stripe shows paid - fulfilling now`);
+            // Payment completed but webhook didn't fire - mark as awaiting_approval
+            console.log(`[Reconciliation] Order ${order.id} is pending but Stripe shows paid - marking awaiting_approval`);
             await fulfillPaidOrder(order.id, session);
             // Re-fetch order to get updated status
             const updatedOrder = isUsingPostgres() ? await getOrderAsync(args.orderId) : getOrder(args.orderId);
@@ -844,6 +998,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
                   productId: item.productId,
                   quantity: item.quantity,
                   mark: item.mark,
+                  size: item.size,
                   product,
                 };
               });
@@ -862,20 +1017,17 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         }
       }
 
-      // Reconciliation #2: If order is paid but missing prodigiOrderId, retry Prodigi creation
-      // This handles the case where payment succeeded but Prodigi API failed (network, bad request, etc.)
-      if (order.status === 'paid' && !order.prodigiOrderId && order.stripeCheckoutSessionId) {
+      // Reconciliation #2: If order is paid (approved) but missing prodigiOrderId, retry Prodigi creation
+      // This handles the case where admin approval succeeded but Prodigi API failed (network, bad request, etc.)
+      if (order.status === 'paid' && !order.prodigiOrderId && order.approvedAt) {
         try {
-          console.log(`[Reconciliation] Order ${order.id} is paid but missing prodigiOrderId - retrying Prodigi creation`);
-          const session = await getCheckoutSession(order.stripeCheckoutSessionId);
-          if (session) {
-            const prodigiOrderId = await createProdigiOrderForOrder(order.id, session);
-            if (prodigiOrderId) {
-              updateOrderProdigiId(order.id, prodigiOrderId);
-              console.log(`[Reconciliation] ✅ Successfully created Prodigi order ${prodigiOrderId} for ${order.id}`);
-            } else {
-              console.error(`[Reconciliation] ❌ Failed to create Prodigi order for ${order.id} (see Prodigi logs above)`);
-            }
+          console.log(`[Reconciliation] Order ${order.id} is approved (paid) but missing prodigiOrderId - retrying Prodigi creation`);
+          const prodigiOrderId = await createProdigiOrderForOrder(order.id);
+          if (prodigiOrderId) {
+            updateOrderProdigiId(order.id, prodigiOrderId);
+            console.log(`[Reconciliation] ✅ Successfully created Prodigi order ${prodigiOrderId} for ${order.id}`);
+          } else {
+            console.error(`[Reconciliation] ❌ Failed to create Prodigi order for ${order.id} (see Prodigi logs above)`);
           }
         } catch (err) {
           console.error('[Reconciliation] Prodigi retry failed:', err);
@@ -895,6 +1047,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           productId: item.productId,
           quantity: item.quantity,
           mark: item.mark,
+          size: item.size,
           product,
         };
       });
@@ -936,14 +1089,14 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           : findOrderByStripeSession(stripeCheckoutSessionId);
       }
       
-      // If order is missing, recreate it
+      // If order is missing, recreate it and mark as awaiting_approval
       if (!order) {
         console.log(`[Recovery] Order not found - recreating from Stripe session ${stripeCheckoutSessionId}`);
         
         // Use provided orderId or extract from session metadata
         const orderId = requestedOrderId || session.metadata?.orderId || `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Extract size from Stripe metadata or line items (NEVER hardcode)
+        // HARD RULE from #76: Extract size from Stripe metadata (NEVER hardcode)
         // Stripe session should have size in metadata from original checkout
         let size = session.metadata?.size?.toLowerCase() as 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | undefined;
         
@@ -965,7 +1118,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           );
         }
         
-        // Extract mark from Stripe metadata (NEVER default to hexagon/orange)
+        // HARD RULE from #76: Extract mark from Stripe metadata (NEVER default to hexagon/orange)
         // Use provided shape/color from tool args, or extract from session metadata
         const markShape = shape || session.metadata?.markShape;
         const markColor = color || session.metadata?.markColor;
@@ -1000,17 +1153,30 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         };
         
         order = isUsingPostgres() ? await createOrderAsync(session.id, cart, orderId) : createOrder(session.id, cart, orderId);
-        order.status = 'paid';
-        updateOrderStripeSession(orderId, stripeCheckoutSessionId);
         
-        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()} from metadata`);
+        // From #78: Call fulfillPaidOrder to validate address and mark as awaiting_approval
+        // This ensures the order goes through the approval workflow instead of auto-creating Prodigi
+        try {
+          await fulfillPaidOrder(orderId, session);
+          console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()} from metadata - status: awaiting_approval`);
+        } catch (err: any) {
+          console.error(`[Recovery] Failed to mark order ${orderId} as awaiting_approval:`, err.message);
+          // Order was created but address validation failed - mark as pending
+          updateOrderStatus(orderId, 'pending');
+          throw new Error(`Order ${orderId} created but address validation failed: ${err.message}`);
+        }
       } else {
-        console.log(`[Recovery] Order ${order.id} already exists`);
+        console.log(`[Recovery] Order ${order.id} already exists with status: ${order.status}`);
         
-        // Ensure order is marked as paid
+        // If order is still pending, try to fulfill it
         if (order.status === 'pending') {
-          updateOrderStatus(order.id, 'paid');
-          console.log(`[Recovery] Updated order ${order.id} status to paid`);
+          try {
+            await fulfillPaidOrder(order.id, session);
+            console.log(`[Recovery] Updated order ${order.id} status to awaiting_approval`);
+          } catch (err: any) {
+            console.error(`[Recovery] Failed to update order ${order.id}:`, err.message);
+            throw new Error(`Order ${order.id} exists but fulfillment failed: ${err.message}`);
+          }
         }
         
         // Ensure Stripe session ID is set
@@ -1018,21 +1184,6 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           updateOrderStripeSession(order.id, stripeCheckoutSessionId);
           console.log(`[Recovery] Linked order ${order.id} to Stripe session ${stripeCheckoutSessionId}`);
         }
-      }
-      
-      // If paid but missing prodigiOrderId, create Prodigi order
-      if (!order.prodigiOrderId) {
-        console.log(`[Recovery] Order ${order.id} missing prodigiOrderId - creating Prodigi order`);
-        const prodigiOrderId = await createProdigiOrderForOrder(order.id, session);
-        
-        if (prodigiOrderId) {
-          updateOrderProdigiId(order.id, prodigiOrderId);
-          console.log(`[Recovery] ✅ Created Prodigi order ${prodigiOrderId} for ${order.id}`);
-        } else {
-          console.error(`[Recovery] ❌ Failed to create Prodigi order for ${order.id}`);
-        }
-      } else {
-        console.log(`[Recovery] Order ${order.id} already has Prodigi order ${order.prodigiOrderId}`);
       }
       
       // Re-fetch order with latest updates
@@ -1047,9 +1198,21 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           productId: item.productId,
           quantity: item.quantity,
           mark: item.mark,
+          size: item.size,
           product,
         };
       });
+      
+      let statusMessage = '';
+      if (recoveredOrder.status === 'awaiting_approval') {
+        statusMessage = 'awaiting manual approval (shipping address stored, no Prodigi order created yet)';
+      } else if (recoveredOrder.status === 'fulfilled' && recoveredOrder.prodigiOrderId) {
+        statusMessage = `fulfilled with Prodigi order ${recoveredOrder.prodigiOrderId}`;
+      } else if (recoveredOrder.status === 'refunded') {
+        statusMessage = 'refunded (denied by admin)';
+      } else {
+        statusMessage = recoveredOrder.status;
+      }
       
       return {
         success: true,
@@ -1058,7 +1221,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           ...recoveredOrder,
           items,
         },
-        message: `Recovery complete. Order ${recoveredOrder.id} is ${recoveredOrder.status}${recoveredOrder.prodigiOrderId ? ` with Prodigi order ${recoveredOrder.prodigiOrderId}` : ' (Prodigi order pending)'}`,
+        message: `Recovery complete. Order ${recoveredOrder.id} is ${statusMessage}`,
       };
     }
     
@@ -1078,7 +1241,7 @@ async function handleWebhook(req: Request): Promise<Response> {
   if (webhookSecret && signature) {
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-        apiVersion: '2024-11-20.acacia',
+        apiVersion: '2025-02-24.acacia',
       });
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (err: any) {
@@ -1156,7 +1319,7 @@ serve({
         return errorResponse('Method not allowed', 405);
       }
       
-      const body = await req.json();
+      const body = await req.json() as any;
       const requestId = body.id;
       
       // Resolve sessionId from headers or tool arguments (for tools/call)
@@ -1227,6 +1390,206 @@ serve({
       });
     }
     
+    // Admin routes (secured by FULFILLMENT_REVIEW_SECRET)
+    if (url.pathname.startsWith('/admin/orders/')) {
+      if (!verifyAdminSecret(req.headers)) {
+        return errorResponse('Unauthorized: Invalid or missing admin secret', 401);
+      }
+      
+      const parts = url.pathname.split('/');
+      const orderId = parts[3];
+      const action = parts[4]; // 'approve' or 'deny' for POST, undefined for GET
+      
+      if (!orderId) {
+        return errorResponse('Order ID required', 400);
+      }
+      
+      // GET /admin/orders/:id - View order details
+      if (req.method === 'GET' && !action) {
+        try {
+          const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+          if (!order) {
+            return errorResponse('Order not found', 404);
+          }
+          
+          const firstItem = order.items[0];
+          const product = getProduct(firstItem.productId);
+          const mark = firstItem.mark;
+          const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+          const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+          
+          return jsonResponse({
+            order: {
+              id: order.id,
+              status: order.status,
+              createdAt: order.createdAt,
+              approvedAt: order.approvedAt,
+              deniedAt: order.deniedAt,
+              refundId: order.refundId,
+              stripeCheckoutSessionId: order.stripeCheckoutSessionId,
+              prodigiOrderId: order.prodigiOrderId,
+            },
+            items: order.items.map(item => ({
+              productId: item.productId,
+              productName: product?.name,
+              quantity: item.quantity,
+              size: item.size,
+              mark: item.mark,
+            })),
+            artworkUrl,
+            customer: {
+              email: order.customerEmail,
+              name: order.customerName,
+              phone: order.customerPhone,
+            },
+            shippingAddress: order.shippingAddress,
+          });
+        } catch (err: any) {
+          console.error('[Admin] Failed to get order:', err);
+          return errorResponse(err.message, 500);
+        }
+      }
+      
+      // POST /admin/orders/:id/approve - Approve order and create Prodigi order
+      if (req.method === 'POST' && action === 'approve') {
+        try {
+          const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+          if (!order) {
+            return errorResponse('Order not found', 404);
+          }
+          
+          // Idempotency: Already approved
+          if (order.status === 'paid' && order.prodigiOrderId) {
+            return jsonResponse({
+              success: true,
+              message: `Order ${orderId} already approved and fulfilled`,
+              order: {
+                id: order.id,
+                status: order.status,
+                prodigiOrderId: order.prodigiOrderId,
+                approvedAt: order.approvedAt,
+              },
+            });
+          }
+          
+          // Check if order is awaiting approval
+          if (order.status !== 'awaiting_approval') {
+            return errorResponse(`Order ${orderId} is not awaiting approval (status: ${order.status})`, 400);
+          }
+          
+          // Check if already denied
+          if (order.deniedAt) {
+            return errorResponse(`Order ${orderId} was already denied at ${order.deniedAt}`, 400);
+          }
+          
+          // Mark as approved
+          const approvedAt = Date.now();
+          updateOrderApproval(orderId, approvedAt);
+          
+          // Create Prodigi order
+          const prodigiOrderId = await createProdigiOrderForOrder(orderId);
+          if (!prodigiOrderId) {
+            return errorResponse(`Failed to create Prodigi order for ${orderId}. Check server logs.`, 500);
+          }
+          
+          updateOrderProdigiId(orderId, prodigiOrderId);
+          
+          console.log(`[Admin] Order ${orderId} approved and Prodigi order ${prodigiOrderId} created`);
+          
+          return jsonResponse({
+            success: true,
+            message: `Order ${orderId} approved`,
+            order: {
+              id: orderId,
+              status: 'fulfilled',
+              prodigiOrderId,
+              approvedAt,
+            },
+          });
+        } catch (err: any) {
+          console.error('[Admin] Failed to approve order:', err);
+          return errorResponse(err.message, 500);
+        }
+      }
+      
+      // POST /admin/orders/:id/deny - Deny order and refund payment
+      if (req.method === 'POST' && action === 'deny') {
+        try {
+          const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+          if (!order) {
+            return errorResponse('Order not found', 404);
+          }
+          
+          // Idempotency: Already denied/refunded
+          if (order.status === 'refunded' && order.refundId) {
+            return jsonResponse({
+              success: true,
+              message: `Order ${orderId} already denied and refunded`,
+              order: {
+                id: order.id,
+                status: order.status,
+                refundId: order.refundId,
+                deniedAt: order.deniedAt,
+              },
+            });
+          }
+          
+          // Check if order is awaiting approval
+          if (order.status !== 'awaiting_approval') {
+            return errorResponse(`Order ${orderId} is not awaiting approval (status: ${order.status})`, 400);
+          }
+          
+          // Check if already approved
+          if (order.approvedAt) {
+            return errorResponse(`Order ${orderId} was already approved at ${order.approvedAt}`, 400);
+          }
+          
+          // Get Stripe session to find payment intent
+          if (!order.stripeCheckoutSessionId) {
+            return errorResponse(`Order ${orderId} missing Stripe session ID`, 400);
+          }
+          
+          const session = await getCheckoutSession(order.stripeCheckoutSessionId);
+          if (!session) {
+            return errorResponse(`Stripe session not found for order ${orderId}`, 404);
+          }
+          
+          const paymentIntentId = session.payment_intent as string;
+          if (!paymentIntentId) {
+            return errorResponse(`Payment intent not found for order ${orderId}`, 400);
+          }
+          
+          // Refund via Stripe
+          const refundResult = await refundPayment(paymentIntentId);
+          if (!refundResult) {
+            return errorResponse(`Failed to refund order ${orderId}`, 500);
+          }
+          
+          // Mark as denied
+          const deniedAt = Date.now();
+          updateOrderDenial(orderId, deniedAt, refundResult.refundId);
+          
+          console.log(`[Admin] Order ${orderId} denied and refunded (${refundResult.refundId})`);
+          
+          return jsonResponse({
+            success: true,
+            message: `Order ${orderId} denied and refunded`,
+            order: {
+              id: orderId,
+              status: 'refunded',
+              refundId: refundResult.refundId,
+              deniedAt,
+            },
+          });
+        } catch (err: any) {
+          console.error('[Admin] Failed to deny order:', err);
+          return errorResponse(err.message, 500);
+        }
+      }
+      
+      return errorResponse('Method not allowed', 405);
+    }
+    
     if (url.pathname === '/webhook/stripe') {
       if (req.method !== 'POST') {
         return errorResponse('Method not allowed', 405);
@@ -1240,7 +1603,7 @@ serve({
       }
       
       try {
-        const body = await req.json();
+        const body = await req.json() as any;
         const sessionId = 'recovery-session';
         const result = await handleToolCall('recover_paid_checkout', body, sessionId);
         return jsonResponse(result, 200);

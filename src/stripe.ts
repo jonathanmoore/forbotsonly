@@ -7,7 +7,7 @@ let stripe: Stripe | null = null;
 
 if (STRIPE_SECRET_KEY) {
   stripe = new Stripe(STRIPE_SECRET_KEY, {
-    apiVersion: '2024-11-20.acacia',
+    apiVersion: '2025-02-24.acacia',
   });
 }
 
@@ -44,7 +44,7 @@ export async function createCheckoutSession(
   });
 
   return {
-    url: session.url || '',
+    url: session.url ?? '',
     sessionId: session.id,
     livemode: session.livemode,
   };
@@ -53,6 +53,26 @@ export async function createCheckoutSession(
 export async function getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
   if (!stripe) return null;
   return await stripe.checkout.sessions.retrieve(sessionId);
+}
+
+export async function refundPayment(paymentIntentId: string): Promise<{ refundId: string; status: string }> {
+  if (!stripe) {
+    throw new Error('Stripe not configured');
+  }
+  
+  try {
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+    });
+    
+    return {
+      refundId: refund.id,
+      status: refund.status ?? 'pending',
+    };
+  } catch (err: any) {
+    console.error('[Stripe] Refund failed:', err.message);
+    throw err;
+  }
 }
 
 export function getPublishableKey(): string {
