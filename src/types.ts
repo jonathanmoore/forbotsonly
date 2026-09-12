@@ -38,9 +38,21 @@ export interface Order {
   sessionId: string;
   stripeCheckoutSessionId?: string;
   prodigiOrderId?: string;
-  status: 'pending' | 'paid' | 'fulfilled';
+  status: 'pending' | 'awaiting_approval' | 'paid' | 'fulfilled' | 'refunded' | 'cancelled';
   items: CartItem[];
   createdAt: number;
+  approvedAt?: number;
+  deniedAt?: number;
+  refundId?: string;
+  shippingAddress?: {
+    name: string;
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
 }
 
 export const MARK_SHAPES = [
