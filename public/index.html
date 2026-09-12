@@ -155,12 +155,14 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      max-width: 480px;
-      width: 90%;
+      max-width: min(92vw, 1020px);
+      width: 92%;
       padding: 40px;
       z-index: 5;
       opacity: 0;
       transition: opacity 0.3s ease;
+      overflow-y: auto;
+      max-height: 90vh;
     }
     
     body[data-view="agent"] .agent-content {
@@ -223,6 +225,7 @@
       padding: 2px 6px;
       border-radius: 2px;
       font-size: 11px;
+      word-break: break-all;
     }
     
     .agent-content .emphasis {
@@ -247,6 +250,20 @@
     
     .agent-content pre {
       overflow-x: auto;
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+      max-width: 100%;
+    }
+    
+    /* URL boxes with horizontal scroll for long URLs */
+    .agent-content .url-box {
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    
+    .agent-content .url-box code {
+      word-break: normal;
+      white-space: nowrap;
     }
     
     /* Mobile centering: ensure bot is truly centered on small viewports */
@@ -335,9 +352,9 @@
     
     <div class="section">
       <div class="section-title">MCP Discovery</div>
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
-        <code id="mcp-url" style="font-size: 11px; word-break: break-all;">https://web-production-493046.up.railway.app/.well-known/mcp.json</code>
-        <button id="copy-url" style="float: right; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; margin-top: -2px;">Copy</button>
+      <div class="url-box" style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; overflow-x: auto; position: relative;">
+        <code id="mcp-url" style="font-size: 11px; white-space: nowrap; display: inline-block; padding-right: 70px;">https://web-production-493046.up.railway.app/.well-known/mcp.json</code>
+        <button id="copy-url" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>
     
