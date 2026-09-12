@@ -445,7 +445,7 @@ const TOOL_DEFINITIONS = {
   },
   recover_paid_checkout: {
     name: 'recover_paid_checkout',
-    description: 'ADMIN TOOL: Recover an orphaned paid checkout session. Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. Idempotent - safe to call multiple times. DO NOT create a new charge.',
+    description: 'ADMIN TOOL: Recover an orphaned paid checkout session. Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. Idempotent - safe to call multiple times. DO NOT create a new charge. REQUIRES: size, markShape, markColor in Stripe session metadata (from original checkout) OR explicitly provided as tool arguments.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -459,12 +459,12 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Optional: Mark shape for recreated order (defaults to hexagon)',
+          description: 'Optional: Override mark shape (if not provided, extracts from session.metadata.markShape). REQUIRED: Either provide this OR ensure metadata has markShape.',
           enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
         },
         color: {
           type: 'string',
-          description: 'Optional: Mark color for recreated order (defaults to orange)',
+          description: 'Optional: Override mark color (if not provided, extracts from session.metadata.markColor). REQUIRED: Either provide this OR ensure metadata has markColor.',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
       },
@@ -965,9 +965,27 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           );
         }
         
-        // Create order with tee-001 + mark
-        const markShape = shape || 'hexagon';
-        const markColor = color || 'orange';
+        // Extract mark from Stripe metadata (NEVER default to hexagon/orange)
+        // Use provided shape/color from tool args, or extract from session metadata
+        const markShape = shape || session.metadata?.markShape;
+        const markColor = color || session.metadata?.markColor;
+        
+        // HARD RULE: If mark not found, fail explicitly (never invent/default)
+        if (!markShape || !isValidMarkShape(markShape)) {
+          throw new Error(
+            `Cannot recover order: mark shape not found or invalid in Stripe session metadata. ` +
+            `Original mark shape must be stored in session.metadata.markShape during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
+        
+        if (!markColor || !isValidMarkColor(markColor)) {
+          throw new Error(
+            `Cannot recover order: mark color not found or invalid in Stripe session metadata. ` +
+            `Original mark color must be stored in session.metadata.markColor during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
         
         const cart: Cart = {
           items: [
@@ -985,7 +1003,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         order.status = 'paid';
         updateOrderStripeSession(orderId, stripeCheckoutSessionId);
         
-        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()}`);
+        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()} from metadata`);
       } else {
         console.log(`[Recovery] Order ${order.id} already exists`);
         
