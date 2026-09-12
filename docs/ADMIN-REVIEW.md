@@ -25,11 +25,61 @@ curl -H "X-Admin-Secret: YOUR_SECRET_HERE" \
 ## Order Workflow
 
 ```
-Customer Payment → awaiting_approval → Admin Review → approve/deny
+Customer Payment → awaiting_approval → Webhook Notification → Admin Review → approve/deny
 
 Approve: awaiting_approval → paid → fulfilled (Prodigi order created)
 Deny:    awaiting_approval → refunded (Stripe refund issued, no Prodigi)
 ```
+
+## Webhook Notification
+
+When an order enters `awaiting_approval` status, the system fires a webhook to `ORDER_REVIEW_WEBHOOK_URL` (if configured).
+
+**Webhook Payload:**
+```json
+{
+  "orderId": "ord_1789089764884_abc123",
+  "status": "awaiting_approval",
+  "createdAt": 1789089764884,
+  "item": {
+    "productId": "tee-001",
+    "productName": "Grok Bot Tee",
+    "size": "l",
+    "quantity": 1,
+    "mark": {
+      "shape": "hexagon",
+      "color": "orange"
+    }
+  },
+  "artworkUrl": "https://forbotsonly.com/images/prodigi-positioned/grok-bot-hexagon-orange-positioned.png",
+  "customer": {
+    "email": "customer@example.com",
+    "name": "John Doe",
+    "phone": "+1-555-123-4567"
+  },
+  "shippingAddress": {
+    "name": "John Doe",
+    "line1": "123 Main St",
+    "line2": "Apt 4B",
+    "city": "San Francisco",
+    "state": "CA",
+    "postalCode": "94102",
+    "country": "US"
+  }
+}
+```
+
+**Headers:**
+- `Content-Type: application/json`
+- `User-Agent: forbotsonly-order-review/1.0`
+
+**Setup:**
+Set `ORDER_REVIEW_WEBHOOK_URL` in Railway environment variables to receive notifications. The URL should be a private, authenticated endpoint that you control. Full shipping address and customer contact info are included since this is a trusted webhook.
+
+**Use Cases:**
+- **Fulfillment QA bot**: Listen for webhook, fetch full details via admin API, perform automated checks
+- **Chief of Staff bot**: Aggregate orders for batch review
+- **Manual review**: Receive Slack/Discord notification when new orders arrive
 
 ## Admin Endpoints
 
@@ -68,6 +118,11 @@ curl -H "Authorization: Bearer YOUR_SECRET" \
     }
   ],
   "artworkUrl": "https://forbotsonly.com/images/prodigi-positioned/grok-bot-hexagon-orange-positioned.png",
+  "customer": {
+    "email": "customer@example.com",
+    "name": "John Doe",
+    "phone": "+1-555-123-4567"
+  },
   "shippingAddress": {
     "name": "John Doe",
     "line1": "123 Main St",
@@ -203,12 +258,23 @@ If a customer somehow bypasses Stripe's address validation and submits a non-US 
 
 ## Review Workflow
 
-1. **Receive notification** (webhook, email, or manual check) that a new order is `awaiting_approval`
+1. **Receive notification** that a new order is `awaiting_approval`:
+   - **Webhook**: Listen to `ORDER_REVIEW_WEBHOOK_URL` for real-time notifications
+   - **Poll**: Query admin API periodically
+   - **Manual**: Check Railway logs for "[Order] Order X marked as awaiting_approval"
+   
 2. **View order details**: `GET /admin/orders/:orderId`
-3. **Review shipping address, tee size, and mark/artwork**
+
+3. **Review order details:**
+   - **Customer contact**: Email, name, phone (from Stripe Checkout/Link)
+   - **Shipping address**: US-only, validated at payment time
+   - **Tee size**: s, m, l, xl, 2xl, or 3xl
+   - **Mark/artwork**: Shape + color, preview via artwork URL
+   
 4. **Decision:**
    - Valid order → `POST /admin/orders/:orderId/approve`
    - Suspicious/invalid → `POST /admin/orders/:orderId/deny`
+   
 5. **Result:**
    - Approve: Prodigi order created, customer receives tee
    - Deny: Stripe refund issued, customer receives refund, no tee shipped
@@ -221,6 +287,8 @@ If a customer somehow bypasses Stripe's address validation and submits a non-US 
 4. **Rotate secret periodically**
 5. **Never expose admin endpoints publicly** without authentication
 6. **Log all approve/deny actions** for audit trail
+7. **Webhook URL should be private**: `ORDER_REVIEW_WEBHOOK_URL` receives full address + customer contact
+8. **Customer contact from Stripe only**: Email/name/phone come from Stripe Checkout/Link (not agent-provided)
 
 ## Example: Complete Review Flow
 
@@ -252,7 +320,9 @@ curl -X POST \
 
 - **Idempotent operations**: Approve and deny endpoints are safe to call multiple times. If an order is already approved/denied, the operation returns success with the existing state.
 - **No public order listing**: There is no public endpoint to list all orders. You must know the order ID to view/manage an order.
-- **Address privacy**: Shipping addresses are never exposed through public MCP tools or the storefront. They are only accessible via authenticated admin endpoints.
+- **Address privacy**: Shipping addresses are never exposed through public MCP tools or the storefront. They are only accessible via authenticated admin endpoints and the private webhook.
+- **Customer contact privacy**: Email, name, phone are stored securely and only visible via admin API and webhook (not public).
+- **Customer contact source**: Email/name/phone come from Stripe Checkout/Link at payment time, NOT from agent input or hardcoded defaults.
 - **Stripe checkout configuration**: Consider adding address validation rules in Stripe Dashboard to reject non-US addresses at checkout time for better UX.
 
 ## Troubleshooting

@@ -26,6 +26,7 @@ import {
   updateOrderShippingAddress,
   updateOrderApproval,
   updateOrderDenial,
+  updateOrderCustomerContact,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
@@ -35,6 +36,7 @@ import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COL
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const FULFILLMENT_REVIEW_SECRET = process.env.FULFILLMENT_REVIEW_SECRET;
+const ORDER_REVIEW_WEBHOOK_URL = process.env.ORDER_REVIEW_WEBHOOK_URL;
 
 function verifyAdminSecret(headers: Headers): boolean {
   if (!FULFILLMENT_REVIEW_SECRET) {
@@ -234,10 +236,74 @@ async function createProdigiOrderForOrder(orderId: string): Promise<string | nul
 }
 
 /**
+ * Fire webhook notification for order review.
+ * Sends non-sensitive summary to configured ORDER_REVIEW_WEBHOOK_URL.
+ */
+async function notifyOrderForReview(orderId: string, order: Order): Promise<void> {
+  if (!ORDER_REVIEW_WEBHOOK_URL) {
+    console.log(`[Webhook] ORDER_REVIEW_WEBHOOK_URL not configured - skipping notification for ${orderId}`);
+    return;
+  }
+  
+  try {
+    const firstItem = order.items[0];
+    const product = getProduct(firstItem.productId);
+    const mark = firstItem.mark;
+    const publicUrl = process.env.PUBLIC_URL || 'https://forbotsonly.com';
+    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+    
+    // Non-sensitive payload: orderId, size, mark, artwork URL
+    // Full address included if webhook is trusted (user must configure trusted webhook URL)
+    const payload = {
+      orderId: order.id,
+      status: order.status,
+      createdAt: order.createdAt,
+      item: {
+        productId: firstItem.productId,
+        productName: product?.name,
+        size: firstItem.size,
+        quantity: firstItem.quantity,
+        mark: {
+          shape: mark.shape,
+          color: mark.color,
+        },
+      },
+      artworkUrl,
+      // Customer contact (from Stripe Checkout/Link)
+      customer: {
+        email: order.customerEmail,
+        name: order.customerName,
+        phone: order.customerPhone,
+      },
+      // Include shipping address (trusted webhook, private)
+      shippingAddress: order.shippingAddress,
+    };
+    
+    const response = await fetch(ORDER_REVIEW_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'forbotsonly-order-review/1.0',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    if (!response.ok) {
+      console.error(`[Webhook] Failed to notify ${ORDER_REVIEW_WEBHOOK_URL} for order ${orderId}: ${response.status} ${response.statusText}`);
+    } else {
+      console.log(`[Webhook] ✅ Notified ${ORDER_REVIEW_WEBHOOK_URL} for order ${orderId}`);
+    }
+  } catch (err: any) {
+    console.error(`[Webhook] Error notifying for order ${orderId}:`, err.message);
+  }
+}
+
+/**
  * Shared order fulfillment logic.
  * Called by both webhook handler and get_order reconciliation.
- * Updates order status to 'awaiting_approval' and stores shipping address.
+ * Updates order status to 'awaiting_approval' and stores shipping address + customer contact.
  * Does NOT create Prodigi order - that happens after manual approval.
+ * Fires webhook notification for review.
  */
 async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Session): Promise<void> {
   const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
@@ -279,12 +345,28 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
     country: 'US',
   };
   
-  // Update order: status -> awaiting_approval, store shipping address
+  // Extract customer contact from Stripe Checkout/Link
+  // These come from the payment session, NOT from agent input or hardcoded defaults
+  const customerContact = {
+    email: customerDetails?.email || undefined,
+    name: customerDetails?.name || undefined,
+    phone: customerDetails?.phone || undefined,
+  };
+  
+  // Update order: status -> awaiting_approval, store shipping address + customer contact
   updateOrderStatus(orderId, 'awaiting_approval');
   updateOrderStripeSession(orderId, session.id);
   updateOrderShippingAddress(orderId, address);
+  updateOrderCustomerContact(orderId, customerContact);
   
-  console.log(`[Order] Order ${orderId} marked as awaiting_approval with US address`);
+  console.log(`[Order] Order ${orderId} marked as awaiting_approval with US address and customer contact`);
+  
+  // Fire webhook notification for review
+  // Re-fetch order to get updated fields
+  const updatedOrder = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+  if (updatedOrder) {
+    await notifyOrderForReview(orderId, updatedOrder);
+  }
 }
 
 const TOOL_DEFINITIONS = {
@@ -1230,6 +1312,11 @@ serve({
               mark: item.mark,
             })),
             artworkUrl,
+            customer: {
+              email: order.customerEmail,
+              name: order.customerName,
+              phone: order.customerPhone,
+            },
             shippingAddress: order.shippingAddress,
           });
         } catch (err: any) {

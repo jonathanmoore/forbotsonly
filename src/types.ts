@@ -53,6 +53,9 @@ export interface Order {
     postalCode: string;
     country: string;
   };
+  customerEmail?: string;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 export const MARK_SHAPES = [
