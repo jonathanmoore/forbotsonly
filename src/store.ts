@@ -108,6 +108,43 @@ async function initPostgres(): Promise<void> {
       )
     `);
 
+    // Migrate existing orders table to include new columns (idempotent)
+    // These columns were added in PR #78 but existing Railway DBs from PR #71 don't have them
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS approved_at BIGINT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS denied_at BIGINT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS refund_id TEXT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS shipping_address JSONB
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS customer_email TEXT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS customer_name TEXT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS customer_phone TEXT
+    `);
+
     // Create index on stripe_checkout_session_id for faster lookups
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_stripe_session 
