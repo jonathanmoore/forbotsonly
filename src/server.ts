@@ -89,6 +89,81 @@ async function requireIdentity(sessionId: string): Promise<AgentIdentity | null>
 }
 
 /**
+ * Validate that a Stripe Checkout Session has a complete shipping address.
+ * Returns validated address fields or throws an error if incomplete.
+ * 
+ * HARD RULES (Jonathan's requirements):
+ * 1. NEVER use placeholder/sandbox fallback addresses on live orders
+ * 2. Address source order: Stripe shipping_details → customer_details
+ *    (Link integration TBD - would go after shipping_details if available)
+ * 3. US orders ONLY - reject non-US countries
+ * 4. Incomplete address → fail explicitly with clear error
+ * 5. If no valid address, error instructs to collect from user
+ */
+function validateShippingAddress(session: Stripe.Checkout.Session): {
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  recipientName: string;
+} {
+  const shippingAddress = session.shipping_details?.address;
+  const customerDetails = session.customer_details;
+  
+  // Address source order (Jonathan's rule #2):
+  // 1. Stripe Checkout shipping_details (if complete)
+  // 2. Stripe customer_details.address (fallback)
+  // 3. Link saved shipping (TODO: requires Link integration)
+  // 4. Error → instruct to collect from user
+  const line1 = shippingAddress?.line1 || customerDetails?.address?.line1;
+  const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
+  const city = shippingAddress?.city || customerDetails?.address?.city;
+  const state = shippingAddress?.state || customerDetails?.address?.state;
+  const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code;
+  const country = shippingAddress?.country || customerDetails?.address?.country;
+  const recipientName = shippingAddress?.name || customerDetails?.name;
+  
+  // HARD RULE #3: US orders ONLY
+  if (country && country.toUpperCase() !== 'US') {
+    throw new Error(
+      `Non-US shipping address rejected. Prodigi fulfillment is US-only. ` +
+      `Session ${session.id} has country: ${country}. ` +
+      `Cannot create Prodigi order for non-US addresses.`
+    );
+  }
+  
+  // HARD RULE #4: Validate required fields - NEVER allow empty/missing fields
+  const missingFields: string[] = [];
+  if (!line1) missingFields.push('line1');
+  if (!city) missingFields.push('city');
+  if (!state) missingFields.push('state'); // Required for US addresses
+  if (!postalCode) missingFields.push('postal_code');
+  if (!country) missingFields.push('country');
+  if (!recipientName) missingFields.push('name');
+  
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Incomplete shipping address from Stripe session ${session.id}. Missing fields: ${missingFields.join(', ')}. ` +
+      `Cannot create Prodigi order without complete address. ` +
+      `REQUIRED: Collect complete US shipping address from customer before retrying. ` +
+      `Do NOT invent or use placeholder addresses.`
+    );
+  }
+  
+  return {
+    line1: line1!,
+    line2,
+    city: city!,
+    state: state!, // Required for US
+    postalCode: postalCode!,
+    country: country!.toUpperCase(),
+    recipientName: recipientName!,
+  };
+}
+
+/**
  * Create Prodigi order for a given order ID.
  * Returns prodigiOrderId on success, null on failure.
  * Logs detailed error information for troubleshooting.
@@ -116,19 +191,10 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
   try {
     const prodigiClient = createProdigiClient();
 
-    // Map Stripe session to recipient address
-    // Priority: shipping_details > customer_details
-    // Fallback: Prodigi sandbox test address when fields are empty (for QA testing)
-    const shippingAddress = session.shipping_details?.address;
-    const customerDetails = session.customer_details;
-    
-    const line1 = shippingAddress?.line1 || customerDetails?.address?.line1 || '1234 Main St';
-    const line2 = shippingAddress?.line2 || customerDetails?.address?.line2 || '';
-    const city = shippingAddress?.city || customerDetails?.address?.city || 'San Francisco';
-    const state = shippingAddress?.state || customerDetails?.address?.state || 'CA';
-    const postalCode = shippingAddress?.postal_code || customerDetails?.address?.postal_code || '94102';
-    const country = shippingAddress?.country || customerDetails?.address?.country || 'US';
-    const recipientName = shippingAddress?.name || customerDetails?.name || 'Test Customer';
+    // Validate shipping address - will throw if incomplete
+    // NEVER use placeholder addresses on production orders
+    const validatedAddress = validateShippingAddress(session);
+    const { line1, line2, city, state, postalCode, country, recipientName } = validatedAddress;
 
     // Use PUBLIC_URL for artwork - serves static assets from this Railway deployment
     const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
@@ -143,8 +209,8 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
     console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
     console.log(`[Prodigi] Artwork URL (positioned): ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
 
-    // Build address object, omitting line2 if empty/whitespace
-    const address: Record<string, string> = {
+    // Build address object for Prodigi, omitting line2 if empty/whitespace
+    const prodigiAddress: Record<string, string> = {
       line1,
       postalOrZipCode: postalCode,
       countryCode: country,
@@ -152,14 +218,14 @@ async function createProdigiOrderForOrder(orderId: string, session: Stripe.Check
       stateOrCounty: state,
     };
     if (line2.trim()) {
-      address.line2 = line2.trim();
+      prodigiAddress.line2 = line2.trim();
     }
 
     const prodigiOrder = await prodigiClient.createOrder({
       shippingMethod: 'Standard', // LOCK: Standard only, never Express (cost control)
       recipient: {
         name: recipientName,
-        address,
+        address: prodigiAddress,
       },
       items: [
         {
@@ -379,7 +445,7 @@ const TOOL_DEFINITIONS = {
   },
   recover_paid_checkout: {
     name: 'recover_paid_checkout',
-    description: 'ADMIN TOOL: Recover an orphaned paid checkout session. Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. Idempotent - safe to call multiple times. DO NOT create a new charge.',
+    description: 'ADMIN TOOL: Recover an orphaned paid checkout session. Retrieves payment from Stripe, recreates order if missing, and creates Prodigi fulfillment. Idempotent - safe to call multiple times. DO NOT create a new charge. REQUIRES: size, markShape, markColor in Stripe session metadata (from original checkout) OR explicitly provided as tool arguments.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -393,12 +459,12 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Optional: Mark shape for recreated order (defaults to hexagon)',
+          description: 'Optional: Override mark shape (if not provided, extracts from session.metadata.markShape). REQUIRED: Either provide this OR ensure metadata has markShape.',
           enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
         },
         color: {
           type: 'string',
-          description: 'Optional: Mark color for recreated order (defaults to orange)',
+          description: 'Optional: Override mark color (if not provided, extracts from session.metadata.markColor). REQUIRED: Either provide this OR ensure metadata has markColor.',
           enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
         },
       },
@@ -658,7 +724,13 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const checkoutSession = await createCheckoutSession(
         priceId,
         firstItem.quantity,
-        { orderId: order.id },
+        { 
+          orderId: order.id,
+          size: firstItem.size,
+          productId: firstItem.productId,
+          markShape: firstItem.mark.shape,
+          markColor: firstItem.mark.color,
+        },
         successUrl,
         cancelUrl
       );
@@ -871,9 +943,49 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         // Use provided orderId or extract from session metadata
         const orderId = requestedOrderId || session.metadata?.orderId || `ord_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Create order with tee-001 + mark
-        const markShape = shape || 'hexagon';
-        const markColor = color || 'orange';
+        // Extract size from Stripe metadata or line items (NEVER hardcode)
+        // Stripe session should have size in metadata from original checkout
+        let size = session.metadata?.size?.toLowerCase() as 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | undefined;
+        
+        // If not in metadata, try to extract from line items description/metadata
+        if (!size && session.line_items?.data?.[0]) {
+          const lineItem = session.line_items.data[0];
+          // Check if size is in line item metadata or description
+          if (lineItem.price?.metadata?.size) {
+            size = lineItem.price.metadata.size.toLowerCase() as 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl';
+          }
+        }
+        
+        // If still no size, we cannot recover - fail explicitly
+        if (!size || !isValidSize(size)) {
+          throw new Error(
+            `Cannot recover order: size not found in Stripe session metadata. ` +
+            `Original size must be stored in session.metadata.size during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
+        
+        // Extract mark from Stripe metadata (NEVER default to hexagon/orange)
+        // Use provided shape/color from tool args, or extract from session metadata
+        const markShape = shape || session.metadata?.markShape;
+        const markColor = color || session.metadata?.markColor;
+        
+        // HARD RULE: If mark not found, fail explicitly (never invent/default)
+        if (!markShape || !isValidMarkShape(markShape)) {
+          throw new Error(
+            `Cannot recover order: mark shape not found or invalid in Stripe session metadata. ` +
+            `Original mark shape must be stored in session.metadata.markShape during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
+        
+        if (!markColor || !isValidMarkColor(markColor)) {
+          throw new Error(
+            `Cannot recover order: mark color not found or invalid in Stripe session metadata. ` +
+            `Original mark color must be stored in session.metadata.markColor during checkout. ` +
+            `Session ${stripeCheckoutSessionId} has metadata: ${JSON.stringify(session.metadata)}`
+          );
+        }
         
         const cart: Cart = {
           items: [
@@ -881,7 +993,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
               productId: 'tee-001',
               quantity: 1,
               mark: { shape: markShape, color: markColor },
-              size: 'l', // Default size for recovery
+              size,
             },
           ],
           sessionId: session.id,
@@ -891,7 +1003,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         order.status = 'paid';
         updateOrderStripeSession(orderId, stripeCheckoutSessionId);
         
-        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor})`);
+        console.log(`[Recovery] Created order ${orderId} with mark (${markShape}, ${markColor}) size ${size.toUpperCase()} from metadata`);
       } else {
         console.log(`[Recovery] Order ${order.id} already exists`);
         
