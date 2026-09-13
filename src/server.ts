@@ -29,9 +29,11 @@ import {
   updateOrderCustomerContact,
   markPreviewCalled,
   hasPreviewBeenCalled,
+  updateOrderPaymentIntent,
+  markShippingConfirmed,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
-import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
+import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment, createPaymentIntentWithSPT } from './stripe';
 import { createProdigiClient } from './prodigi';
 import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, CHARACTER_PICKER_SHAPES, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
 
@@ -651,6 +653,59 @@ const TOOL_DEFINITIONS = {
       },
     },
   },
+  complete_payment: {
+    name: 'complete_payment',
+    description: 'AGENT CHECKOUT FAST LANE: Complete payment with Shared Payment Token (SPT) from Link - NO browser Checkout needed. Preferred path for agent buyers. REQUIREMENTS: (1) preview_cart called + images shown to human, (2) shipping address confirmed with human (city/ZIP), (3) Link spend approved → SPT obtained. Creates order → awaiting_approval (human review hold before Prodigi). FALLBACK: If SPT unavailable, use create_checkout for browser-based Checkout.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sharedPaymentToken: {
+          type: 'string',
+          description: 'Shared Payment Token (SPT) from Link approval (starts with "spt_"). Agent obtains this after human approves Link spend request.',
+        },
+        shippingAddress: {
+          type: 'object',
+          description: 'Confirmed US shipping address. MUST be confirmed with human (city/ZIP minimum). Never invent or use placeholders.',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Recipient full name',
+            },
+            line1: {
+              type: 'string',
+              description: 'Address line 1 (street address)',
+            },
+            line2: {
+              type: 'string',
+              description: 'Address line 2 (apt, suite, etc.) - optional',
+            },
+            city: {
+              type: 'string',
+              description: 'City',
+            },
+            state: {
+              type: 'string',
+              description: 'State (2-letter code, e.g., "CA")',
+            },
+            postalCode: {
+              type: 'string',
+              description: 'ZIP code',
+            },
+            country: {
+              type: 'string',
+              description: 'Country code - MUST be "US" (US-only)',
+            },
+          },
+          required: ['name', 'line1', 'city', 'state', 'postalCode', 'country'],
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
+      required: ['sharedPaymentToken', 'shippingAddress'],
+    },
+  },
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
@@ -1057,6 +1112,119 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
 After your human sees the images, then call create_checkout. DO NOT call create_checkout without showing images first.`,
+      };
+    }
+    
+    case 'complete_payment': {
+      const identity = await requireIdentity(sessionId);
+      if (!identity) {
+        throw new Error(
+          'Access denied: complete_payment requires agent identity. ' +
+          'Call identify_agent first.'
+        );
+      }
+      
+      // GATE: Require preview_cart was called first
+      if (!hasPreviewBeenCalled(sessionId)) {
+        throw new Error(
+          'PREVIEW REQUIRED: You must call preview_cart AND show the preview images to your human BEFORE calling complete_payment. ' +
+          'Call preview_cart now, then attach the image URLs in your chat to show your human what they\'re buying.'
+        );
+      }
+      
+      const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
+      if (cart.items.length === 0) {
+        throw new Error('Cart is empty');
+      }
+      
+      const { sharedPaymentToken, shippingAddress } = args;
+      
+      // Validate shipping address (US-only)
+      if (!shippingAddress.country || shippingAddress.country.toUpperCase() !== 'US') {
+        throw new Error(
+          `Only US shipping addresses are supported. Received country: ${shippingAddress.country || 'unknown'}. ` +
+          'Please confirm a valid US address with your human (city and ZIP code minimum).'
+        );
+      }
+      
+      // Validate required fields
+      if (!shippingAddress.name || !shippingAddress.line1 || !shippingAddress.city || 
+          !shippingAddress.state || !shippingAddress.postalCode) {
+        throw new Error(
+          'Missing required shipping address fields. REQUIRED: name, line1, city, state, postalCode. ' +
+          'Confirm complete address with your human before retrying. Do NOT invent or use placeholder addresses.'
+        );
+      }
+      
+      // Calculate total
+      const firstItem = cart.items[0];
+      const product = getProduct(firstItem.productId);
+      if (!product) {
+        throw new Error('Product not found in cart');
+      }
+      
+      const totalAmount = product.price * firstItem.quantity;
+      const amountInCents = Math.round(totalAmount * 100);
+      
+      // Create order first
+      const order = isUsingPostgres() ? await createOrderAsync(sessionId, cart) : createOrder(sessionId, cart);
+      
+      // Create PaymentIntent with SPT
+      const idempotencyKey = `complete_payment_${order.id}_${Date.now()}`;
+      const paymentResult = await createPaymentIntentWithSPT(
+        sharedPaymentToken,
+        amountInCents,
+        'usd',
+        {
+          orderId: order.id,
+          size: firstItem.size,
+          productId: firstItem.productId,
+          markShape: firstItem.mark.shape,
+          markColor: firstItem.mark.color,
+        },
+        idempotencyKey
+      );
+      
+      if (!paymentResult.success) {
+        // Clean up order if payment failed
+        updateOrderStatus(order.id, 'cancelled');
+        throw new Error(`Payment failed: ${paymentResult.error}`);
+      }
+      
+      // Payment succeeded - store payment intent ID and shipping
+      updateOrderPaymentIntent(order.id, paymentResult.paymentIntentId!);
+      
+      // Store shipping address (normalized format)
+      const address: Order['shippingAddress'] = {
+        name: shippingAddress.name,
+        line1: shippingAddress.line1,
+        line2: shippingAddress.line2 || undefined,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        postalCode: shippingAddress.postalCode,
+        country: 'US',
+      };
+      updateOrderShippingAddress(order.id, address);
+      markShippingConfirmed(order.id);
+      
+      // Mark as awaiting_approval (DO NOT auto-create Prodigi - #78 hold gate)
+      updateOrderStatus(order.id, 'awaiting_approval');
+      
+      console.log(`[SPT Payment] Order ${order.id} paid via SPT, awaiting manual approval`);
+      
+      // Fire webhook notification for review
+      const updatedOrder = isUsingPostgres() ? await getOrderAsync(order.id) : getOrder(order.id);
+      if (updatedOrder) {
+        await notifyOrderForReview(order.id, updatedOrder);
+      }
+      
+      return {
+        success: true,
+        orderId: order.id,
+        paymentIntentId: paymentResult.paymentIntentId,
+        status: 'awaiting_approval',
+        message: `Payment successful! Order ${order.id} is awaiting manual approval before fulfillment.`,
+        next_step: 'Order will be reviewed and approved before Prodigi fulfillment. Call get_order to check status.',
       };
     }
     

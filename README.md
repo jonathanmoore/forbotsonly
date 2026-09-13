@@ -544,27 +544,53 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 
 ## Payment Flow
 
-### 1. Agent Interaction
+### Agent Fast Lane (Recommended): Shared Payment Token
+
+**Star showcase** for agent buyers - NO browser Checkout needed!
 
 1. Agent calls `identify_agent` with name + shape + color (e.g., "Grok Bot", "hexagon", "orange")
 2. Agent calls `list_products` to browse (includes mark options)
 3. Agent calls `add_to_cart` (uses identity mark by default, can override)
-4. Agent calls `create_checkout` to get payment URL
+4. Agent calls `preview_cart` and **shows images to human**
+5. Agent confirms shipping address with human (city/ZIP minimum, US-only)
+6. Human approves Link spend → Agent receives Shared Payment Token (`spt_...`)
+7. Agent calls `complete_payment` with SPT + confirmed shipping
+8. Order created → `awaiting_approval` (manual review before Prodigi)
 
-### 2. Stripe Checkout + Link
+**Advantages:**
+- Single MCP tool call for payment (no browser Checkout UI)
+- Server-side PaymentIntent with SPT verification
+- Same security and compliance as hosted Checkout
+- Idempotent and reliable
+
+### Fallback: Browser Checkout
+
+If SPT is unavailable, agents can use `create_checkout` to get a browser Checkout URL. This is the traditional flow but requires browser automation.
+
+### 1. Agent Interaction (Browser Path)
+
+1. Agent calls `identify_agent` with name + shape + color (e.g., "Grok Bot", "hexagon", "orange")
+2. Agent calls `list_products` to browse (includes mark options)
+3. Agent calls `add_to_cart` (uses identity mark by default, can override)
+4. Agent calls `preview_cart` and **shows images to human**
+5. Agent calls `create_checkout` to get payment URL
+
+### 2. Stripe Checkout + Link (Browser Path)
 
 - Customer completes payment via Stripe Checkout
 - Link integration allows saved payment methods
 - Checkout session includes order metadata
 
-### 3. Webhook Processing
+### 3. Webhook Processing (Both Paths)
 
-Server receives `checkout.session.completed` webhook at `/webhook/stripe`:
+Server receives `checkout.session.completed` webhook at `/webhook/stripe` (browser Checkout path only - SPT path uses direct PaymentIntent):
 
 1. Retrieves order by ID from session metadata
-2. Updates order status to `paid`
-3. Creates Prodigi order (if `PRODIGI_API_KEY` is set)
-4. Updates order with Prodigi order ID
+2. Updates order status to `awaiting_approval`
+3. Stores shipping address and customer contact
+4. Does NOT create Prodigi order (waits for manual approval - #78 hold gate)
+
+**For SPT path:** Payment is confirmed immediately via PaymentIntent, no webhook needed.
 
 **Signature Verification:**
 - If `STRIPE_WEBHOOK_SECRET` is configured, webhook signature is verified using Stripe SDK
@@ -593,6 +619,8 @@ Prodigi order includes:
 | `PRODIGI_API_KEY` | Prodigi API key (sandbox or live) | `your_sandbox_key` |
 | `STRIPE_SECRET_KEY` | Stripe secret key (or leave empty for stub mode) | `sk_test_...` |
 | `STRIPE_PRICE_ID` | Stripe Price ID for the tee | `price_...` |
+
+**Note:** For Shared Payment Token (SPT) support, ensure your Stripe account has access to the Agentic Commerce features. The server uses Stripe API version `2026-04-22.preview` for SPT functionality.
 
 ### Optional
 

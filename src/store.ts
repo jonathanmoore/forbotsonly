@@ -94,6 +94,7 @@ async function initPostgres(): Promise<void> {
         session_id TEXT NOT NULL,
         status TEXT NOT NULL,
         stripe_checkout_session_id TEXT,
+        stripe_payment_intent_id TEXT,
         prodigi_order_id TEXT,
         items JSONB NOT NULL,
         created_at BIGINT NOT NULL,
@@ -102,6 +103,7 @@ async function initPostgres(): Promise<void> {
         denied_at BIGINT,
         refund_id TEXT,
         shipping_address JSONB,
+        shipping_confirmed BOOLEAN DEFAULT FALSE,
         customer_email TEXT,
         customer_name TEXT,
         customer_phone TEXT
@@ -629,4 +631,40 @@ export function updateOrderDenial(orderId: string, deniedAt: number, refundId: s
 // Export a function to check if using Postgres
 export function isUsingPostgres(): boolean {
   return usePostgres;
+}
+
+export function updateOrderPaymentIntent(orderId: string, paymentIntentId: string): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET stripe_payment_intent_id = $1, updated_at = NOW() WHERE id = $2`,
+      [paymentIntentId, orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to update payment intent:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.stripePaymentIntentId = paymentIntentId;
+      orders.set(orderId, order);
+      saveOrdersToFile();
+    }
+  }
+}
+
+export function markShippingConfirmed(orderId: string): void {
+  if (usePostgres && pool) {
+    pool.query(
+      `UPDATE orders SET shipping_confirmed = TRUE, updated_at = NOW() WHERE id = $1`,
+      [orderId]
+    ).catch(err => {
+      console.error('[Store] Failed to mark shipping confirmed:', err);
+    });
+  } else {
+    const order = orders.get(orderId);
+    if (order) {
+      order.shippingConfirmed = true;
+      orders.set(orderId, order);
+      saveOrdersToFile();
+    }
+  }
 }
