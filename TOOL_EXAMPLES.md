@@ -68,7 +68,7 @@
 }
 ```
 
-**Scenario B: Custom/uploaded avatar (no standard Grok Bot mark) → random assignment**
+**Scenario B: Custom/uploaded avatar (no standard Grok Bot mark) → needs choice (Issue #85 fix)**
 
 **When to use this:** Your profile has a custom shape OR uploaded image avatar, so no standard mark enums exist.
 
@@ -85,25 +85,55 @@
 }
 ```
 
-**Response (server assigns random mark and locks it for session):**
+**Response (server returns needs_choice with 9 Character-picker shape options):**
+```json
+{
+  "success": false,
+  "needs_choice": true,
+  "message": "Shopping Bot, you don't have a standard Grok Bot mark. Please choose a shape and color from the options below.",
+  "markOptions": {
+    "shapes": ["blob", "egg", "bean", "squircle", "capsule", "wedge", "hex", "cloud", "teardrop"],
+    "colors": ["brown", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta", "black", "gray"],
+    "note": "Choose your preferred shape and color, then call identify_agent again with your chosen values."
+  },
+  "next_step": "Present these shape and color options to your human user, get their choice, then call identify_agent again with name, shape, and color."
+}
+```
+
+**Follow-up call after human chooses (e.g., wedge + green):**
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "identify_agent",
+    "arguments": {
+      "name": "Shopping Bot",
+      "shape": "wedge",
+      "color": "green"
+    }
+  }
+}
+```
+
+**Response (identity verified with chosen mark):**
 ```json
 {
   "success": true,
   "identity": {
     "name": "Shopping Bot",
     "mark": {
-      "shape": "cloud",
-      "color": "teal"
+      "shape": "wedge",
+      "color": "green"
     }
   },
-  "assigned_random": true,
+  "verified": true,
   "sessionId": "sess_1234567890_xyz789",
-  "next_step": "You can now list_products, add_to_cart, or create_checkout. Your assigned mark will be used automatically.",
-  "message": "Welcome, Shopping Bot! You don't have a standard Grok Bot mark, so we've assigned you a random mark: cloud, teal. This mark is now locked for your session and will appear on all cart items."
+  "next_step": "You can now list_products, add_to_cart, or create_checkout. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.",
+  "message": "Welcome, Shopping Bot! Identity verified. Your mark (wedge, green) matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile."
 }
 ```
 
-**Note:** Once assigned (either verified or random), your mark is session-locked. All cart items use this mark unless explicitly overridden in add_to_cart.
+**Note:** The 9 Character-picker shapes (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop) are presented to avoid overwhelming the human with the full 18-catalog dump. Once verified, your mark is session-locked. All cart items use this mark unless explicitly overridden in add_to_cart.
 
 ### 2. list_products
 
@@ -135,9 +165,9 @@
     }
   ],
   "markOptions": {
-    "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
-    "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"],
-    "note": "Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
+    "shapes": ["blob", "egg", "bean", "squircle", "capsule", "wedge", "hex", "cloud", "teardrop"],
+    "colors": ["brown", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta", "black", "gray"],
+    "note": "Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). These are the 9 Character-picker shapes available. Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
   },
   "next_step": "Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark."
 }
@@ -401,9 +431,20 @@
 }
 ```
 
-### 6. create_checkout
+### 6. create_checkout (with shipping confirmation - Issue #84)
 
-**Call:**
+**IMPORTANT GATES:**
+1. **Preview gate**: You MUST call `preview_cart` and show preview images to your human BEFORE checkout
+2. **Shipping confirmation gate (NEW)**: You MUST confirm shipping address with your human using Link MCP `list_shipping_addresses` BEFORE checkout
+
+**Pre-checkout flow:**
+1. Call Link MCP `list_shipping_addresses` to get saved shipping address(es)
+2. Present city and postal code to human for confirmation (e.g., "Ship to Austin TX 78701?")
+3. NEVER dump full street address into public group chats
+4. Get human's confirmation
+5. Only then call `create_checkout` with `shippingConfirmed: true`
+
+**Call (with shipping confirmation):**
 ```json
 {
   "method": "tools/call",
@@ -411,7 +452,8 @@
     "name": "create_checkout",
     "arguments": {
       "successUrl": "https://example.com/success",
-      "cancelUrl": "https://example.com/cancel"
+      "cancelUrl": "https://example.com/cancel",
+      "shippingConfirmed": true
     }
   }
 }
@@ -425,6 +467,19 @@
   "checkoutUrl": "https://checkout.stripe.com/c/pay/cs_test_...",
   "mode": "live",
   "next_step": "Use checkoutUrl to complete payment, then call get_order with orderId to check status"
+}
+```
+
+**Error if shipping not confirmed:**
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Error: SHIPPING CONFIRMATION REQUIRED: You must confirm shipping address with your human BEFORE calling create_checkout. Use Link MCP list_shipping_addresses to get their saved shipping address, then present city and postal code to your human for confirmation (e.g., \"Ship to Austin TX 78701?\"). NEVER dump full street address into public group chats. After your human confirms the shipping address, call create_checkout with shippingConfirmed: true. US-only shipping applies."
+    }
+  ],
+  "isError": true
 }
 ```
 
@@ -539,29 +594,32 @@
 
 ## Mark Options
 
-**Shapes (8):**
-- circle
-- vertical-oval
-- rounded-square
-- horizontal-pill
-- rounded-triangle
-- hexagon
-- cloud (3-lobe)
+**Shapes (9 Character-picker shapes, Issue #85):**
+- blob
+- egg
+- bean
+- squircle
+- capsule
+- wedge
+- hex
+- cloud
 - teardrop
 
+**Note:** These 9 shapes are presented to humans when they have custom/missing marks to avoid overwhelming with the full 18-catalog. The full MARK_SHAPES list includes additional catalog-only shapes (pebble, tablet, cylinder, gem, crystal, shield, dome, arch, leaf) that agents can use if explicitly provided in their profile, but are NOT presented as options to choose from.
+
 **Colors (11):**
-- white
 - brown
 - red
 - orange
-- gold
-- light-green
-- teal
+- yellow
+- green
+- cyan
 - blue
-- purple
-- hot-pink (aliases: magenta, pink)
-- grey
+- violet
+- magenta
+- black
+- gray
 
-**Color Aliases:** The system automatically normalizes `magenta` or `pink` to `hot-pink` when passed to `identify_agent`. For example, if you pass `color: "magenta"`, it will be stored as `hot-pink`.
+**Color Aliases:** The system automatically normalizes color names. For example: `magenta`/`pink` → `magenta`, `gold` → `yellow`, `light-green` → `green`, `teal` → `cyan`, `purple` → `violet`, `hot-pink` → `magenta`, `grey` → `gray`.
 
-**Marketing Note:** Product hero imagery may feature hexagon + orange as a visual example, but this is NOT a default identity. Buyer bots must verify their OWN profile mark (or get random assignment for custom avatars) via identify_agent.
+**Marketing Note:** Product hero imagery may feature hex + orange as a visual example, but this is NOT a default identity. Buyer bots must verify their OWN profile mark (or ask human to choose from the 9 Character-picker shapes for custom avatars) via identify_agent.

@@ -187,12 +187,12 @@ The server uses HTTP cookies for session management. Session ID is set via `Set-
 
 **Standard Grok Bot marks:** If you have a standard Grok Bot character with shape+color fields in your profile, pass those EXACT verified values here.
 
-**Custom/uploaded avatars:** If you have a custom shape OR uploaded image avatar (no standard mark enums), omit shape and/or color to receive a random assignment locked for your session.
+**Custom/uploaded avatars (Issue #85 fix):** If you have a custom shape OR uploaded image avatar (no standard mark enums), omit shape and/or color. The tool will return a `needs_choice` response with 9 Character-picker shape options for you to present to your human. DO NOT silently randomize.
 
 **Input:**
 - `name` (string, required): Your agent name from your profile
-- `shape` (string, optional but recommended): YOUR mark shape from your Grok Bot profile - one of: `circle`, `vertical-oval`, `rounded-square`, `horizontal-pill`, `rounded-triangle`, `hexagon`, `cloud`, `teardrop`. REQUIRED if you have a standard mark. Omit for random assignment if custom avatar.
-- `color` (string, optional but recommended): YOUR mark color from your Grok Bot profile - one of: `white`, `brown`, `red`, `orange`, `gold`, `light-green`, `teal`, `blue`, `purple`, `hot-pink`, `grey`. REQUIRED if you have a standard mark. Omit for random assignment if custom avatar.
+- `shape` (string, optional but recommended): YOUR mark shape from your Grok Bot profile - one of the 9 Character-picker shapes: `blob`, `egg`, `bean`, `squircle`, `capsule`, `wedge`, `hex`, `cloud`, `teardrop`. REQUIRED if you have a standard mark. Omit for needs_choice response if custom avatar.
+- `color` (string, optional but recommended): YOUR mark color from your Grok Bot profile - one of: `brown`, `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `violet`, `magenta`, `black`, `gray`. REQUIRED if you have a standard mark. Omit for needs_choice response if custom avatar.
 
 **Output (verified standard mark):**
 ```json
@@ -210,27 +210,27 @@ The server uses HTTP cookies for session management. Session ID is set via `Set-
 }
 ```
 
-**Output (random assignment for custom avatar):**
+**Output (needs_choice for custom avatar - Issue #85 fix):**
 ```json
 {
-  "success": true,
-  "identity": {
-    "name": "Shopping Bot",
-    "mark": {
-      "shape": "cloud",
-      "color": "teal"
-    }
+  "success": false,
+  "needs_choice": true,
+  "message": "Shopping Bot, you don't have a standard Grok Bot mark. Please choose a shape and color from the options below.",
+  "markOptions": {
+    "shapes": ["blob", "egg", "bean", "squircle", "capsule", "wedge", "hex", "cloud", "teardrop"],
+    "colors": ["brown", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta", "black", "gray"],
+    "note": "Choose your preferred shape and color, then call identify_agent again with your chosen values."
   },
-  "assigned_random": true,
-  "message": "Welcome, Shopping Bot! You don't have a standard Grok Bot mark, so we've assigned you a random mark: cloud, teal. This mark is now locked for your session and will appear on all cart items."
+  "next_step": "Present these shape and color options to your human user, get their choice, then call identify_agent again with name, shape, and color."
 }
 ```
 
 **Identity Flow:**
-- Your verified/assigned name + mark identify your session
+- Your verified/chosen name + mark identify your session
 - Unlocks mutating tools (cart, checkout)
 - Your mark becomes the session-locked default for `add_to_cart` (can be overridden per item)
 - Identity carries through cart → checkout → order
+- For custom avatars: agent presents 9 Character-picker shapes to human, human chooses, then identity is locked
 
 ### 2. `list_products`
 
@@ -256,17 +256,17 @@ Lists all available products with mark customization options.
     }
   ],
   "markOptions": {
-    "shapes": ["circle", "vertical-oval", "rounded-square", "horizontal-pill", "rounded-triangle", "hexagon", "cloud", "teardrop"],
-    "colors": ["white", "brown", "red", "orange", "gold", "light-green", "teal", "blue", "purple", "hot-pink", "grey"],
-    "note": "Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
+    "shapes": ["blob", "egg", "bean", "squircle", "capsule", "wedge", "hex", "cloud", "teardrop"],
+    "colors": ["brown", "red", "orange", "yellow", "green", "cyan", "blue", "violet", "magenta", "black", "gray"],
+    "note": "Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). These are the 9 Character-picker shapes available. Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default."
   }
 }
 ```
 
-**Mark Options:**
-- **Shapes**: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud (3-lobe), teardrop
-- **Colors**: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
-- **Marketing Note**: Product hero imagery features hexagon+orange as a visual example, but this is NOT a default identity for buyer bots
+**Mark Options (9 Character-picker shapes - Issue #85):**
+- **Shapes**: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
+- **Colors**: brown, red, orange, yellow, green, cyan, blue, violet, magenta, black, gray
+- **Marketing Note**: Product hero imagery features hex+orange as a visual example, but this is NOT a default identity for buyer bots
 
 ### 3. `get_product`
 
@@ -398,9 +398,14 @@ Creates a Stripe Checkout session for the cart.
 
 **Access:** Requires agent identity from `identify_agent`.
 
+**IMPORTANT GATES (Issue #84):**
+1. **Preview gate**: You MUST call `preview_cart` and show preview images to your human BEFORE checkout
+2. **Shipping confirmation gate (NEW)**: You MUST confirm shipping address with your human using Link MCP `list_shipping_addresses` BEFORE checkout. Present city and postal code for confirmation (e.g., "Ship to Austin TX 78701?"). NEVER dump full street address into public group chats. US-only shipping applies.
+
 **Input:**
-- `successUrl` (string, required): URL to redirect after successful payment
-- `cancelUrl` (string, required): URL to redirect if payment is cancelled
+- `successUrl` (string, optional): URL to redirect after successful payment
+- `cancelUrl` (string, optional): URL to redirect if payment is cancelled
+- `shippingConfirmed` (boolean, required): Set to true to confirm you have shown the human their Link shipping address and received confirmation
 
 **Output (Live Mode):**
 ```json
