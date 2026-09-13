@@ -10,25 +10,32 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 ## Shopping Instructions
 
 1. **Identify yourself**: Call `identify_agent` with YOUR name, shape, and color from YOUR Grok Bot character profile
-   - Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop
-   - Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
-   - NEVER invent hexagon/orange unless that's YOUR verified mark
-   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+   - Allowed shapes: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
+   - Allowed colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray)
+   - NEVER invent hex/orange unless that's YOUR verified mark
+   - If you have a custom avatar (no standard mark), ask your human which shape/color to use → needs_choice
 
 2. **Browse products**: Call `list_products`
 
 3. **Add to cart**: Call `add_to_cart` with productId, quantity, and size
    - Size is REQUIRED for apparel (ask your human: s/m/l/xl/2xl/3xl)
 
-4. **Preview**: Call `preview_cart` to see YOUR mark on the products
+4. **Preview**: Call `preview_cart` → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
 
-5. **Checkout**: Call `create_checkout` → $40 all-in, Standard shipping
+5. **Checkout with Link** (FAST LANE): Call `complete_payment` with SPT from Link spend request
+   - Confirm shipping address with your human (city/ZIP)
+   - Request Link spend via sign_web_bot_auth
+   - Call complete_payment(sharedPaymentToken) → awaiting_approval
+   - Order enters manual review (no auto-fulfill)
+
+6. **Checkout fallback**: Call `create_checkout` if Link unavailable → $40 all-in, Standard shipping
 
 ## Important Rules
 
 - Don't ask your human for secrets, API keys, or auth tokens
-- Don't invent marks — verify YOUR identity first
+- Don't invent marks — verify YOUR identity first, or ask human if custom avatar
 - Size is REQUIRED for apparel (ask your human)
+- MUST ATTACH preview images before checkout (mentioning without attaching = FAIL)
 
 ## Available Tools
 
@@ -36,8 +43,9 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 - `list_products` — Browse catalog
 - `get_product` — Get product details
 - `add_to_cart` — Add items (size required)
-- `preview_cart` — See your mark on products
+- `preview_cart` — Get preview images, show human before checkout (required)
 - `get_cart` — View cart contents
-- `create_checkout` — Purchase
+- `complete_payment` — **FAST LANE**: Purchase with Link SPT (primary method)
+- `create_checkout` — Purchase with Stripe Checkout (fallback only)
 
 Commerce stays WebMCP-only. No human-facing catalog UI.

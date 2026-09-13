@@ -84,6 +84,7 @@ export function getPublishableKey(): string {
 /**
  * Verify a Shared Payment Token (SPT) before charging.
  * Checks usage limits: amount, currency, expiration, and active status.
+ * Uses rawRequest with preview API version to avoid SDK dependency on sharedPayment.
  * Returns error message if invalid, null if valid.
  */
 export async function verifySharedPaymentToken(
@@ -95,13 +96,24 @@ export async function verifySharedPaymentToken(
     throw new Error('Stripe not configured');
   }
 
+  // Validate SPT is not empty before Stripe call
+  if (!sharedPaymentToken || !sharedPaymentToken.trim()) {
+    return {
+      valid: false,
+      error: 'Shared Payment Token is required. Please provide a valid SPT from your Link spend request.',
+    };
+  }
+
   try {
-    // Retrieve the granted token using preview API version (per-request)
+    // Retrieve the granted token using rawRequest with preview API version (per-request)
     // CRITICAL: Per-request apiVersion to avoid breaking Checkout/refunds on stable version
-    const grantedToken = await stripe.sharedPayment.grantedTokens.retrieve(
-      sharedPaymentToken,
-      { apiVersion: '2026-04-22.preview' } as any
-    );
+    // Uses rawRequest because stripe.sharedPayment.grantedTokens doesn't exist in stripe@^17.5.0
+    const grantedToken = await stripe.rawRequest(
+      'GET',
+      `/v1/shared_payment/granted_tokens/${sharedPaymentToken.trim()}`,
+      null,
+      { apiVersion: '2026-04-22.preview' }
+    ) as any;
 
     // Check if deactivated
     if (grantedToken.deactivated_at) {
@@ -141,6 +153,22 @@ export async function verifySharedPaymentToken(
     return { valid: true, grantedToken };
   } catch (err: any) {
     console.error('[Stripe] Failed to verify SPT:', err.message);
+    
+    // Handle specific error codes for better error messages
+    if (err.statusCode === 404 || err.code === 'resource_missing') {
+      return {
+        valid: false,
+        error: `Shared Payment Token not found or invalid: ${sharedPaymentToken}. Please verify the SPT from your Link spend request.`,
+      };
+    }
+    
+    if (err.statusCode === 401 || err.statusCode === 403 || err.code === 'authentication_required') {
+      return {
+        valid: false,
+        error: `Shared Payment Token authentication failed: ${err.message}. This SPT may be expired, revoked, or not authorized for this merchant.`,
+      };
+    }
+    
     return {
       valid: false,
       error: `Failed to verify token: ${err.message}`,
@@ -151,6 +179,7 @@ export async function verifySharedPaymentToken(
 /**
  * Create a PaymentIntent using a Shared Payment Token (SPT).
  * This is the server-side agent checkout flow - no browser Checkout UI needed.
+ * Uses rawRequest with preview API version to avoid SDK dependency issues.
  */
 export async function createPaymentIntentWithSPT(
   sharedPaymentToken: string,
@@ -173,23 +202,27 @@ export async function createPaymentIntentWithSPT(
       };
     }
 
-    // Create PaymentIntent with SPT using preview API version (per-request)
+    // Create PaymentIntent with SPT using rawRequest with preview API version (per-request)
     // CRITICAL: Per-request apiVersion to avoid breaking Checkout/refunds on stable version
-    const paymentIntent = await stripe.paymentIntents.create(
+    // Uses rawRequest because payment_method_data.shared_payment_granted_token needs preview API
+    const paymentIntent = await stripe.rawRequest(
+      'POST',
+      '/v1/payment_intents',
       {
         amount: amountInCents,
         currency,
         payment_method_data: {
-          shared_payment_granted_token: sharedPaymentToken,
-        } as any,
+          type: 'card',
+          shared_payment_granted_token: sharedPaymentToken.trim(),
+        },
         confirm: true,
         metadata,
       },
       {
-        idempotencyKey,
         apiVersion: '2026-04-22.preview',
-      } as any
-    );
+        idempotencyKey,
+      }
+    ) as any;
 
     if (paymentIntent.status === 'succeeded') {
       return {
