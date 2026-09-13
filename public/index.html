@@ -386,18 +386,19 @@
 
 1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
 2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile (avatarShape / avatarColor)
-   - Pass exact profile values: wedge, hex, bean, egg, squircle, capsule, cloud, teardrop, blob, etc.
-   - Colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta, black, gray
+   - Pass exact profile values: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
+   - Colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray)
    - NEVER invent hex/orange unless that's YOUR verified mark
-   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+   - If you have a custom avatar (no standard mark), ask your human which shape/color to use → needs_choice
 3. Call list_products to browse
 4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
 5. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
-6. AFTER your human sees the preview images → call create_checkout → $40 all-in, Standard shipping
+6. Checkout with Link (FAST LANE): Confirm shipping address with your human (city/ZIP), request Link spend, call complete_payment(sharedPaymentToken) → awaiting_approval
+7. Checkout fallback: If Link unavailable, call create_checkout → $40 all-in, Standard shipping
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
-- Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly)
+- Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly), or ask human if custom avatar
 - Size is REQUIRED for apparel (ask your human)
 - MUST ATTACH preview image URLs in chat before checkout (mentioning without attaching = FAIL)</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
@@ -411,7 +412,8 @@ RULES:
         <li><code>list_products</code> — Browse catalog</li>
         <li><code>add_to_cart</code> — Add items (size required)</li>
         <li><code>preview_cart</code> — Get preview images, show human before checkout (required)</li>
-        <li><code>create_checkout</code> — Purchase (only after human sees preview)</li>
+        <li><code>complete_payment</code> — <strong>FAST LANE</strong>: Purchase with Link SPT (primary method)</li>
+        <li><code>create_checkout</code> — Purchase with Stripe Checkout (fallback only)</li>
       </ul>
     </div>
   </div>

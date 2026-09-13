@@ -31,7 +31,7 @@ import {
   hasPreviewBeenCalled,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
-import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
+import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment, retrieveSharedPaymentToken, createPaymentIntentWithSPT } from './stripe';
 import { createProdigiClient } from './prodigi';
 import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
 
@@ -462,7 +462,7 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color to get a random assignment. Your identity unlocks cart operations and sets your default tee mark.',
+    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), ask your human which shape/color to use. Your identity unlocks cart operations and sets your default tee mark.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -472,12 +472,12 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Your mark shape from your Grok Bot character profile (avatarShape). REQUIRED if standard mark. Pass exact profile value (wedge, hex, bean, etc.). Pack names (rounded-triangle, hexagon, circle) accepted as aliases.',
+          description: 'Your mark shape from your Grok Bot character profile (avatarShape). REQUIRED if standard mark. Pass exact profile value from: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop. Pack names (rounded-triangle, hexagon, circle) accepted as aliases.',
           enum: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield', 'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon'],
         },
         color: {
           type: 'string',
-          description: 'Your mark color from your Grok Bot character profile (avatarColor). REQUIRED if standard mark. Pass exact profile value (green, magenta, yellow, etc.). Pack names (light-green, hot-pink, gold) accepted as aliases.',
+          description: 'Your mark color from your Grok Bot character profile (avatarColor). REQUIRED if standard mark. Pass exact profile value from: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray). Pack names (light-green, hot-pink, gold) accepted as aliases.',
           enum: ['brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'black', 'gray', 'light-green', 'teal', 'purple', 'pink', 'hot-pink', 'gold', 'grey'],
         },
         assign_random: {
@@ -639,7 +639,7 @@ const TOOL_DEFINITIONS = {
   },
   preview_cart: {
     name: 'preview_cart',
-    description: 'REQUIRED BEFORE CHECKOUT: Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs for close-up mark and flat-lay tee mock. YOU MUST ATTACH/DISPLAY both image URLs in your next chat message to your human BEFORE calling create_checkout. Simply mentioning the images without attaching = FAIL.',
+    description: 'REQUIRED BEFORE CHECKOUT: Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs for close-up mark and flat-lay tee mock. YOU MUST ATTACH/DISPLAY both image URLs in your next chat message to your human BEFORE calling checkout (complete_payment or create_checkout). Simply mentioning the images without attaching = FAIL.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -648,6 +648,24 @@ const TOOL_DEFINITIONS = {
           description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
       },
+    },
+  },
+  complete_payment: {
+    name: 'complete_payment',
+    description: 'FAST LANE: Complete purchase using Link Shared Payment Token (SPT). PRIMARY checkout method. Confirm shipping address with your human (city/ZIP) before calling. Requires prior identification via identify_agent and preview_cart. Order enters awaiting_approval status for manual review (no auto-fulfillment). If Link unavailable, use create_checkout as fallback.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sharedPaymentToken: {
+          type: 'string',
+          description: 'Shared Payment Token (SPT) from Link spend request. Example: "spt_..." Obtain via Link sign_web_bot_auth flow.',
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
+      required: ['sharedPaymentToken'],
     },
   },
 };
@@ -1045,12 +1063,131 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           shape: firstMark.shape,
           color: firstMark.color,
         },
-        message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST attach/display BOTH image URLs below in your next chat message to your human BEFORE calling create_checkout.`,
+        message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST attach/display BOTH image URLs below in your next chat message to your human BEFORE calling checkout.`,
         next_step: `REQUIRED NEXT STEP: Attach these image URLs in your next message to show your human what they're buying:
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-After your human sees the images, then call create_checkout. DO NOT call create_checkout without showing images first.`,
+After your human sees the images, then call complete_payment (with Link SPT) or create_checkout (fallback). DO NOT call checkout without showing images first.`,
+      };
+    }
+    
+    case 'complete_payment': {
+      const identity = await requireIdentity(sessionId);
+      if (!identity) {
+        throw new Error(
+          'Access denied: complete_payment requires agent identity with shape and color. ' +
+          'Call identify_agent first with name, shape, and color.'
+        );
+      }
+
+      // GATE: Require preview_cart was called first (same as create_checkout)
+      if (!hasPreviewBeenCalled(sessionId)) {
+        const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
+        if (cart.items.length > 0) {
+          const firstMark = cart.items[0].mark;
+          const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+          
+          const shapeAsset = getShapeAssetFilename(firstMark.shape as any);
+          const colorAsset = getColorAssetFilename(firstMark.color as any);
+          
+          const flatLayUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+          const markUrl = `${origin}/images/marks/grok-bot-${shapeAsset}-${colorAsset}.svg`;
+          
+          throw new Error(
+            'PREVIEW REQUIRED: You must call preview_cart AND show the preview images to your human BEFORE calling complete_payment. ' +
+            `Call preview_cart now, then attach these image URLs in your chat to show your human what they're buying:\n` +
+            `1. Flat-lay: ${flatLayUrl}\n` +
+            `2. Mark close-up: ${markUrl}\n\n` +
+            'After your human sees the images, then call complete_payment. DO NOT proceed without showing preview images first.'
+          );
+        }
+      }
+
+      const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
+      if (cart.items.length === 0) {
+        throw new Error('Cart is empty');
+      }
+
+      // Validate SPT is provided
+      const { sharedPaymentToken } = args;
+      if (!sharedPaymentToken || !sharedPaymentToken.trim()) {
+        throw new Error(
+          'Shared Payment Token (SPT) is required. Obtain an SPT via Link sign_web_bot_auth flow, ' +
+          'then pass it to this tool. If Link is unavailable, use create_checkout as fallback.'
+        );
+      }
+
+      // Retrieve and validate SPT (throws on invalid/missing)
+      let grantedToken;
+      try {
+        grantedToken = await retrieveSharedPaymentToken(sharedPaymentToken.trim());
+      } catch (err: any) {
+        throw new Error(
+          `SPT validation failed: ${err.message}. ` +
+          'Verify the SPT from your Link spend request is correct. ' +
+          'If Link is unavailable, use create_checkout as fallback.'
+        );
+      }
+
+      // Create order in pending state
+      const order = isUsingPostgres() ? await createOrderAsync(sessionId, cart) : createOrder(sessionId, cart);
+      
+      const firstItem = cart.items[0];
+      const product = getProduct(firstItem.productId);
+      if (!product) {
+        throw new Error('Product not found in cart');
+      }
+
+      // Calculate amount ($40 all-in)
+      const amount = 4000; // $40.00 in cents
+      const currency = 'usd';
+
+      // Create PaymentIntent with SPT (does NOT auto-confirm)
+      let paymentIntent;
+      try {
+        paymentIntent = await createPaymentIntentWithSPT(
+          amount,
+          currency,
+          sharedPaymentToken.trim(),
+          {
+            orderId: order.id,
+            size: firstItem.size,
+            productId: firstItem.productId,
+            markShape: firstItem.mark.shape,
+            markColor: firstItem.mark.color,
+          }
+        );
+      } catch (err: any) {
+        // Clean up order on PaymentIntent failure
+        updateOrderStatus(order.id, 'cancelled');
+        throw new Error(
+          `Failed to create payment with SPT: ${err.message}. ` +
+          'Verify your SPT is valid and authorized. ' +
+          'If Link is unavailable, use create_checkout as fallback.'
+        );
+      }
+
+      // Store PaymentIntent ID on order (use stripeCheckoutSessionId field for now)
+      // TODO: Add dedicated paymentIntentId field to Order type
+      updateOrderStripeSession(order.id, paymentIntent.paymentIntentId);
+      
+      // Mark order as awaiting_approval (manual review workflow, NO auto-Prodigi)
+      // Unlike create_checkout webhook flow, SPT orders go straight to awaiting_approval
+      // without collecting shipping from Stripe (agent confirms with human separately)
+      updateOrderStatus(order.id, 'awaiting_approval');
+
+      console.log(`[SPT] Order ${order.id} created with PaymentIntent ${paymentIntent.paymentIntentId} - status: awaiting_approval`);
+
+      return {
+        success: true,
+        orderId: order.id,
+        paymentIntentId: paymentIntent.paymentIntentId,
+        status: 'awaiting_approval',
+        amount: amount / 100,
+        currency: currency.toUpperCase(),
+        message: `Order ${order.id} created successfully with Link payment. Status: awaiting_approval (manual review required).`,
+        next_step: 'Order is awaiting manual approval. You will be notified when it is reviewed. Use get_order to check status.',
       };
     }
     
