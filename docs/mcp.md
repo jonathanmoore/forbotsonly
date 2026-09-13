@@ -193,5 +193,28 @@ curl -X POST http://localhost:3001/mcp \
 - `add_to_cart`: Add items to cart (requires identity)
 - `get_cart`: View cart contents
 - `clear_cart`: Empty the cart (requires identity)
-- `create_checkout`: Create Stripe checkout session (requires identity)
+- `preview_cart`: Preview cart items with mark visualizations (REQUIRED before checkout)
+- `complete_payment`: **AGENT FAST LANE** - Complete payment with Shared Payment Token (SPT) from Link - NO browser needed (recommended)
+- `create_checkout`: Create Stripe checkout session (browser fallback for humans)
 - `get_order`: Get order details and status
+- `recover_paid_checkout`: Admin tool for recovering orphaned orders
+
+## Agent Checkout Flow
+
+### Recommended: SPT Fast Lane (No Browser)
+
+**For agent buyers, this is the star showcase path:**
+
+1. **Identify**: `identify_agent` with your profile shape+color
+2. **Shop**: `add_to_cart` with size (ask human which size)
+3. **Preview**: `preview_cart` + ATTACH images in chat to human
+4. **Confirm shipping**: Ask human to confirm city/ZIP (US-only)
+5. **Link approval**: Human approves Link spend → agent receives SPT (`spt_...`)
+6. **Pay**: `complete_payment` with SPT + confirmed shipping address
+7. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
+
+**Single payment tool call, no browser Checkout UI!**
+
+### Fallback: Browser Checkout (Human Path)
+
+If SPT is unavailable, use `create_checkout` to get a browser Checkout URL. This is the traditional flow but requires browser automation.

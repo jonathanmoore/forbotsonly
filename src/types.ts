@@ -37,6 +37,7 @@ export interface Order {
   id: string;
   sessionId: string;
   stripeCheckoutSessionId?: string;
+  stripePaymentIntentId?: string;
   prodigiOrderId?: string;
   status: 'pending' | 'awaiting_approval' | 'paid' | 'fulfilled' | 'refunded' | 'cancelled';
   items: CartItem[];
@@ -53,6 +54,7 @@ export interface Order {
     postalCode: string;
     country: string;
   };
+  shippingConfirmed?: boolean;
   customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
