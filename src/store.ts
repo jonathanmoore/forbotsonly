@@ -15,7 +15,7 @@ let pool: pg.Pool | null = null;
 let usePostgres = false;
 
 // In-memory fallback for JSON file mode
-const sessions = new Map<string, { identity?: AgentIdentity; cart: Cart }>();
+const sessions = new Map<string, { identity?: AgentIdentity; cart: Cart; previewCalled?: boolean }>();
 const orders = new Map<string, Order>();
 
 function ensureDataDir(): void {
@@ -329,11 +329,24 @@ export function clearCart(sessionId: string): void {
   const session = sessions.get(sessionId);
   if (session) {
     session.cart.items = [];
+    session.previewCalled = false; // Reset preview flag when cart is cleared
     // Save to file only if not using Postgres
     if (!usePostgres) {
       saveSessionsToFile();
     }
   }
+}
+
+export function markPreviewCalled(sessionId: string): void {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.previewCalled = true;
+  }
+}
+
+export function hasPreviewBeenCalled(sessionId: string): boolean {
+  const session = sessions.get(sessionId);
+  return session?.previewCalled || false;
 }
 
 // ============================================================================
