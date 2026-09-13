@@ -85,6 +85,23 @@ export const MARK_SHAPES = [
   'leaf',
 ] as const;
 
+/**
+ * CHARACTER PICKER SHAPES: The 9 shapes available in Grok Bot character picker
+ * These are presented to users when they have custom/missing marks (Issue #85)
+ * Subset of MARK_SHAPES, excluding catalog-only shapes (pebble, tablet, cylinder, gem, crystal, shield, dome, arch, leaf)
+ */
+export const CHARACTER_PICKER_SHAPES = [
+  'blob',
+  'egg',
+  'bean',
+  'squircle',
+  'capsule',
+  'wedge',
+  'hex',
+  'cloud',
+  'teardrop',
+] as const;
+
 export const MARK_COLORS = [
   // Product primary colors (11 total: 9 standard + black/gray for Grok Bot)
   'brown',

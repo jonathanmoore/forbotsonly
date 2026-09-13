@@ -389,17 +389,23 @@
    - Pass exact profile values: wedge, hex, bean, egg, squircle, capsule, cloud, teardrop, blob, etc.
    - Colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta, black, gray
    - NEVER invent hex/orange unless that's YOUR verified mark
-   - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
+   - If you have a custom avatar (no standard mark): omit shape/color → server returns needs_choice with 9 picker shapes
+     → PRESENT shapes (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop) + colors to your human
+     → Get their choice, then call identify_agent again with chosen shape+color. NO silent random.
 3. Call list_products to browse
 4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
 5. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
-6. AFTER your human sees the preview images → call create_checkout → $40 all-in, Standard shipping
+6. Before checkout: Use Link MCP list_shipping_addresses → confirm with your human (present city/state/postcode only, e.g. "Ship to Austin TX 78701?")
+   → NEVER dump full street address into public group chats. Get human's confirmation. US-only.
+7. AFTER preview shown + shipping confirmed → call create_checkout with shippingConfirmed: true → $40 all-in, Standard shipping
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
 - Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly)
+- Custom/missing mark: ASK human to choose from 9 picker shapes + colors (NO silent random)
 - Size is REQUIRED for apparel (ask your human)
-- MUST ATTACH preview image URLs in chat before checkout (mentioning without attaching = FAIL)</pre>
+- MUST ATTACH preview image URLs in chat before checkout (mentioning without attaching = FAIL)
+- MUST confirm Link shipping address with human before checkout (city/state/postcode only)</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>

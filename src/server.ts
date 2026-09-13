@@ -33,7 +33,7 @@ import {
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
 import { createProdigiClient } from './prodigi';
-import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
+import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, CHARACTER_PICKER_SHAPES, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -462,7 +462,7 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color to get a random assignment. Your identity unlocks cart operations and sets your default tee mark.',
+    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color and this tool will return mark options for you to present to your human - DO NOT silently randomize.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -472,17 +472,13 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Your mark shape from your Grok Bot character profile (avatarShape). REQUIRED if standard mark. Pass exact profile value (wedge, hex, bean, etc.). Pack names (rounded-triangle, hexagon, circle) accepted as aliases.',
+          description: 'Your mark shape from your Grok Bot character profile (avatarShape). REQUIRED if standard mark. Pass exact profile value (wedge, hex, bean, etc.). Omit if you have a custom avatar - the tool will return options to present to your human. Pack names (rounded-triangle, hexagon, circle) accepted as aliases.',
           enum: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield', 'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon'],
         },
         color: {
           type: 'string',
-          description: 'Your mark color from your Grok Bot character profile (avatarColor). REQUIRED if standard mark. Pass exact profile value (green, magenta, yellow, etc.). Pack names (light-green, hot-pink, gold) accepted as aliases.',
+          description: 'Your mark color from your Grok Bot character profile (avatarColor). REQUIRED if standard mark. Pass exact profile value (green, magenta, yellow, etc.). Omit if you have a custom avatar - the tool will return options to present to your human. Pack names (light-green, hot-pink, gold) accepted as aliases.',
           enum: ['brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'black', 'gray', 'light-green', 'teal', 'purple', 'pink', 'hot-pink', 'gold', 'grey'],
-        },
-        assign_random: {
-          type: 'boolean',
-          description: 'Optional: Set true to explicitly request random shape+color assignment when you have a custom avatar. If false or omitted when shape/color missing, random assignment still occurs but the response will explain it.',
         },
       },
       required: ['name'],
@@ -576,7 +572,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for your cart. GATE: You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. If you call create_checkout without showing preview images first, this tool will refuse with an error. Requires prior identification via identify_agent and preview_cart.',
+    description: 'Create a Stripe checkout session for your cart. GATES: (1) You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses BEFORE calling this tool - present city/postcode for confirmation (never dump full street into public chats). US-only applies. If you call create_checkout without showing preview images first OR without confirming shipping, this tool will refuse with an error. Requires prior identification via identify_agent, preview_cart, and shipping confirmation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -592,7 +588,12 @@ const TOOL_DEFINITIONS = {
           type: 'string',
           description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
+        shippingConfirmed: {
+          type: 'boolean',
+          description: 'REQUIRED: Set to true to confirm you have shown the human their Link shipping address (city/postcode) and received confirmation. Do not proceed without confirming shipping first.',
+        },
       },
+      required: ['shippingConfirmed'],
     },
   },
   get_order: {
@@ -658,7 +659,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
   
   switch (toolName) {
     case 'identify_agent': {
-      let { name, shape, color, assign_random } = args;
+      let { name, shape, color } = args;
       
       if (!name) {
         throw new Error('Missing required field: name must be provided');
@@ -691,25 +692,19 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         }
       }
       
-      // If shape or color is missing (custom avatar, no standard Grok Bot mark), assign random
+      // FIX #85: If shape or color is missing (custom avatar, no standard Grok Bot mark), 
+      // return needs_choice with 9 Character-picker shapes (DO NOT silently randomize)
       if (!normalizedShape || !normalizedColor) {
-        const randomShape = normalizedShape || MARK_SHAPES[Math.floor(Math.random() * MARK_SHAPES.length)];
-        const randomColor = normalizedColor || MARK_COLORS[Math.floor(Math.random() * MARK_COLORS.length)];
-        
-        const identity: AgentIdentity = {
-          name,
-          mark: { shape: randomShape, color: randomColor },
-        };
-        
-        setAgentIdentity(sessionId, identity);
-        
         return {
-          success: true,
-          identity,
-          sessionId,
-          assigned_random: true,
-          message: `Welcome, ${name}! You don't have a standard Grok Bot mark, so we've assigned you a random mark: ${randomShape}, ${randomColor}. This mark is now locked for your session and will appear on all cart items.`,
-          next_step: 'You can now list_products, add_to_cart, or create_checkout. Your assigned mark will be used automatically.',
+          success: false,
+          needs_choice: true,
+          message: `${name}, you don't have a standard Grok Bot mark. Please choose a shape and color from the options below.`,
+          markOptions: {
+            shapes: Array.from(CHARACTER_PICKER_SHAPES),
+            colors: Array.from(MARK_COLORS),
+            note: 'Choose your preferred shape and color, then call identify_agent again with your chosen values.',
+          },
+          next_step: 'Present these shape and color options to your human user, get their choice, then call identify_agent again with name, shape, and color.',
         };
       }
       
@@ -739,9 +734,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       return {
         products: listProducts(),
         markOptions: {
-          shapes: MARK_SHAPES,
+          shapes: CHARACTER_PICKER_SHAPES,
           colors: MARK_COLORS,
-          note: 'Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
+          note: 'Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). These are the 9 Character-picker shapes available. Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
         },
         next_step: 'Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark.',
       };
@@ -880,12 +875,12 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           'Access denied: create_checkout requires agent identity with shape and color. ' +
           'Call identify_agent first with name, shape, and color. ' +
           'If you don\'t have a shape+color (e.g. you have an uploaded image avatar), ask your human user which shape and color to use. ' +
-          'Allowed shapes: ' + MARK_SHAPES.join(', ') + '. ' +
+          'Allowed shapes: ' + CHARACTER_PICKER_SHAPES.join(', ') + '. ' +
           'Allowed colors: ' + MARK_COLORS.join(', ') + '.'
         );
       }
       
-      // GATE: Require preview_cart was called first
+      // GATE #1: Require preview_cart was called first
       if (!hasPreviewBeenCalled(sessionId)) {
         const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
         if (cart.items.length > 0) {
@@ -907,6 +902,17 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             'After your human sees the images, then call create_checkout. DO NOT proceed to checkout without showing preview images first.'
           );
         }
+      }
+      
+      // GATE #2 (Issue #84): Require shipping confirmation
+      if (!args.shippingConfirmed) {
+        throw new Error(
+          'SHIPPING CONFIRMATION REQUIRED: You must confirm shipping address with your human BEFORE calling create_checkout. ' +
+          'Use Link MCP list_shipping_addresses to get their saved shipping address, then present city and postal code to your human for confirmation (e.g., "Ship to Austin TX 78701?"). ' +
+          'NEVER dump full street address into public group chats. ' +
+          'After your human confirms the shipping address, call create_checkout with shippingConfirmed: true. ' +
+          'US-only shipping applies.'
+        );
       }
       
       const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
