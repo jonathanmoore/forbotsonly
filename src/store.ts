@@ -146,6 +146,17 @@ async function initPostgres(): Promise<void> {
       ALTER TABLE orders 
       ADD COLUMN IF NOT EXISTS customer_phone TEXT
     `);
+    
+    // #88 Agent checkout fast lane columns (idempotent)
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT
+    `);
+    
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS shipping_confirmed BOOLEAN DEFAULT FALSE
+    `);
 
     // Create index on stripe_checkout_session_id for faster lookups
     await client.query(`
