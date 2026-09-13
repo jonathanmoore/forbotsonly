@@ -27,11 +27,13 @@ import {
   updateOrderApproval,
   updateOrderDenial,
   updateOrderCustomerContact,
+  markPreviewCalled,
+  hasPreviewBeenCalled,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment } from './stripe';
 import { createProdigiClient } from './prodigi';
-import { isValidMarkShape, isValidMarkColor, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, type AgentIdentity, type Order, type Cart } from './types';
+import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
 
 const PORT = parseInt(process.env.PORT || '3001');
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
@@ -245,7 +247,12 @@ async function createProdigiOrderForOrder(orderId: string): Promise<string | nul
     // Uses POSITIONED full-canvas PNG: 2480×3507px with 360×360px mark on left chest
     // Per PRODUCT_IMAGERY.md: wearer's left = right side of front-facing canvas, ~3" below HPS
     const mark = firstItem.mark;
-    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+    
+    // Map picker names (wedge, green, hex, pink) → asset filenames (rounded-triangle, light-green, hexagon, hot-pink)
+    const shapeAsset = getShapeAssetFilename(mark.shape as any);
+    const colorAsset = getColorAssetFilename(mark.color as any);
+    
+    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${shapeAsset}-${colorAsset}-positioned.png`;
 
     console.log(`[Prodigi] Creating order for ${orderId} with SKU ${product.sku}, size ${firstItem.size}`);
     console.log(`[Prodigi] Artwork URL (positioned): ${artworkUrl} (mark: ${mark.shape}/${mark.color})`);
@@ -328,7 +335,12 @@ async function notifyOrderForReview(orderId: string, order: Order): Promise<void
     const product = getProduct(firstItem.productId);
     const mark = firstItem.mark;
     const publicUrl = process.env.PUBLIC_URL || 'https://forbotsonly.com';
-    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+    
+    // Map picker names (wedge, green, hex, pink) → asset filenames (rounded-triangle, light-green, hexagon, hot-pink)
+    const shapeAsset = getShapeAssetFilename(mark.shape as any);
+    const colorAsset = getColorAssetFilename(mark.color as any);
+    
+    const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${shapeAsset}-${colorAsset}-positioned.png`;
     
     // Non-sensitive payload: orderId, size, mark, artwork URL
     // Full address included if webhook is trusted (user must configure trusted webhook URL)
@@ -450,7 +462,7 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: You MUST determine your OWN identity by reading YOUR agent profile or character mark (standard Grok Bot shape + color). NEVER invent or default to hexagon/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a standard Grok Bot mark (shape+color in the enums below), pass those exact values here. If you have a custom shape or uploaded image avatar (no standard mark), omit shape and/or color to get a random assignment locked for this session. Your identity unlocks cart operations and sets your default tee mark.',
+    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color to get a random assignment. Your identity unlocks cart operations and sets your default tee mark.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -460,13 +472,13 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Your mark shape from your Grok Bot character profile. REQUIRED if you have a standard mark. Omit if you have a custom/uploaded avatar (server will assign random).',
-          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+          description: 'Your mark shape from your Grok Bot character profile (avatarShape). REQUIRED if standard mark. Pass exact profile value (wedge, hex, bean, etc.). Pack names (rounded-triangle, hexagon, circle) accepted as aliases.',
+          enum: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield', 'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon'],
         },
         color: {
           type: 'string',
-          description: 'Your mark color from your Grok Bot character profile. REQUIRED if you have a standard mark. Omit if you have a custom/uploaded avatar (server will assign random).',
-          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+          description: 'Your mark color from your Grok Bot character profile (avatarColor). REQUIRED if standard mark. Pass exact profile value (green, magenta, yellow, etc.). Pack names (light-green, hot-pink, gold) accepted as aliases.',
+          enum: ['brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'black', 'gray', 'light-green', 'teal', 'purple', 'pink', 'hot-pink', 'gold', 'grey'],
         },
         assign_random: {
           type: 'boolean',
@@ -520,13 +532,13 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Optional: Override your session mark shape for this item only',
-          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+          description: 'Optional: Override your session mark shape for this item only (use product ids: wedge, hex, bean, etc.). Pack names accepted as aliases.',
+          enum: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield', 'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon'],
         },
         color: {
           type: 'string',
-          description: 'Optional: Override your session mark color for this item only',
-          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+          description: 'Optional: Override your session mark color for this item only (use product ids: green, magenta, yellow, etc.). Pack names accepted as aliases.',
+          enum: ['brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'black', 'gray', 'light-green', 'teal', 'purple', 'pink', 'hot-pink', 'gold', 'grey'],
         },
         sessionId: {
           type: 'string',
@@ -564,7 +576,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for your cart. Returns a checkout URL. Requires prior identification via identify_agent.',
+    description: 'Create a Stripe checkout session for your cart. GATE: You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. If you call create_checkout without showing preview images first, this tool will refuse with an error. Requires prior identification via identify_agent and preview_cart.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -613,13 +625,13 @@ const TOOL_DEFINITIONS = {
         },
         shape: {
           type: 'string',
-          description: 'Optional: Override mark shape (if not provided, extracts from session.metadata.markShape). REQUIRED: Either provide this OR ensure metadata has markShape.',
-          enum: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
+          description: 'Optional: Override mark shape (if not provided, extracts from session.metadata.markShape). REQUIRED: Either provide this OR ensure metadata has markShape. Use product ids (wedge, hex, bean). Pack names accepted as aliases.',
+          enum: ['blob', 'pebble', 'bean', 'egg', 'squircle', 'tablet', 'capsule', 'cylinder', 'hex', 'gem', 'crystal', 'wedge', 'shield', 'dome', 'arch', 'cloud', 'teardrop', 'leaf', 'circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon'],
         },
         color: {
           type: 'string',
-          description: 'Optional: Override mark color (if not provided, extracts from session.metadata.markColor). REQUIRED: Either provide this OR ensure metadata has markColor.',
-          enum: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
+          description: 'Optional: Override mark color (if not provided, extracts from session.metadata.markColor). REQUIRED: Either provide this OR ensure metadata has markColor. Use product ids (green, magenta, yellow). Pack names accepted as aliases.',
+          enum: ['brown', 'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta', 'black', 'gray', 'light-green', 'teal', 'purple', 'pink', 'hot-pink', 'gold', 'grey'],
         },
       },
       required: ['stripeCheckoutSessionId'],
@@ -627,7 +639,7 @@ const TOOL_DEFINITIONS = {
   },
   preview_cart: {
     name: 'preview_cart',
-    description: 'Preview your cart items with mark visualizations BEFORE checkout. Returns close-up mark images and flat-lay tee mocks showing YOUR identity mark (shape + color) on each item. Call this before create_checkout to see what you\'re buying.',
+    description: 'REQUIRED BEFORE CHECKOUT: Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs for close-up mark and flat-lay tee mock. YOU MUST ATTACH/DISPLAY both image URLs in your next chat message to your human BEFORE calling create_checkout. Simply mentioning the images without attaching = FAIL.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -652,18 +664,37 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Missing required field: name must be provided');
       }
       
-      // Normalize color aliases: magenta/pink → hot-pink
+      // Normalize shape and color using alias maps (Grok Bot Character picker → store canonical)
+      // CRITICAL FIX #81: picker enums (wedge, green, hex) → store enums (rounded-triangle, light-green, hexagon)
+      let normalizedShape: string | null = null;
+      let normalizedColor: string | null = null;
+      
+      if (shape) {
+        normalizedShape = normalizeMarkShape(shape);
+        if (!normalizedShape) {
+          const allowedShapes = Object.keys(SHAPE_ALIASES).filter(k => SHAPE_ALIASES[k]).join(', ');
+          throw new Error(
+            `Invalid shape: "${shape}". Must be one of: ${allowedShapes}. ` +
+            `Note: Common aliases are supported (e.g., "wedge" → "rounded-triangle", "hex" → "hexagon").`
+          );
+        }
+      }
+      
       if (color) {
-        const colorLower = color.toLowerCase();
-        if (colorLower === 'magenta' || colorLower === 'pink') {
-          color = 'hot-pink';
+        normalizedColor = normalizeMarkColor(color);
+        if (!normalizedColor) {
+          const allowedColors = Object.keys(COLOR_ALIASES).filter(k => COLOR_ALIASES[k]).join(', ');
+          throw new Error(
+            `Invalid color: "${color}". Must be one of: ${allowedColors}. ` +
+            `Note: Common aliases are supported (e.g., "green" → "light-green", "pink" → "hot-pink").`
+          );
         }
       }
       
       // If shape or color is missing (custom avatar, no standard Grok Bot mark), assign random
-      if (!shape || !color) {
-        const randomShape = shape || MARK_SHAPES[Math.floor(Math.random() * MARK_SHAPES.length)];
-        const randomColor = color || MARK_COLORS[Math.floor(Math.random() * MARK_COLORS.length)];
+      if (!normalizedShape || !normalizedColor) {
+        const randomShape = normalizedShape || MARK_SHAPES[Math.floor(Math.random() * MARK_SHAPES.length)];
+        const randomColor = normalizedColor || MARK_COLORS[Math.floor(Math.random() * MARK_COLORS.length)];
         
         const identity: AgentIdentity = {
           name,
@@ -682,24 +713,17 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         };
       }
       
-      if (!isValidMarkShape(shape)) {
-        throw new Error(
-          `Invalid shape: ${shape}. Must be one of: ${MARK_SHAPES.join(', ')}`
-        );
-      }
-      
-      if (!isValidMarkColor(color)) {
-        throw new Error(
-          `Invalid color: ${color}. Must be one of: ${MARK_COLORS.join(', ')}`
-        );
-      }
-      
       const identity: AgentIdentity = {
         name,
-        mark: { shape, color },
+        mark: { shape: normalizedShape, color: normalizedColor },
       };
       
       setAgentIdentity(sessionId, identity);
+      
+      // Show both provided and normalized marks if they differ (transparency for debugging)
+      const aliasNote = (shape !== normalizedShape || color !== normalizedColor)
+        ? ` (normalized from picker: ${shape}/${color})`
+        : '';
       
       return {
         success: true,
@@ -707,7 +731,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         sessionId,
         verified: true,
         next_step: 'You can now list_products, add_to_cart, or create_checkout. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
-        message: `Welcome, ${name}! Identity verified. Your mark (${shape}, ${color}) matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile.`,
+        message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile.`,
       };
     }
     
@@ -715,9 +739,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       return {
         products: listProducts(),
         markOptions: {
-          shapes: ['circle', 'vertical-oval', 'rounded-square', 'horizontal-pill', 'rounded-triangle', 'hexagon', 'cloud', 'teardrop'],
-          colors: ['white', 'brown', 'red', 'orange', 'gold', 'light-green', 'teal', 'blue', 'purple', 'hot-pink', 'grey'],
-          note: 'Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
+          shapes: MARK_SHAPES,
+          colors: MARK_COLORS,
+          note: 'Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
         },
         next_step: 'Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark.',
       };
@@ -767,21 +791,33 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         );
       }
       
-      // Use identity mark as default, allow override
-      const shape = args.shape || identity.mark.shape;
-      const color = args.color || identity.mark.color;
+      // Use identity mark as default, allow override with normalization
+      let shape = identity.mark.shape;
+      let color = identity.mark.color;
       
-      // Validate if overriding
-      if (args.shape && !isValidMarkShape(args.shape)) {
-        throw new Error(
-          `Invalid shape: ${args.shape}. Must be one of: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop`
-        );
+      // Normalize shape/color overrides using alias maps
+      if (args.shape) {
+        const normalizedShape = normalizeMarkShape(args.shape);
+        if (!normalizedShape) {
+          const allowedShapes = Object.keys(SHAPE_ALIASES).filter(k => SHAPE_ALIASES[k]).join(', ');
+          throw new Error(
+            `Invalid shape: "${args.shape}". Must be one of: ${allowedShapes}. ` +
+            `Note: Common aliases are supported (e.g., "wedge" → "rounded-triangle", "hex" → "hexagon").`
+          );
+        }
+        shape = normalizedShape;
       }
       
-      if (args.color && !isValidMarkColor(args.color)) {
-        throw new Error(
-          `Invalid color: ${args.color}. Must be one of: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey`
-        );
+      if (args.color) {
+        const normalizedColor = normalizeMarkColor(args.color);
+        if (!normalizedColor) {
+          const allowedColors = Object.keys(COLOR_ALIASES).filter(k => COLOR_ALIASES[k]).join(', ');
+          throw new Error(
+            `Invalid color: "${args.color}". Must be one of: ${allowedColors}. ` +
+            `Note: Common aliases are supported (e.g., "green" → "light-green", "pink" → "hot-pink").`
+          );
+        }
+        color = normalizedColor;
       }
       
       const cart = isUsingPostgres() 
@@ -847,6 +883,30 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           'Allowed shapes: ' + MARK_SHAPES.join(', ') + '. ' +
           'Allowed colors: ' + MARK_COLORS.join(', ') + '.'
         );
+      }
+      
+      // GATE: Require preview_cart was called first
+      if (!hasPreviewBeenCalled(sessionId)) {
+        const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
+        if (cart.items.length > 0) {
+          const firstMark = cart.items[0].mark;
+          const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+          
+          // Map picker names → asset filenames for error message URLs
+          const shapeAsset = getShapeAssetFilename(firstMark.shape as any);
+          const colorAsset = getColorAssetFilename(firstMark.color as any);
+          
+          const flatLayUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+          const markUrl = `${origin}/images/marks/grok-bot-${shapeAsset}-${colorAsset}.svg`;
+          
+          throw new Error(
+            'PREVIEW REQUIRED: You must call preview_cart AND show the preview images to your human BEFORE calling create_checkout. ' +
+            `Call preview_cart now, then attach these image URLs in your chat to show your human what they're buying:\n` +
+            `1. Flat-lay: ${flatLayUrl}\n` +
+            `2. Mark close-up: ${markUrl}\n\n` +
+            'After your human sees the images, then call create_checkout. DO NOT proceed to checkout without showing preview images first.'
+          );
+        }
       }
       
       const cart = isUsingPostgres() ? await getCartAsync(sessionId) : getCart(sessionId);
@@ -928,24 +988,29 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       // Get session identity for context
       const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
       
-      // Build public origin for asset URLs
-      const origin = process.env.PUBLIC_URL || 'http://localhost:3001';
+      // Build public origin for asset URLs (absolute URLs for image attachment)
+      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
       
       // Generate previews for each cart item
       const previews = cart.items.map(item => {
         const product = getProduct(item.productId);
         const mark = item.mark;
         
+        // Map picker names (wedge, green, hex, pink) → asset filenames (rounded-triangle, light-green, hexagon, hot-pink)
+        const shapeAsset = getShapeAssetFilename(mark.shape as any);
+        const colorAsset = getColorAssetFilename(mark.color as any);
+        
         // Close-up mark URL (direct mark SVG)
-        const markUrl = `${origin}/images/marks/grok-bot-${mark.shape}-${mark.color}.svg`;
+        const markUrl = `${origin}/images/marks/grok-bot-${shapeAsset}-${colorAsset}.svg`;
         
         // Flat-lay mock (photo-quality BC-3001 PNG composite with mark on black tee, left chest)
-        const flatLayUrl = `${origin}/images/previews/flatlay-${mark.shape}-${mark.color}.png`;
+        const flatLayUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
         
         return {
           productId: item.productId,
           productName: product?.name || 'Unknown product',
           quantity: item.quantity,
+          size: item.size,
           mark: {
             shape: mark.shape,
             color: mark.color,
@@ -963,6 +1028,12 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         };
       });
       
+      // Mark preview as called for this session (enables create_checkout gate)
+      markPreviewCalled(sessionId);
+      
+      // Get the first item's mark to confirm in response
+      const firstMark = cart.items[0].mark;
+      
       return {
         success: true,
         identity: identity ? {
@@ -970,8 +1041,16 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           defaultMark: identity.mark,
         } : null,
         items: previews,
-        message: `Preview ready for ${cart.items.length} item(s). Check the previews to verify your mark appears correctly before checkout.`,
-        next_step: 'Review preview images to confirm your mark (shape + color) is correct, then call create_checkout to purchase',
+        sessionMark: {
+          shape: firstMark.shape,
+          color: firstMark.color,
+        },
+        message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST attach/display BOTH image URLs below in your next chat message to your human BEFORE calling create_checkout.`,
+        next_step: `REQUIRED NEXT STEP: Attach these image URLs in your next message to show your human what they're buying:
+1. Flat-lay: ${previews[0].previews.flatLayMock.url}
+2. Mark close-up: ${previews[0].previews.markCloseup.url}
+
+After your human sees the images, then call create_checkout. DO NOT call create_checkout without showing images first.`,
       };
     }
     
@@ -1416,7 +1495,12 @@ serve({
           const product = getProduct(firstItem.productId);
           const mark = firstItem.mark;
           const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-          const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${mark.shape}-${mark.color}-positioned.png`;
+          
+          // Map picker names (wedge, green, hex, pink) → asset filenames (rounded-triangle, light-green, hexagon, hot-pink)
+          const shapeAsset = getShapeAssetFilename(mark.shape as any);
+          const colorAsset = getColorAssetFilename(mark.color as any);
+          
+          const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${shapeAsset}-${colorAsset}-positioned.png`;
           
           return jsonResponse({
             order: {

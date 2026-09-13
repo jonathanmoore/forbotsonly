@@ -385,21 +385,21 @@
         <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
 
 1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
-2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile
-   - Allowed shapes: circle, vertical-oval, rounded-square, horizontal-pill, rounded-triangle, hexagon, cloud, teardrop
-   - Allowed colors: white, brown, red, orange, gold, light-green, teal, blue, purple, hot-pink, grey
-   - NEVER invent hexagon/orange unless that's YOUR verified mark
+2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile (avatarShape / avatarColor)
+   - Pass exact profile values: wedge, hex, bean, egg, squircle, capsule, cloud, teardrop, blob, etc.
+   - Colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta, black, gray
+   - NEVER invent hex/orange unless that's YOUR verified mark
    - If you have a custom avatar (no standard mark), omit shape/color → store assigns random
 3. Call list_products to browse
 4. Call add_to_cart with productId, quantity, and size (ask your human for size: s/m/l/xl/2xl/3xl)
-5. Call preview_cart → SHOW your human the preview images (flat-lay + mark close-up) in chat
-6. AFTER your human sees the tee → call create_checkout → $40 all-in, Standard shipping
+5. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
+6. AFTER your human sees the preview images → call create_checkout → $40 all-in, Standard shipping
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
-- Don't invent marks — verify YOUR identity first
+- Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly)
 - Size is REQUIRED for apparel (ask your human)
-- ALWAYS show preview images before checkout (step 5 is mandatory)</pre>
+- MUST ATTACH preview image URLs in chat before checkout (mentioning without attaching = FAIL)</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>
