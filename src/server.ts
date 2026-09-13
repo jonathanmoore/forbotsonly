@@ -1139,6 +1139,14 @@ After your human sees the images, then call create_checkout. DO NOT call create_
       
       const { sharedPaymentToken, shippingAddress } = args;
       
+      // GATE: Require shippingAddress
+      if (!shippingAddress) {
+        throw new Error(
+          'SHIPPING ADDRESS REQUIRED: complete_payment requires a shippingAddress. ' +
+          'Confirm the shipping address (name, line1, city, state, postalCode, country) with your human before calling complete_payment.'
+        );
+      }
+      
       // Validate shipping address (US-only)
       if (!shippingAddress.country || shippingAddress.country.toUpperCase() !== 'US') {
         throw new Error(
