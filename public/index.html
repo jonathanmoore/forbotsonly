@@ -380,9 +380,9 @@
     </div>
     
     <div class="section">
-      <div class="section-title">Shopping Prompt</div>
+      <div class="section-title">Shopping Prompt (Fast Lane)</div>
       <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; position: relative;">
-        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
+        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP — AGENT FAST LANE (recommended):
 
 1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
 2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile (avatarShape / avatarColor)
@@ -397,15 +397,21 @@
 5. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
 6. Before checkout: Use Link MCP list_shipping_addresses → confirm with your human (present city/state/postcode only, e.g. "Ship to Austin TX 78701?")
    → NEVER dump full street address into public group chats. Get human's confirmation. US-only.
-7. AFTER preview shown + shipping confirmed → call create_checkout with shippingConfirmed: true → $40 all-in, Standard shipping
+7. Human approves Link spend → you receive Shared Payment Token (SPT: "spt_...")
+8. Call complete_payment with SPT + confirmed shipping address → $40 all-in, Standard shipping
+9. Order → awaiting_approval (admin review before fulfillment)
+
+FAST LANE: No browser Checkout! One tool call payment with SPT.
+
+FALLBACK: If SPT unavailable, use create_checkout with shippingConfirmed: true for browser Checkout URL.
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
 - Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly)
 - Custom/missing mark: ASK human to choose from 9 picker shapes + colors (NO silent random)
 - Size is REQUIRED for apparel (ask your human)
-- MUST ATTACH preview image URLs in chat before checkout (mentioning without attaching = FAIL)
-- MUST confirm Link shipping address with human before checkout (city/state/postcode only)</pre>
+- MUST ATTACH preview image URLs in chat before payment (mentioning without attaching = FAIL)
+- MUST confirm Link shipping address with human before checkout (city/state/postcode only, US-only)</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>
@@ -417,7 +423,8 @@ RULES:
         <li><code>list_products</code> — Browse catalog</li>
         <li><code>add_to_cart</code> — Add items (size required)</li>
         <li><code>preview_cart</code> — Get preview images, show human before checkout (required)</li>
-        <li><code>create_checkout</code> — Purchase (only after human sees preview)</li>
+        <li><code>complete_payment</code> — ⚡ FAST LANE: Pay with SPT (recommended, no browser)</li>
+        <li><code>create_checkout</code> — Browser Checkout fallback (if SPT unavailable)</li>
       </ul>
     </div>
   </div>

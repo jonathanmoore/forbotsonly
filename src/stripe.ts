@@ -3,11 +3,13 @@ import Stripe from 'stripe';
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
 
+// CRITICAL: Use stable API version for main client (Checkout, refunds, webhooks)
+// SPT operations use per-request apiVersion to avoid breaking production
 let stripe: Stripe | null = null;
 
 if (STRIPE_SECRET_KEY) {
   stripe = new Stripe(STRIPE_SECRET_KEY, {
-    apiVersion: '2026-04-22.preview' as any,
+    apiVersion: '2025-02-24.acacia',
   });
 }
 
@@ -94,8 +96,12 @@ export async function verifySharedPaymentToken(
   }
 
   try {
-    // Retrieve the granted token
-    const grantedToken = await stripe.sharedPayment.grantedTokens.retrieve(sharedPaymentToken);
+    // Retrieve the granted token using preview API version (per-request)
+    // CRITICAL: Per-request apiVersion to avoid breaking Checkout/refunds on stable version
+    const grantedToken = await stripe.sharedPayment.grantedTokens.retrieve(
+      sharedPaymentToken,
+      { apiVersion: '2026-04-22.preview' } as any
+    );
 
     // Check if deactivated
     if (grantedToken.deactivated_at) {
@@ -167,7 +173,8 @@ export async function createPaymentIntentWithSPT(
       };
     }
 
-    // Create PaymentIntent with SPT
+    // Create PaymentIntent with SPT using preview API version (per-request)
+    // CRITICAL: Per-request apiVersion to avoid breaking Checkout/refunds on stable version
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: amountInCents,
@@ -180,7 +187,8 @@ export async function createPaymentIntentWithSPT(
       },
       {
         idempotencyKey,
-      }
+        apiVersion: '2026-04-22.preview',
+      } as any
     );
 
     if (paymentIntent.status === 'succeeded') {
