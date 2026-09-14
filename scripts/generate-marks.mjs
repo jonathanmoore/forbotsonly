@@ -19,7 +19,7 @@ const __dirname = dirname(__filename);
 const VIEWBOX = '-15 -15 259 259';
 
 // Color palette (official xAI Grok Bot avatar hexes: x.ai --color-brand-*-400)
-// FINAL LOCK A for #100 pack fills - contained evenodd knockout eyes, NO Material colors
+// FINAL LOCK for #109 pack fills - true morph-bot eyes, contained evenodd knockout
 const COLORS = {
   white: '#FFFFFF',
   black: '#0A0A0A',         // Official xAI black
