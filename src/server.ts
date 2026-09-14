@@ -751,10 +751,16 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         ? process.env.PUBLIC_URL 
         : 'https://www.forbotsonly.com';
       
-      // If no identity, return null productImageUrl and instruct to identify first
+      // If no identity, return null imageUrls and instruct to identify first
       if (!identity) {
+        // Map products to have null imageUrl (no attachable marketing orange)
+        const unidentifiedProducts = products.map(product => ({
+          ...product,
+          imageUrl: null,
+        }));
+        
         return {
-          products,
+          products: unidentifiedProducts,
           markOptions: {
             shapes: CHARACTER_PICKER_SHAPES,
             colors: MARK_COLORS,
@@ -774,8 +780,14 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       // ZERO 404s: All Character-picker shapes × MARK_COLORS flatlays now exist (including black, generated in #143)
       const productImageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
       
+      // Map ALL products to use session-matched imageUrl (restore #141 behavior)
+      const sessionProducts = products.map(product => ({
+        ...product,
+        imageUrl: productImageUrl,
+      }));
+      
       return {
-        products,
+        products: sessionProducts,
         markOptions: {
           shapes: CHARACTER_PICKER_SHAPES,
           colors: MARK_COLORS,
