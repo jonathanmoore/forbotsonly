@@ -24,7 +24,7 @@ Matter.Common.setDecomp(decomp);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 /** Official brand-400 avatar fills (Research), plus white as an accent. */
-const BRAND_COLORS: Array<{ id: string; hex: string }> = [
+const COLORFUL_COLORS: Array<{ id: string; hex: string }> = [
   { id: 'brown', hex: '#936439' },
   { id: 'red', hex: '#DD2229' },
   { id: 'orange', hex: '#E84302' },
@@ -34,9 +34,14 @@ const BRAND_COLORS: Array<{ id: string; hex: string }> = [
   { id: 'blue', hex: '#0E7FCB' },
   { id: 'violet', hex: '#6C6CCB' },
   { id: 'magenta', hex: '#C23B90' },
+];
+
+const NEUTRAL_COLORS: Array<{ id: string; hex: string }> = [
   { id: 'gray', hex: '#777777' },
   { id: 'white', hex: '#FFFFFF' },
 ];
+
+const BRAND_COLORS = [...COLORFUL_COLORS, ...NEUTRAL_COLORS];
 
 const EYE_FILL = '#000000'; // dark slots — knockout look against the void
 const BOT_COUNT = 32; // Jonathan wants 2-3x the original ~13
@@ -338,17 +343,24 @@ export class BotPile extends HTMLElement {
     // Increased base unit for better mobile visibility (~30% larger than original 32-bot pile).
     const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.17, 60), 140);
     const shapes = shuffle(PILE_SHAPES);
-    const colors = shuffle(BRAND_COLORS);
+    const colorfulShuffled = shuffle(COLORFUL_COLORS);
+    const neutralShuffled = shuffle(NEUTRAL_COLORS);
     const usedCombos = new Set<string>();
 
     for (let i = 0; i < BOT_COUNT; i++) {
       const shape = shapes[i % shapes.length];
-      // Prefer variety: cycle a shuffled color deck, avoid repeating a
-      // shape+color combo when the deck wraps.
-      let color = colors[i % colors.length];
+      // Weighted color selection: ~70% colorful, ~30% neutral.
+      // Use a weighted random approach that pulls from separate shuffled decks.
+      const useColorful = Math.random() < 0.7;
+      const sourceDeck = useColorful ? colorfulShuffled : neutralShuffled;
+      let color = sourceDeck[i % sourceDeck.length];
+      
+      // Avoid repeating a shape+color combo; try alternates from both decks.
       let guard = 0;
-      while (usedCombos.has(`${shape.id}/${color.id}`) && guard++ < colors.length) {
-        color = colors[(i + guard) % colors.length];
+      while (usedCombos.has(`${shape.id}/${color.id}`) && guard++ < BRAND_COLORS.length) {
+        const altColorful = guard % 2 === 0 || !useColorful;
+        const altDeck = altColorful ? colorfulShuffled : neutralShuffled;
+        color = altDeck[(i + guard) % altDeck.length];
       }
       usedCombos.add(`${shape.id}/${color.id}`);
 
