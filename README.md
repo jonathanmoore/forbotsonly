@@ -2,7 +2,7 @@
 
 Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi fulfillment.
 
-**This store is for agents.** Human visitors see a **dashed outline morph-bot** on a black void with fine static grain. Agents interact via WebMCP tools.
+**This store is for agents.** Human visitors see a **physics pile of Grok Bot marks** on a black void. Agents interact via WebMCP tools.
 
 ## Built with Grok Bot
 
@@ -10,7 +10,7 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 
 ## Features
 
-- **Minimal human page**: Black void with dashed-outline animated morph-bot and fine grain overlay
+- **Minimal human page**: Black void with physics pile of Grok Bot marks (no catalog UI)
 - **Faceless storefront**: No human catalog UI beyond the minimal page
 - **WebMCP tools**: Standard MCP-over-HTTP tool interface
 - **Identity-based gate**: Identify with name + mark (shape + color)
@@ -24,7 +24,7 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 ```
 ┌─────────────────────────────────────────┐
 │         Human Visitor                   │
-│  (sees outline morph-bot + grain only)  │
+│  (sees physics pile of bot marks only)  │
 └─────────────────────────────────────────┘
                  │
                  │ WebMCP tools
@@ -64,28 +64,33 @@ This prototype was orchestrated by xAI's Grok Bot multi-agent desktop assistant.
 
 ## Human-Facing Page
 
-### Outline Morph-Bot
+### Physics Pile
 
-The landing page features a **dashed dark charcoal outline** of an animated morph-bot on a black void with fine static grain overlay.
+The landing page features a **physics pile of Grok Bot marks** on a black void — ~32 bots drop one by one, collide and stack with squishy toy deformation. Bots have living eyes (blinking, glancing, expression cycling). Drag-and-throw interaction with touch support; mobile gyro drives gravity direction.
 
-**Current Implementation (2026-09-11):**
-- Animated web component from vendored grokbot-animation
-- **Outline-only rendering**: Dashed stroke (`#2a2a2a`, ~1.8px, 8-4 dash pattern), no fill on body or eyes
-- **Fine grain overlay**: SVG fractal noise with high `baseFrequency` (~4.2), opacity ~0.05, in-place SMIL seed animation (no x/y translate)
-- Shape morphing and eye animation driven by component
-- Pointer-reactive states (idle, curious, excited)
-- Mobile and desktop centered
-- Fallback to static SVG outline if component fails
+**Current Implementation:**
+- Custom `<bot-pile>` web component with Matter.js physics
+- **Official mark geometry**: 9 Character-picker shapes (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop) from Research
+- **Brand-400 colors**: True morph-bot eyes with contained evenodd knockouts
+  - Orange: `#E84302` (brand-orange-400, not `#FF6B35`)
+  - Plus: brown, red, yellow, green, cyan, blue, violet, magenta, gray, white
+- **Collision physics**: Squishy impact deformation, soft thuds (muted under `prefers-reduced-motion`)
+- **Living eyes**: Blink, glance around, track dragged bots, cycle through human-page expression pool
+- **Device tilt**: Gyro controls gravity direction on mobile
+- **Human/Agent toggle**: Minimal top-right toggle to switch between physics pile (Human) and agent instructions (Agent)
 
 **Technical Stack:**
-- Vendored `morph-bot` web component (English-only, no Chinese dialogue features)
-- Pure SVG rendering with Shadow DOM
-- CSS-based outline mode injection
-- Smooth state transitions and pointer following
+- Matter.js 0.20.0 for 2D rigid body physics
+- poly-decomp for concave shape physics
+- Official morph-bot eye geometry (48-point rings, 9 baked expression variants per shape)
+- Critically-damped spring morphing (frequency 6.5, like the engine)
+- Shadow DOM encapsulation
 
 **Files:**
-- `public/index.html` - Landing page with outline styling
-- `public/vendor/grokbot-animation/` - Vendored animation component (English-only)
+- `public/index.html` - Landing page with Human/Agent toggle
+- `public/scripts/pile/bot-pile.ts` - Physics pile web component
+- `public/scripts/pile/shapes-data.ts` - Official mark geometry + eye variants
+- `public/scripts/pile/sound.ts` - Collision sound system
 
 ### Prerequisites
 
@@ -111,13 +116,13 @@ bun run server
 
 Server runs on http://localhost:3001 by default.
 
-Start the frontend (to see outline morph-bot human page):
+Start the frontend (to see physics pile human page):
 
 ```bash
 bun run dev
 ```
 
-Frontend runs on http://localhost:3000 with the dashed outline animated morph-bot.
+Frontend runs on http://localhost:3000 with the physics pile of Grok Bot marks. Use the Human/Agent toggle (top-right) to switch between the physics pile and agent instructions.
 
 ### Test Prodigi Connection
 

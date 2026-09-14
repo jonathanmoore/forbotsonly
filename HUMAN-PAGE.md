@@ -1,53 +1,53 @@
-# Human Page: Outline Morph-Bot (2026-09-11)
+# Human Page: Physics Pile
 
-*Formerly FOIL-STICKER-ANIMATION.md — renamed to reflect current outline-only implementation.*
+*Updated to reflect current physics pile implementation (December 2024+).*
 
-## Current State (2026-09-11 Locked)
+## Current State (Physics Pile)
 
-The human-facing page now features a **dashed dark charcoal outline** of an animated morph-bot on a black void with fine static grain.
+The human-facing page features a **physics pile of Grok Bot marks** on a black void — ~32 bots with living eyes, collision physics, and drag-and-throw interaction.
 
 ### Current Implementation
-- **Vendored Component**: `public/vendor/grokbot-animation/` (English-only, no Chinese dialogue)
-- **Rendering**: Dashed outline only (`#2a2a2a`, ~1.8px, 8-4 dash pattern), **no fill** on body or eyes
-- **Grain Overlay**: Fine SVG fractal noise with `baseFrequency='4.2'`, opacity `0.05`, in-place SMIL seed animation (**no x/y translate**)
-- **Animation**: Shape morphing and eye animation from morph-bot component
-- **States**: Idle cycling (curious, playful, happy), pointer-reactive
-- **Design**: Minimal Abloh-style aesthetic — black void, tiny muted copy, no marketing chrome
+- **Custom Component**: `<bot-pile>` web component with Matter.js physics
+- **Mark Geometry**: Official 9 Character-picker shapes (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop) from Research
+- **Brand Colors**: True morph-bot colors with contained evenodd knockouts
+  - Orange: **`#E84302`** (brand-orange-400 for pack; NOT `#FF6B35`)
+  - Plus: brown, red, yellow, green, cyan, blue, violet, magenta, gray, white
+- **Physics**: Matter.js 2D rigid body simulation with squishy impact deformation
+- **Living Eyes**: Blink, glance around, track dragged bots, cycle through expression pool (critically-damped spring morphing)
+- **Interaction**: Drag-and-throw (pointer + touch), device tilt drives gravity on mobile
+- **Sound**: Soft collision thuds (muted automatically under `prefers-reduced-motion`)
+- **Toggle**: Human/Agent view toggle (top-right) to switch between pile and agent instructions
+- **Design**: Minimal Abloh-style aesthetic — black void, physics pile as primary object, tiny muted copy
 
 ### Technical Details
-```html
-<!-- Outline-only styling injected into shadow DOM -->
-.grok-bot-mark__head,
-.grok-bot-mark__eye,
-.morph-part {
-  fill: none !important;
-  stroke: #2a2a2a !important;
-  stroke-width: 1.8 !important;
-  stroke-dasharray: 8 4 !important;
-  stroke-linecap: round !important;
-}
+```typescript
+// Official brand-400 avatar fills from Research
+const BRAND_COLORS = [
+  { id: 'orange', hex: '#E84302' },  // Correct brand color
+  { id: 'brown', hex: '#936439' },
+  { id: 'red', hex: '#DD2229' },
+  // ... full brand-400 palette
+];
 ```
 
-### Fine Grain Overlay
-```css
-body::before {
-  background-image: url("data:image/svg+xml,...
-    <feTurbulence 
-      type='fractalNoise' 
-      baseFrequency='4.2' 
-      numOctaves='4' 
-      seed='1'>
-      <!-- SMIL seed animation: in-place static fuzz, NO x/y translate -->
-      <animate attributeName='seed' values='1;10;50;...' dur='0.6s' repeatCount='indefinite'/>
-    </feTurbulence>
-  ...");
-  opacity: 0.05;
-}
-```
+### Physics Features
+- **Collision detection**: Matter.js with poly-decomp for concave shapes
+- **Squish deformation**: Up to 38% compression on impact (SQUISH_MAX = 0.38)
+- **Spawn cadence**: ~32 bots drop over ~8 seconds (0.18-0.32s intervals)
+- **Device tilt**: iOS/Android gyro controls gravity direction (remapped for screen orientation)
+- **Sleeping bodies**: Physics engine sleeps inactive bots for performance
+- **Eye tracking**: All bots' eyes watch the dragged bot until it settles
 
-**Mobile Centered**: Sticker container uses flexbox centering with safe-area insets for mobile viewports.
+### Eye System
+The pile bots use the same official morph-bot eye geometry as the engine:
+- **48-point rings**: Baked eye paths centered on (0,0)
+- **9 expression variants** per shape from the human-page pool
+- **Critically-damped spring** morphing (frequency 6.5, like the engine)
+- **Expression cycling**: Each bot morphs to a new expression every 2.6-5.6s
+- **Glance system**: Eyes look around with ±13 units horizontal, ±8.5 units vertical range
+- **Blink cadence**: 2.2-6.5s intervals, 240ms close+open animation
 
-**Print/Cart Separation**: The human page uses outline-only rendering. Print marks and cart items still use **colored SVG knockouts** from the mark pack (separate system).
+**Print/Cart Separation**: The human page uses physics pile with colored SVG marks. Print marks and cart items use the same **colored SVG knockouts** from the mark pack.
 
 ---
 

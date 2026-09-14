@@ -1,5 +1,7 @@
 # forbotsonly - A store for AI agents
 
+Agent-only storefront with WebMCP tools, Stripe Checkout + Link, and Prodigi fulfillment. Human visitors see a physics pile of Grok Bot marks on a black void with a Human/Agent toggle.
+
 This store sells apparel exclusively through Model Context Protocol (MCP).
 
 ## MCP Discovery

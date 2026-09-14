@@ -6,7 +6,7 @@
 
 ## What forbotsonly Is
 
-**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a dashed dark charcoal outline of an animated morph-bot on a black void with fine static grain. Agents shop via WebMCP tools.
+**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a physics pile of Grok Bot marks on a black void with a Human/Agent toggle. Agents shop via WebMCP tools.
 
 ### Product
 - **One SKU**: Black tee (Prodigi `GLOBAL-TEE-BC-3001`, Bella+Canvas-class)
@@ -96,7 +96,7 @@ graph TD
 **What they did**:
 - Verified human page rendering against product spec on every PR
 - **Initial foil era** (historical): Verified dragon foil shader iterations through PRs #25, #28, #33 — silver metallic foil with official overflow-eyes Grok Bot face visible under shimmer
-- **Current outline era** (2026-09-11): PASS only if dashed dark charcoal outline (#2a2a2a, ~1.8px, 8-4 dash) with no fill on body/eyes, fine grain overlay (baseFrequency ~4.2, opacity ~0.05, in-place SMIL animation)
+- **Current physics pile**: PASS only if physics pile shows official mark geometry with brand-400 colors (orange `#E84302`), living eyes (blink/glance/expression), collision physics, and Human/Agent toggle
 - Filed GitHub issues labeled `qa` with screenshots on FAIL
 - Verified sticker centering, state transitions, pointer following
 - Confirmed Railway auto-deploys matched built assets
@@ -178,9 +178,15 @@ graph TD
 - Mark choices carried through cart → checkout → order
 - `assets/marks/pocket-grok-bot-{shape}-{color}.svg` added
 
-### Phase 2: Human Page Evolution (Historical → Current)
+### Phase 2: Human Page Evolution
 
-#### Phase 2a: Dragon Foil Era (Historical)
+**Current State**: The human page features a **physics pile of Grok Bot marks** — ~32 bots with collision physics, living eyes (blink, glance, expression morphing), drag-and-throw interaction, and mobile gyro-driven gravity. Uses official mark geometry from Research with brand-400 colors (orange `#E84302`, not `#FF6B35`). The Human/Agent toggle (top-right) switches between the physics pile and agent instructions.
+
+#### Historical Iterations (For Reference)
+
+The human page went through multiple design iterations before arriving at the current physics pile:
+
+##### Phase 2a: Dragon Foil Era (Historical)
 - **Human-facing page**: Full black page with Three.js holographic dragon foil sticker of Grok Bot mark
 - **QA bar**: Official overflow-eyes Grok Bot face must be clearly visible under silver metallic foil + pointer/tilt shimmer
 - **Foil iteration loop** (Issues #14, #15, #23):
@@ -260,7 +266,8 @@ graph TD
 
 ### Phase 8: Ready for Production (Current State)
 - **Proven live end-to-end with manual approval**: Shopping bot → Stripe Link → Jonathan review → Prodigi fulfillment → shipped tees
-- **Human page**: Dashed outline morph-bot with fine grain overlay (locked 2026-09-11)
+- **Human page**: Physics pile of Grok Bot marks with living eyes, collision physics, and Human/Agent toggle
+- **Mark colors**: Official brand-400 palette with orange `#E84302` (not `#FF6B35`)
 - **Agent flow**: Documented in `TOOL_EXAMPLES.md`, `docs/mcp.md`
 - **Admin review**: Documented in `docs/ADMIN-REVIEW.md`
 - **Security locks in place**:
@@ -329,9 +336,12 @@ The code is functional production software. The Git history, issues, and PRs are
 ```
 forbotsonly/
 ├── public/
-│   ├── index.html                        # Outline morph-bot human page (2026-09-11)
-│   ├── vendor/grokbot-animation/         # Vendored animation component (English-only)
-│   └── scripts/                          # (legacy foil shaders if present, unused)
+│   ├── index.html                        # Physics pile human page with Human/Agent toggle
+│   ├── scripts/pile/                     # Physics pile implementation
+│   │   ├── bot-pile.ts                   # Main pile web component
+│   │   ├── shapes-data.ts                # Official mark geometry
+│   │   └── sound.ts                      # Collision sound system
+│   └── vendor/grokbot-animation/         # (Vendored, not currently used)
 ├── src/
 │   ├── server.ts                         # WebMCP + webhook handler
 │   ├── store.ts                          # Durable file-backed state
@@ -355,7 +365,7 @@ forbotsonly/
 - **Human page evolution**:
   - Foil era (historical): Issues #14, #15, #22 (centering), #23 (peach→silver); PRs #25, #28, #33
   - Opal glass era (historical): PR #55 (animated foil with rainbow-glass/opal)
-  - Outline era (current): 2026-09-11 locked — dashed outline + fine grain
+  - Physics pile (current): ~32 bots with collision physics, living eyes, Human/Agent toggle
 - **Prodigi fixes**: PRs #31 (address mapping + sizing), #32 (retry paid orders), #34 (API path casing)
 - **MCP session**: PR #16 area (sessionId argument support for connectors)
 - **Recovery**: PR for durable storage + `recover_paid_checkout` tool
