@@ -574,7 +574,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'PRIMARY AGENT CHECKOUT: Create a Stripe Checkout session with Link payment (card or Link Pay Token). GATES: (1) You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses BEFORE calling this tool - present city/postcode for confirmation (never dump full street into public chats). US-only applies. If you call create_checkout without showing preview images first OR without confirming shipping, this tool will refuse with an error. Requires prior identification via identify_agent, preview_cart, and shipping confirmation. Returns Checkout URL where Link can approve payment with virtual card or LPT.',
+    description: 'Create a Stripe checkout session for your cart. Use Link virtual card (credit/debit) for payment. GATES: (1) You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses BEFORE calling this tool - present city/postcode for confirmation (never dump full street into public chats). US-only applies. If you call create_checkout without showing preview images first OR without confirming shipping, this tool will refuse with an error. Requires prior identification via identify_agent, preview_cart, and shipping confirmation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -653,59 +653,9 @@ const TOOL_DEFINITIONS = {
       },
     },
   },
-  complete_payment: {
-    name: 'complete_payment',
-    description: 'OPTIONAL/EXPERIMENTAL: Complete payment with Shared Payment Token (SPT) from Link - advanced path for agents with SPT access. Most agents should use create_checkout instead. REQUIREMENTS: (1) preview_cart called + images shown to human, (2) shipping address confirmed with human (city/ZIP), (3) Link spend approved → SPT obtained. Creates order → awaiting_approval (human review hold before Prodigi). PRIMARY PATH: Use create_checkout for hosted Checkout with Link card/LPT.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        sharedPaymentToken: {
-          type: 'string',
-          description: 'Shared Payment Token (SPT) from Link approval (starts with "spt_"). Agent obtains this after human approves Link spend request.',
-        },
-        shippingAddress: {
-          type: 'object',
-          description: 'Confirmed US shipping address. MUST be confirmed with human (city/ZIP minimum). Never invent or use placeholders.',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'Recipient full name',
-            },
-            line1: {
-              type: 'string',
-              description: 'Address line 1 (street address)',
-            },
-            line2: {
-              type: 'string',
-              description: 'Address line 2 (apt, suite, etc.) - optional',
-            },
-            city: {
-              type: 'string',
-              description: 'City',
-            },
-            state: {
-              type: 'string',
-              description: 'State (2-letter code, e.g., "CA")',
-            },
-            postalCode: {
-              type: 'string',
-              description: 'ZIP code',
-            },
-            country: {
-              type: 'string',
-              description: 'Country code - MUST be "US" (US-only)',
-            },
-          },
-          required: ['name', 'line1', 'city', 'state', 'postalCode', 'country'],
-        },
-        sessionId: {
-          type: 'string',
-          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
-        },
-      },
-      required: ['sharedPaymentToken', 'shippingAddress'],
-    },
-  },
+  // complete_payment: INTERNAL ONLY - hidden from agent-facing tool list
+  // Implementation kept for potential future use, but not advertised to agents
+  // Agents should use create_checkout → Link virtual card flow instead
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {

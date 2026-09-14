@@ -544,53 +544,31 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 
 ## Payment Flow
 
-### Primary Path: Checkout + Link Card/LPT
-
-**Recommended for most agent buyers:**
+### Agent Checkout with Link Virtual Card
 
 1. Agent calls `identify_agent` with name + shape + color (e.g., "Grok Bot", "hexagon", "orange")
 2. Agent calls `list_products` to browse (includes mark options)
 3. Agent calls `add_to_cart` (uses identity mark by default, can override)
 4. Agent calls `preview_cart` and **shows images to human**
-5. Agent confirms shipping address with human (city/ZIP minimum, US-only)
-6. Agent calls `create_checkout` (shippingConfirmed: true) → get Checkout URL
-7. Link approves with virtual card or Link Pay Token (LPT) if Checkout supports agent steering
+5. Agent confirms shipping address with human using Link MCP `list_shipping_addresses` (city/ZIP minimum, US-only)
+6. Agent calls `create_checkout` with `shippingConfirmed: true` to get payment URL
+7. Human completes payment via browser Checkout with Link virtual card (credit/debit)
 8. Order created → `awaiting_approval` (manual review before Prodigi)
 
-**Uses hosted Stripe Checkout with Link payment integration.**
+### Stripe Checkout + Link
 
-### Optional: Shared Payment Token (Experimental)
-
-**Advanced path for agents with SPT access:**
-
-If you have a Shared Payment Token (SPT) from Link, you can use `complete_payment` with SPT + confirmed shipping address for a single-tool-call payment flow. This is experimental and optional. Most agents should use the primary Checkout + Link card path above.
-
-**Note:** SPT requires Stripe Agentic Commerce features enabled on your account.
-
-### 1. Agent Interaction
-
-1. Agent calls `identify_agent` with name + shape + color (e.g., "Grok Bot", "hexagon", "orange")
-2. Agent calls `list_products` to browse (includes mark options)
-3. Agent calls `add_to_cart` (uses identity mark by default, can override)
-4. Agent calls `preview_cart` and **shows images to human**
-5. Agent calls `create_checkout` to get payment URL (primary path) OR `complete_payment` with SPT (optional)
-
-### 2. Stripe Checkout + Link
-
-- Customer completes payment via Stripe Checkout (primary path) or SPT (optional)
-- Link integration allows saved payment methods (card or LPT)
+- Customer completes payment via Stripe Checkout
+- Link integration allows saved payment methods
 - Checkout session includes order metadata
 
-### 3. Webhook Processing
+### Webhook Processing
 
-Server receives `checkout.session.completed` webhook at `/webhook/stripe` (Checkout path - SPT path uses direct PaymentIntent):
+Server receives `checkout.session.completed` webhook at `/webhook/stripe`:
 
 1. Retrieves order by ID from session metadata
 2. Updates order status to `awaiting_approval`
 3. Stores shipping address and customer contact
 4. Does NOT create Prodigi order (waits for manual approval - #78 hold gate)
-
-**For SPT path:** Payment is confirmed immediately via PaymentIntent, no webhook needed.
 
 **Signature Verification:**
 - If `STRIPE_WEBHOOK_SECRET` is configured, webhook signature is verified using Stripe SDK
@@ -619,8 +597,6 @@ Prodigi order includes:
 | `PRODIGI_API_KEY` | Prodigi API key (sandbox or live) | `your_sandbox_key` |
 | `STRIPE_SECRET_KEY` | Stripe secret key (or leave empty for stub mode) | `sk_test_...` |
 | `STRIPE_PRICE_ID` | Stripe Price ID for the tee | `price_...` |
-
-**Note:** The server uses Stripe API version `2026-04-22.preview` for Link integration. For optional Shared Payment Token (SPT) support, ensure your Stripe account has access to the Agentic Commerce features.
 
 ### Optional
 
