@@ -124,27 +124,32 @@ export const MARK_COLORS = [
  * Asset filename mapping: Product id → pack filename (for existing assets on disk)
  * Source: Research canonical table SHAPE-COLOR-IDS.md
  * Example: wedge (product) → rounded-triangle (pack file: grok-bot-rounded-triangle-*.png)
+ * 
+ * FIX #130: Catalog-only shapes (pebble, tablet, cylinder, gem, crystal, shield, dome, arch, leaf)
+ * are aliased to nearest existing pack shapes to ensure preview_cart returns 200 URLs.
+ * Pack has assets for: blob, circle, vertical-oval, rounded-square, horizontal-pill, 
+ * rounded-triangle, hexagon, cloud, teardrop
  */
 export const SHAPE_TO_ASSET_FILENAME: Record<string, string> = {
   // Product id → pack filename
   'blob': 'blob',
-  'pebble': 'pebble',                    // catalog-only (may lack pack assets)
+  'pebble': 'blob',                      // catalog-only → alias to blob (rounded, organic)
   'bean': 'vertical-oval',               // bean → vertical-oval.svg
   'egg': 'circle',                       // egg → circle.svg
   'squircle': 'rounded-square',          // squircle → rounded-square.svg
-  'tablet': 'tablet',                    // catalog-only (may lack pack assets)
+  'tablet': 'rounded-square',            // catalog-only → alias to rounded-square (rectangular)
   'capsule': 'horizontal-pill',          // capsule → horizontal-pill.svg
-  'cylinder': 'cylinder',                // catalog-only (may lack pack assets)
+  'cylinder': 'horizontal-pill',         // catalog-only → alias to horizontal-pill (elongated)
   'hex': 'hexagon',                      // hex → hexagon.svg
-  'gem': 'gem',                          // catalog-only (may lack pack assets)
-  'crystal': 'crystal',                  // catalog-only (may lack pack assets)
+  'gem': 'hexagon',                      // catalog-only → alias to hexagon (faceted, geometric)
+  'crystal': 'hexagon',                  // catalog-only → alias to hexagon (faceted, geometric)
   'wedge': 'rounded-triangle',           // wedge → rounded-triangle.svg (Shoppy #81)
-  'shield': 'shield',                    // catalog-only (may lack pack assets)
-  'dome': 'dome',                        // catalog-only (may lack pack assets)
-  'arch': 'arch',                        // catalog-only (may lack pack assets)
+  'shield': 'rounded-triangle',          // catalog-only → alias to rounded-triangle (pointed top)
+  'dome': 'circle',                      // catalog-only → alias to circle (rounded dome)
+  'arch': 'rounded-square',              // catalog-only → alias to rounded-square (architectural)
   'cloud': 'cloud',
   'teardrop': 'teardrop',
-  'leaf': 'leaf',                        // catalog-only (may lack pack assets)
+  'leaf': 'teardrop',                    // catalog-only → alias to teardrop (pointed, organic)
 };
 
 export const COLOR_TO_ASSET_FILENAME: Record<string, string> = {
