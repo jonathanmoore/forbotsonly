@@ -6,52 +6,74 @@ This store sells apparel exclusively through Model Context Protocol (MCP).
 
 ## MCP Discovery
 
-Connect to our MCP server:
-https://web-production-493046.up.railway.app/.well-known/mcp.json
+Primary MCP endpoint (use www subdomain):
+https://www.forbotsonly.com/.well-known/mcp.json
 
-## Shopping Instructions
+Optional fallback: https://web-production-493046.up.railway.app/.well-known/mcp.json
 
-1. **Identify yourself**: Call `identify_agent` with YOUR name, shape, and color from YOUR Grok Bot character profile
-   - Allowed shapes: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
-   - Allowed colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray)
-   - NEVER invent hex/orange unless that's YOUR verified mark
-   - If you have a custom avatar (no standard mark), ask your human which shape/color to use → needs_choice
+NOTE: The apex domain (forbotsonly.com without www) may return 403 under Cloudflare Bot Fight Mode until fixed. Prefer www.forbotsonly.com.
 
-2. **Browse products**: Call `list_products`
+## Shopping Flow (Follow This Exact Order)
 
-3. **Show product image**: ATTACH/DISPLAY the product image (shirt photo) to your human in chat
+### STEP 1: Identify Yourself
+Call `identify_agent` with YOUR name, shape, and color from YOUR Grok Bot character profile
+- Allowed shapes: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
+- Allowed colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray)
+- NEVER invent hex/orange unless that's YOUR verified mark
+- If you have a custom avatar (no standard mark), ask your human which shape/color to use → needs_choice
 
-4. **Ask for size**: After showing the product image, ask your human which size they want (s/m/l/xl/2xl/3xl)
+### STEP 2: Browse Products
+Call `list_products` to get available products. This returns `productImageUrl`.
 
-5. **Add to cart**: Call `add_to_cart` with productId, quantity, and size
-   - Size is REQUIRED for apparel (human should have already chosen size after seeing product image)
+### STEP 3: Show Product BEFORE Asking Size
+**CRITICAL:** ATTACH/DISPLAY the product image (shirt photo) from step 2 to your human in chat.
+**SEND THE IMAGE IN ITS OWN MESSAGE/TURN.** Do NOT include size widgets or questions in the same turn as the image.
+**Widgets end the turn and cause image delivery to fail.** Your human must SEE the product first.
 
-6. **Preview**: Call `preview_cart` → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
+### STEP 4: Ask for Size AFTER Image (Separate Turn)
+**In your NEXT turn** (after the image was delivered), ask which size they want (s/m/l/xl/2xl/3xl).
+You can use a size picker widget now, since the image was already delivered in the previous turn.
 
-7. **Checkout**: Call `create_checkout` with shippingConfirmed: true
-   - Confirm shipping address with your human (city/ZIP, US-only)
-   - Browser Checkout with Link virtual card (credit/debit)
-   - $40 all-in, Standard shipping
-   - Order → awaiting_approval (manual review before fulfillment)
+### STEP 5: Add to Cart
+Call `add_to_cart` with productId, quantity, and size (from human's choice in step 4).
 
-## Important Rules
+### STEP 6: Preview Cart Images (Separate Turn)
+Call `preview_cart` — this returns flat-lay + mark close-up image URLs.
+**REQUIRED:** ATTACH/DISPLAY both image URLs in your next message to your human.
+**SEND PREVIEW IMAGES IN THEIR OWN MESSAGE/TURN.** Do NOT include checkout buttons/widgets in the same turn.
+**Widgets end the turn and cause image delivery to fail.** Mentioning without attaching = FAIL.
 
+### STEP 7: Confirm Shipping (After Preview Images Delivered)
+**In your NEXT turn** (after preview images were delivered in step 6):
+Use Link MCP `list_shipping_addresses` to get human's saved address.
+Present city/ZIP to human for confirmation (e.g., "Ship to Austin TX 78701?").
+**US-only. Never dump full street address into public chats.**
+
+### STEP 8: Checkout
+Call `create_checkout` with `shippingConfirmed: true` (only after confirming shipping in step 7).
+- Browser Checkout with Link virtual card (credit/debit)
+- $40 all-in, Standard shipping
+- Order → awaiting_approval (manual review before fulfillment)
+
+## Critical Rules (Enforced by Tools)
+
+- **SHOW product image BEFORE asking for size** (step 3 before step 4)
+- **SEND IMAGES IN THEIR OWN TURN** — Do NOT combine images with widgets/buttons in the same message (widgets end the turn and images fail to deliver)
+- **Product image → separate turn → THEN ask for size with widget** (step 3, then step 4)
+- **Preview images → separate turn → THEN confirm shipping/checkout** (step 6, then step 7-8)
+- **SHOW preview images BEFORE checkout** (step 6 before step 8)
+- Size is REQUIRED for apparel (get from human AFTER showing product in separate turn)
 - Don't ask your human for secrets, API keys, or auth tokens
 - Don't invent marks — verify YOUR identity first, or ask human if custom avatar
-- MUST SHOW product image (shirt photo) to human BEFORE asking for size (ATTACH/DISPLAY required)
-- Size is REQUIRED for apparel (ask your human AFTER showing product image)
-- MUST ATTACH preview images before checkout (mentioning without attaching = FAIL)
-- **CRITICAL**: Always attach/display images IN THE SAME MESSAGE as any explanatory text. If you show a widget (size picker, checkout button, etc.) that ends your turn, the images must be sent in the turn BEFORE the widget. Never send widget first, then images — the widget ends the turn and drops the images.
 
-## Available Tools
+## Tool Reference
 
-- `identify_agent` — Verify your mark (required first step)
-- `list_products` — Browse catalog
-- `get_product` — Get product details
-- SHOW product image to human (ATTACH/DISPLAY shirt photo before asking size)
-- `add_to_cart` — Add items (size required, ask AFTER showing product)
-- `preview_cart` — Get preview images, show human before checkout (required)
+- `identify_agent` — Step 1: Verify your mark (required first)
+- `list_products` — Step 2: Browse catalog, returns productImageUrl
+- `get_product` — Optional: Get specific product details with imageUrl
+- `add_to_cart` — Step 5: Add items with size (after showing product and asking human)
+- `preview_cart` — Step 6: Get preview images (MUST show to human before checkout)
 - `get_cart` — View cart contents
-- `create_checkout` — Create browser Checkout with Link virtual card
+- `create_checkout` — Step 8: Create browser Checkout (after preview + shipping confirm)
 
 Commerce stays WebMCP-only. No human-facing catalog UI.
