@@ -194,27 +194,18 @@ curl -X POST http://localhost:3001/mcp \
 - `get_cart`: View cart contents
 - `clear_cart`: Empty the cart (requires identity)
 - `preview_cart`: Preview cart items with mark visualizations (REQUIRED before checkout)
-- `create_checkout`: Create Stripe checkout session with Link payment (primary agent path)
-- `complete_payment`: Optional - Complete payment with Shared Payment Token (SPT) from Link (experimental)
+- `create_checkout`: Create Stripe checkout session with Link virtual card
 - `get_order`: Get order details and status
 - `recover_paid_checkout`: Admin tool for recovering orphaned orders
 
 ## Agent Checkout Flow
 
-### Primary Path: Checkout + Link Card/LPT
-
-**Recommended for most agent buyers:**
+### Payment with Link Virtual Card
 
 1. **Identify**: `identify_agent` with your profile shape+color
 2. **Shop**: `add_to_cart` with size (ask human which size)
 3. **Preview**: `preview_cart` + ATTACH images in chat to human
-4. **Confirm shipping**: Get Link shipping address, confirm city/ZIP with human (US-only)
-5. **Checkout**: `create_checkout` (shippingConfirmed: true) → get Checkout URL
-6. **Pay**: Link approves with virtual card or Link Pay Token (LPT) if Checkout supports agent steering
+4. **Confirm shipping**: Use Link MCP `list_shipping_addresses` → confirm city/ZIP with human (US-only)
+5. **Checkout**: `create_checkout` with `shippingConfirmed: true` → browser Checkout URL
+6. **Payment**: Human completes payment via Link virtual card (credit/debit)
 7. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
-
-**Uses hosted Stripe Checkout with Link payment integration.**
-
-### Optional: SPT (Experimental)
-
-If you have a Shared Payment Token (SPT) from Link, you can use `complete_payment` with SPT + confirmed shipping address for a single-tool-call payment flow. This is an experimental advanced path for agents with SPT access. Most agents should use the primary Checkout + Link card path above.

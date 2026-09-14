@@ -19,20 +19,7 @@ export function isStripeConfigured(): boolean {
 
 /**
  * Create a Stripe Checkout session with Link payment integration.
- * 
- * AGENT PAYMENT PATHS:
- * 1. Link Pay Token (LPT) - Preferred if Checkout exposes AI-agent steering block
- *    - Agents detect by checking for input[name="link_pay_token"] in Checkout iframe
- *    - If present, use Link CLI to create LPT-bound spend request
- *    - More reliable than virtual card form fill
- * 
- * 2. Virtual Card - Fallback if LPT markers not present
- *    - Agent requests virtual card via Link CLI
- *    - Fills Checkout form with card number
- * 
- * NOTE: LPT availability controlled by Stripe backend flags (checkout_link_pay_token_enabled).
- * No session creation parameter currently documented to explicitly enable it.
- * Agents should inspect the Checkout page to detect LPT support before choosing payment path.
+ * Omits payment_method_types to enable Stripe Dashboard dynamic payment methods + Link.
  */
 export async function createCheckoutSession(
   priceId: string,
@@ -46,7 +33,6 @@ export async function createCheckoutSession(
   }
 
   const session = await stripe.checkout.sessions.create({
-    // Omit payment_method_types to enable Stripe Dashboard dynamic payment methods + Link
     line_items: [
       {
         price: priceId,
@@ -60,8 +46,6 @@ export async function createCheckoutSession(
     shipping_address_collection: {
       allowed_countries: ['US'], // HARD RULE: US orders only
     },
-    // TODO: Investigate enabling AI-agent steering block for LPT support
-    // May require Stripe account flag or additional session parameters
   });
 
   return {
