@@ -1,11 +1,15 @@
 /**
  * <bot-pile> — playful physics pile of Grok Bot marks.
  *
- * A dozen-plus bots (official mark geometry, brand-400 colors) drop one by
+ * Thirty-odd bots (official mark geometry, brand-400 colors) drop one by
  * one from the top, collide and stack with a squishy-toy deformation on
  * impact. Bots can be dragged and thrown (pointer + touch), device tilt
- * drives gravity on mobile, and eyes blink/glance idly — except while a bot
- * is being dragged, when every other bot's eyes track it.
+ * drives gravity on mobile. Eyes are alive like the outline morph-bot's:
+ * each bot blinks, glances around, and cycles through the human-page
+ * expression pool (idle/curious/playful/happy — EXPRESSIONS indices
+ * [0, 8, 3, 21, 15, 2, 17, 11, 19]) with the same critically-damped
+ * lerpRing morph the engine uses. While a bot is being dragged, every
+ * other bot's eyes track it until it settles.
  *
  * Visual reference: the Grok Bot Austin Texas sidewalk sign.
  */
@@ -35,8 +39,24 @@ const BRAND_COLORS: Array<{ id: string; hex: string }> = [
 ];
 
 const EYE_FILL = '#000000'; // dark slots — knockout look against the void
-const BOT_COUNT = 13;
-const GLANCE_MAX = 7; // mark units the eye slots may travel when glancing
+const BOT_COUNT = 32; // Jonathan wants 2-3x the original ~13
+// Eye glance range in mark units. The morph-bot's gaze aim reaches x ±15 /
+// y ±9 in the same coordinate space (state-behavior updateAim); we stay a
+// touch under so span-clamped edge eyes keep some margin, and clip eyes to
+// the body outline so nothing pokes out at the extremes.
+const GLANCE_X = 13;
+const GLANCE_Y = 8.5;
+// Expression morph spring — mirrors the engine's
+// stepSpring(expressionSpring, frequency 6-8, damping 1, dt).
+const EXPR_FREQ = 6.5;
+
+/** One baked eye ring, parsed for morphing: 48 points centered on (0,0). */
+interface ParsedEye {
+  cx: number;
+  cy: number;
+  /** flat [x0, y0, x1, y1, ...] */
+  pts: number[];
+}
 const SQUISH_MAX = 0.38; // increased for visibly squishy impacts (was 0.22)
 const SQUISH_STIFFNESS = 210;
 const SQUISH_DAMPING = 13;
@@ -45,8 +65,7 @@ interface Bot {
   body: Matter.Body;
   el: SVGGElement;
   eyeEls: SVGGElement[];
-  /** this bot's baked eye pair (one expression from the morph-bot pool) */
-  eyes: PileEye[];
+  eyePathEls: SVGPathElement[];
   shape: PileShape;
   scale: number;
   com: { x: number; y: number };
@@ -56,7 +75,16 @@ interface Bot {
   squish: number;
   squishVel: number;
   squishAngle: number;
-  // eyes
+  // eyes: expression morph (like the morph-bot's expressionFrom/To/Spring)
+  variant: number;
+  eyesFrom: ParsedEye[];
+  eyesTo: ParsedEye[];
+  exprT: number;
+  exprV: number;
+  /** false while a morph is animating (render keeps rewriting eye paths) */
+  exprSettled: boolean;
+  nextExprAt: number;
+  // eyes: glance + blink
   glance: { x: number; y: number };
   glanceTarget: { x: number; y: number };
   nextGlanceAt: number;
@@ -77,6 +105,37 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
+/** Parse a baked "Mx yLx y...Z" eye ring into points for morphing. */
+function parseEye(eye: PileEye): ParsedEye {
+  return {
+    cx: eye.cx,
+    cy: eye.cy,
+    pts: eye.path
+      .slice(1, -1)
+      .split('L')
+      .flatMap((pair) => pair.split(' ').map(Number)),
+  };
+}
+
+/** Blend two parsed eyes — same as the engine's lerpRing, plus centers. */
+function lerpEye(from: ParsedEye, to: ParsedEye, t: number): ParsedEye {
+  return {
+    cx: from.cx + (to.cx - from.cx) * t,
+    cy: from.cy + (to.cy - from.cy) * t,
+    pts: from.pts.map((v, i) => v + (to.pts[i] - v) * t),
+  };
+}
+
+function eyePathD(pts: number[], t: number, to: number[]): string {
+  let d = '';
+  for (let i = 0; i < pts.length; i += 2) {
+    const x = pts[i] + (to[i] - pts[i]) * t;
+    const y = pts[i + 1] + (to[i + 1] - pts[i + 1]) * t;
+    d += `${i === 0 ? 'M' : 'L'}${x.toFixed(2)} ${y.toFixed(2)}`;
+  }
+  return `${d}Z`;
+}
+
 export class BotPile extends HTMLElement {
   private svg!: SVGSVGElement;
   private measureSvg!: SVGSVGElement;
@@ -87,6 +146,9 @@ export class BotPile extends HTMLElement {
   private walls: Matter.Body[] = [];
   private sound = new PileSound();
   private sampleCache = new Map<string, Array<{ x: number; y: number }>>();
+  private variantCache = new Map<string, ParsedEye[][]>();
+  private clipIds = new Map<string, string>();
+  private defs!: SVGDefsElement;
 
   private rafId = 0;
   private lastTime = 0;
@@ -194,6 +256,8 @@ export class BotPile extends HTMLElement {
     this.svg = document.createElementNS(SVG_NS, 'svg');
     this.svg.setAttribute('class', 'stage');
     this.svg.setAttribute('aria-hidden', 'true');
+    this.defs = document.createElementNS(SVG_NS, 'defs');
+    this.svg.appendChild(this.defs);
     shadow.appendChild(this.svg);
     this.syncViewport();
 
@@ -271,7 +335,9 @@ export class BotPile extends HTMLElement {
   // ------------------------------------------------------------------ spawns
 
   private planSpawns(): void {
-    const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.17, 60), 150);
+    // Smaller base unit than the 13-bot pile so ~32 bots still leave room
+    // to play (and keep the matter-js body count phone-friendly).
+    const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.135, 48), 112);
     const shapes = shuffle(PILE_SHAPES);
     const colors = shuffle(BRAND_COLORS);
     const usedCombos = new Set<string>();
@@ -288,7 +354,7 @@ export class BotPile extends HTMLElement {
       usedCombos.add(`${shape.id}/${color.id}`);
 
       // Stratified sizes → guaranteed spread from small to big.
-      const f = 0.62 + 0.68 * ((i + Math.random()) / BOT_COUNT);
+      const f = 0.55 + 0.75 * ((i + Math.random()) / BOT_COUNT);
       this.spawnQueue.push({ shape, hex: color.hex, size: unit * f });
     }
     this.spawnQueue = shuffle(this.spawnQueue);
@@ -302,7 +368,8 @@ export class BotPile extends HTMLElement {
     const x = rand(this.viewW * 0.18 + r, this.viewW * 0.82 - r);
     const y = this.reducedMotion ? rand(this.viewH * 0.3, this.viewH * 0.7) : -r * 2;
     this.addBot(item.shape, item.hex, item.size, x, y);
-    this.spawnTimer = this.reducedMotion ? 0 : rand(0.55, 0.85);
+    // Faster cadence than the 13-bot pile so ~32 bots land in ~8s.
+    this.spawnTimer = this.reducedMotion ? 0 : rand(0.18, 0.32);
   }
 
   private samplePathPoints(shape: PileShape): Array<{ x: number; y: number }> {
@@ -356,12 +423,21 @@ export class BotPile extends HTMLElement {
     bodyPath.setAttribute('fill', hex);
     el.appendChild(bodyPath);
 
-    // True morph-bot eyes: each bot picks one expression from the baked
-    // human-page pool (neutral quotes, circles, pills, ...). Paths are
+    // True morph-bot eyes: each bot starts on a random expression from the
+    // baked human-page pool (neutral quotes, circles, pills, ...) and keeps
+    // cycling through the rest over time (see updateEyes). Paths are
     // centered on (0,0) so glance translates and blink scales around each
     // eye's own center (like the morph-bot's translate/scale/translate).
-    const eyes = shape.eyeVariants[Math.floor(Math.random() * shape.eyeVariants.length)];
+    // Eyes live in a body-clipped layer so big glances never poke outside.
+    const eyeLayer = document.createElementNS(SVG_NS, 'g');
+    eyeLayer.setAttribute('clip-path', `url(#${this.ensureEyeClip(shape)})`);
+    el.appendChild(eyeLayer);
+
+    const variants = this.parsedVariants(shape);
+    const variant = Math.floor(Math.random() * variants.length);
+    const eyes = shape.eyeVariants[variant];
     const eyeEls: SVGGElement[] = [];
+    const eyePathEls: SVGPathElement[] = [];
     for (const eye of eyes) {
       const eyeGroup = document.createElementNS(SVG_NS, 'g');
       eyeGroup.setAttribute('transform', `translate(${eye.cx} ${eye.cy})`);
@@ -369,8 +445,9 @@ export class BotPile extends HTMLElement {
       eyePath.setAttribute('d', eye.path);
       eyePath.setAttribute('fill', EYE_FILL);
       eyeGroup.appendChild(eyePath);
-      el.appendChild(eyeGroup);
+      eyeLayer.appendChild(eyeGroup);
       eyeEls.push(eyeGroup);
+      eyePathEls.push(eyePath);
     }
     this.svg.appendChild(el);
 
@@ -379,7 +456,7 @@ export class BotPile extends HTMLElement {
       body,
       el,
       eyeEls,
-      eyes,
+      eyePathEls,
       shape,
       scale,
       com,
@@ -388,6 +465,13 @@ export class BotPile extends HTMLElement {
       squish: 0,
       squishVel: 0,
       squishAngle: Math.PI / 2,
+      variant,
+      eyesFrom: variants[variant],
+      eyesTo: variants[variant],
+      exprT: 1,
+      exprV: 0,
+      exprSettled: true,
+      nextExprAt: now + rand(1.5, 5),
       glance: { x: 0, y: 0 },
       glanceTarget: { x: 0, y: 0 },
       nextGlanceAt: now + rand(0.8, 2.5),
@@ -405,6 +489,56 @@ export class BotPile extends HTMLElement {
     const max = Math.max(...sizes);
     const span = Math.max(1, max - min);
     for (const bot of this.bots) bot.sizeNorm = (bot.size - min) / span;
+  }
+
+  /** All 9 baked expression eye pairs for a shape, parsed once for morphing. */
+  private parsedVariants(shape: PileShape): ParsedEye[][] {
+    let variants = this.variantCache.get(shape.id);
+    if (!variants) {
+      variants = shape.eyeVariants.map((pair) => pair.map(parseEye));
+      this.variantCache.set(shape.id, variants);
+    }
+    return variants;
+  }
+
+  /** Shared per-shape clipPath (mark coordinates) that contains the eyes. */
+  private ensureEyeClip(shape: PileShape): string {
+    let id = this.clipIds.get(shape.id);
+    if (!id) {
+      id = `pile-eyeclip-${shape.id}`;
+      const clip = document.createElementNS(SVG_NS, 'clipPath');
+      clip.setAttribute('id', id);
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', shape.path);
+      clip.appendChild(path);
+      this.defs.appendChild(clip);
+      this.clipIds.set(shape.id, id);
+    }
+    return id;
+  }
+
+  /** Random pool member different from the bot's current expression. */
+  private pickNextVariant(bot: Bot): number {
+    const count = bot.shape.eyeVariants.length;
+    let next = Math.floor(Math.random() * (count - 1));
+    if (next >= bot.variant) next += 1;
+    return next;
+  }
+
+  /**
+   * Start morphing to another expression — the pile equivalent of the
+   * engine's setExpression(): freeze the in-flight blend as the new "from",
+   * retarget, and relaunch the critically-damped spring.
+   */
+  private setBotExpression(bot: Bot, variant: number): void {
+    if (variant === bot.variant && bot.exprSettled) return;
+    const amount = Math.min(Math.max(bot.exprT, 0), 1);
+    bot.eyesFrom = bot.eyesFrom.map((from, i) => lerpEye(from, bot.eyesTo[i], amount));
+    bot.eyesTo = this.parsedVariants(bot.shape)[variant];
+    bot.variant = variant;
+    bot.exprT = this.reducedMotion ? 1 : 0;
+    bot.exprV = 0;
+    bot.exprSettled = false;
   }
 
   // ------------------------------------------------------------ interactions
@@ -427,6 +561,15 @@ export class BotPile extends HTMLElement {
       this.trackBody = body;
       this.settleTime = 0;
       this.svg.classList.add('dragging');
+      // Being picked up is an event: the grabbed bot swaps expression on the
+      // spot, and it holds that face while carried (no mid-drag cycling).
+      const now = performance.now() / 1000;
+      for (const bot of this.bots) {
+        if (bot.body === body) {
+          this.setBotExpression(bot, this.pickNextVariant(bot));
+          bot.nextExprAt = now + rand(2.6, 5.6);
+        }
+      }
     });
     Matter.Events.on(this.mouseConstraint, 'enddrag', () => {
       this.dragBody = null;
@@ -588,33 +731,61 @@ export class BotPile extends HTMLElement {
 
   private updateEyes(dt: number, now: number): void {
     const target = this.trackBody;
-    const ease = Math.min(1, dt * 9);
     for (const bot of this.bots) {
+      const dragged = this.dragBody !== null && bot.body === this.dragBody;
       const tracking = target !== null && bot.body !== target;
-      if (tracking && target) {
+      if (dragged) {
+        // The held bot looks straight ahead (like the morph-bot's dragging
+        // state recentering its gaze) while everyone else stares at it.
+        bot.glanceTarget.x = 0;
+        bot.glanceTarget.y = 0;
+      } else if (tracking && target) {
         const dir = Matter.Vector.sub(target.position, bot.body.position);
         const mag = Matter.Vector.magnitude(dir);
         if (mag > 1) {
           // Rotate world direction into the bot's local (mark) frame.
           const local = Matter.Vector.rotate(dir, -bot.body.angle);
-          bot.glanceTarget.x = (local.x / mag) * GLANCE_MAX;
-          bot.glanceTarget.y = (local.y / mag) * GLANCE_MAX;
+          bot.glanceTarget.x = (local.x / mag) * GLANCE_X;
+          bot.glanceTarget.y = (local.y / mag) * GLANCE_Y;
         }
       } else if (now >= bot.nextGlanceAt) {
-        // Idle cycle: mostly recenter, sometimes wander.
-        if (Math.random() < 0.45) {
+        // Idle looking-around, tuned to the outline bot's curious/playful
+        // gaze: deliberate sideways looks with occasional recentering.
+        if (Math.random() < 0.25) {
           bot.glanceTarget.x = 0;
           bot.glanceTarget.y = 0;
         } else {
-          const a = rand(0, Math.PI * 2);
-          const r = rand(1.5, GLANCE_MAX * 0.7);
-          bot.glanceTarget.x = Math.cos(a) * r;
-          bot.glanceTarget.y = Math.sin(a) * r;
+          const side = Math.random() < 0.5 ? -1 : 1;
+          bot.glanceTarget.x = side * rand(0.4, 1) * GLANCE_X;
+          bot.glanceTarget.y = rand(-0.7, 0.7) * GLANCE_Y;
         }
-        bot.nextGlanceAt = now + rand(1.2, 3.4);
+        bot.nextGlanceAt = now + rand(1.1, 2.9);
       }
+      // Snap to the dragged bot faster than the idle drift.
+      const ease = Math.min(1, dt * (tracking || dragged ? 13 : 9));
       bot.glance.x += (bot.glanceTarget.x - bot.glance.x) * ease;
       bot.glance.y += (bot.glanceTarget.y - bot.glance.y) * ease;
+
+      // Expression cycling through the human-page pool. The outline bot
+      // rotates idle/curious/playful/happy every 3-5s and each state also
+      // cycles internally (1.5-4.5s cadences) — net feel: a new face every
+      // few seconds. The held bot keeps its face until it's put down.
+      if (!dragged && now >= bot.nextExprAt) {
+        this.setBotExpression(bot, this.pickNextVariant(bot));
+        bot.nextExprAt = now + rand(2.6, 5.6);
+      }
+      if (!bot.exprSettled && bot.exprT !== 1) {
+        // Critically-damped spring, two substeps for stability at 30fps.
+        const h = dt / 2;
+        for (let s = 0; s < 2; s++) {
+          bot.exprV += (-2 * EXPR_FREQ * bot.exprV - EXPR_FREQ * EXPR_FREQ * (bot.exprT - 1)) * h;
+          bot.exprT += bot.exprV * h;
+        }
+        if (bot.exprT >= 1 || (Math.abs(1 - bot.exprT) < 0.004 && Math.abs(bot.exprV) < 0.02)) {
+          bot.exprT = 1; // render writes the final frame, then marks settled
+          bot.exprV = 0;
+        }
+      }
 
       if (bot.blinkStart < 0 && now >= bot.nextBlinkAt) {
         bot.blinkStart = now;
@@ -647,13 +818,25 @@ export class BotPile extends HTMLElement {
         const p = Math.min(1, (now - bot.blinkStart) / 0.24);
         blinkY = 1 - Math.sin(p * Math.PI) * 0.9;
       }
+      const amount = Math.min(Math.max(bot.exprT, 0), 1);
       for (let i = 0; i < bot.eyeEls.length; i++) {
-        const eye = bot.eyes[i];
+        const from = bot.eyesFrom[i];
+        const to = bot.eyesTo[i];
+        const cx = from.cx + (to.cx - from.cx) * amount;
+        const cy = from.cy + (to.cy - from.cy) * amount;
         // Glance shifts the eye; blink squashes it around its own center.
         bot.eyeEls[i].setAttribute(
           'transform',
-          `translate(${(eye.cx + bot.glance.x).toFixed(2)} ${(eye.cy + bot.glance.y).toFixed(2)}) scale(1 ${blinkY.toFixed(3)})`,
+          `translate(${(cx + bot.glance.x).toFixed(2)} ${(cy + bot.glance.y).toFixed(2)}) scale(1 ${blinkY.toFixed(3)})`,
         );
+        // Rewrite the ring only while a morph is in flight.
+        if (!bot.exprSettled) {
+          bot.eyePathEls[i].setAttribute('d', eyePathD(from.pts, amount, to.pts));
+        }
+      }
+      if (!bot.exprSettled && bot.exprT === 1) {
+        bot.eyesFrom = bot.eyesTo;
+        bot.exprSettled = true;
       }
     }
   }
