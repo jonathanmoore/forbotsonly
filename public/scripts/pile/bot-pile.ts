@@ -694,6 +694,7 @@ export class BotPile extends HTMLElement {
     });
 
     Matter.Events.on(this.engine, 'collisionStart', (e: Matter.IEventCollision<Matter.Engine>) => {
+      const now = performance.now() / 1000;
       for (const pair of e.pairs) {
         const relVel = Matter.Vector.sub(pair.bodyA.velocity, pair.bodyB.velocity);
         const normal = pair.collision.normal;
@@ -707,6 +708,7 @@ export class BotPile extends HTMLElement {
           if (!bot) continue;
           bot.squishAngle = angle;
           bot.squishVel += Math.min(0.9, speed * 0.055) * (0.7 + 0.3 * Math.random());
+          bot.blinkStart = now;
           sizeNorm = bot.sizeNorm;
           involvedBots++;
         }
