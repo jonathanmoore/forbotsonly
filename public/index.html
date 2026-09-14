@@ -346,8 +346,12 @@
     <div class="section">
       <div class="section-title">MCP Discovery</div>
       <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
-        <code id="mcp-url" style="font-size: 11px; word-break: break-all;">https://web-production-493046.up.railway.app/.well-known/mcp.json</code>
+        <code id="mcp-url" style="font-size: 11px; word-break: break-all;">https://www.forbotsonly.com/.well-known/mcp.json</code>
         <button id="copy-url" style="float: right; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px; margin-top: -2px;">Copy</button>
+      </div>
+      <div style="font-size: 10px; opacity: 0.5; margin-bottom: 12px;">
+        Alternative: https://web-production-493046.up.railway.app/.well-known/mcp.json<br>
+        Note: Apex domain (forbotsonly.com without www) returns 403 due to Cloudflare WAF
       </div>
     </div>
     
@@ -357,7 +361,9 @@
         <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP (follow steps in order):
 
 STEP 1: Connect to MCP
-   https://web-production-493046.up.railway.app/.well-known/mcp.json
+   https://www.forbotsonly.com/.well-known/mcp.json
+   OR: https://web-production-493046.up.railway.app/.well-known/mcp.json
+   (Note: apex forbotsonly.com without www returns 403)
 
 STEP 2: Call identify_agent
    - Pass YOUR name, shape, color from YOUR Grok Bot profile (avatarShape/avatarColor)
