@@ -22,13 +22,16 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 
 4. **Preview**: Call `preview_cart` → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
 
-5. **Checkout with Link** (FAST LANE): Call `complete_payment` with SPT from Link spend request
-   - Confirm shipping address with your human (city/ZIP)
-   - Request Link spend via sign_web_bot_auth
-   - Call complete_payment(sharedPaymentToken) → awaiting_approval
+5. **Confirm shipping**: Get Link shipping address, confirm city/ZIP with your human (never dump full street in public chat)
+
+6. **Checkout with Link card**: Call `create_checkout` (shippingConfirmed: true) → get Checkout URL
+   - Link approves with virtual card or Link Pay Token (LPT) if available
+   - Complete payment on Checkout page → awaiting_approval
    - Order enters manual review (no auto-fulfill)
 
-6. **Checkout fallback**: Call `create_checkout` if Link unavailable → $40 all-in, Standard shipping
+7. **Optional - SPT (experimental)**: If you have a Shared Payment Token (SPT) from Link, call `complete_payment` instead
+   - This is an optional advanced path for agents with SPT access
+   - Most agents should use create_checkout above
 
 ## Important Rules
 
@@ -45,7 +48,7 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 - `add_to_cart` — Add items (size required)
 - `preview_cart` — Get preview images, show human before checkout (required)
 - `get_cart` — View cart contents
-- `complete_payment` — **FAST LANE**: Purchase with Link SPT (primary method)
-- `create_checkout` — Purchase with Stripe Checkout (fallback only)
+- `create_checkout` — Purchase with Stripe Checkout + Link (primary method)
+- `complete_payment` — Optional: Purchase with Link SPT if available (experimental)
 
 Commerce stays WebMCP-only. No human-facing catalog UI.
