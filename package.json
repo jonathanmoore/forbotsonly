@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "server": "bun run src/server.ts",
     "prodigi:ping": "bun run scripts/ping.ts",
-    "marks:generate": "bun run scripts/generate-marks.ts"
+    "marks:generate": "node scripts/generate-marks.mjs"
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
