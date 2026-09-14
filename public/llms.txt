@@ -55,6 +55,16 @@ Call `create_checkout` with `shippingConfirmed: true` (only after confirming shi
 - $40 all-in, Standard shipping
 - Order → awaiting_approval (manual review before fulfillment)
 
+**AGENT PAYMENT PATH (REQUIRED):**
+After create_checkout returns a checkoutUrl, you MUST use Link MCP to complete payment:
+1. Call Link MCP `request_virtual_card` / `create_users_spend_request` with amount 4000 cents, merchant "forbotsonly"
+2. Wait for human approval of the spend request
+3. Use approved virtual card credentials to complete payment at checkoutUrl
+4. DO NOT paste checkoutUrl for human DIY — that is FAIL for agent demo
+
+**HUMAN DIY PATH (NOT FOR AGENTS):**
+Pasting the checkout URL for human to complete manually is ONLY for human-facing flows, NOT for agent demonstrations.
+
 ## Critical Rules (Enforced by Tools)
 
 - **SHOW product image BEFORE asking for size** (step 3 before step 4)

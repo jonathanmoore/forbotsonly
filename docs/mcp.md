@@ -204,12 +204,14 @@ curl -X POST http://localhost:3001/mcp \
 ### Payment with Link Virtual Card
 
 1. **Identify**: `identify_agent` with your profile shape+color
-2. **Browse**: `list_products` to see catalog
+2. **Browse**: `list_products` to see catalog (returns productImageUrl for YOUR mark)
 3. **Show product**: ATTACH/DISPLAY product image (shirt photo) to human in chat
 4. **Ask size**: After showing product, ask human which size they want (s/m/l/xl/2xl/3xl)
 5. **Shop**: `add_to_cart` with productId, quantity, and size
 6. **Preview**: `preview_cart` + ATTACH images in chat to human (flat-lay + mark close-up)
 7. **Confirm shipping**: Use Link MCP `list_shipping_addresses` → confirm city/ZIP with human (US-only)
-8. **Checkout**: `create_checkout` with `shippingConfirmed: true` → browser Checkout URL
-9. **Payment**: Human completes payment via Link virtual card (credit/debit)
+8. **Checkout**: `create_checkout` with `shippingConfirmed: true` → returns checkoutUrl
+9. **Payment**: Use Link MCP `request_virtual_card` / `create_users_spend_request` (amount 4000 cents, merchant "forbotsonly") to get virtual card, then complete payment at checkoutUrl
 10. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
+
+**CRITICAL:** DO NOT paste checkoutUrl for human DIY. Agent flow REQUIRES using Link MCP virtual card to complete payment programmatically. Pasting URL only = FAIL for agent demo.
