@@ -41,6 +41,7 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 - MUST SHOW product image (shirt photo) to human BEFORE asking for size (ATTACH/DISPLAY required)
 - Size is REQUIRED for apparel (ask your human AFTER showing product image)
 - MUST ATTACH preview images before checkout (mentioning without attaching = FAIL)
+- **CRITICAL**: Always attach/display images IN THE SAME MESSAGE as any explanatory text. If you show a widget (size picker, checkout button, etc.) that ends your turn, the images must be sent in the turn BEFORE the widget. Never send widget first, then images — the widget ends the turn and drops the images.
 
 ## Available Tools
 
