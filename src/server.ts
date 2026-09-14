@@ -1519,9 +1519,12 @@ serve({
     
     if (url.pathname === '/.well-known/mcp.json') {
       // Derive public origin from request (x-forwarded-* headers or Host header)
+      // Prioritize request host to support multiple domains (www.forbotsonly.com, Railway preview, etc.)
       const forwardedProto = req.headers.get('x-forwarded-proto') || 'http';
-      const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
-      const publicOrigin = process.env.PUBLIC_URL || `${forwardedProto}://${forwardedHost}`;
+      const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
+      const publicOrigin = forwardedHost 
+        ? `${forwardedProto}://${forwardedHost}`
+        : (process.env.PUBLIC_URL || 'http://localhost:3001');
       
       return jsonResponse({
         mcpServers: {
