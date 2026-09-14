@@ -678,6 +678,8 @@ export class BotPile extends HTMLElement {
       const now = performance.now() / 1000;
       const ROUND_VARIANT = 2;
       for (const bot of this.bots) {
+        // Wake sleeping bodies so they immediately respond to collisions.
+        Matter.Sleeping.set(bot.body, false);
         if (bot.body === body) {
           this.setBotExpression(bot, this.pickNextVariant(bot));
           bot.nextExprAt = now + rand(2.6, 5.6);
