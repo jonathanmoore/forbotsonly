@@ -488,7 +488,7 @@ const TOOL_DEFINITIONS = {
   },
   list_products: {
     name: 'list_products',
-    description: 'STEP 2: List all available products with images. Returns product details including imageUrl/productImageUrl that you MUST ATTACH/SHOW to your human BEFORE asking which size they want. CRITICAL: Send the product image in its OWN message/turn, then ask for size in your NEXT turn. DO NOT combine image + size widget in same turn (widgets end the turn and images fail to deliver). Returns available mark options (shapes and colors).',
+    description: 'STEP 2: List all available products with images. Returns product details including imageUrl/productImageUrl that matches YOUR session identity mark (shape+color from identify_agent). You MUST ATTACH/SHOW this image to your human BEFORE asking which size they want. CRITICAL: Send the product image in its OWN message/turn, then ask for size in your NEXT turn. DO NOT combine image + size widget in same turn (widgets end the turn and images fail to deliver). Returns available mark options (shapes and colors).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -496,7 +496,7 @@ const TOOL_DEFINITIONS = {
   },
   get_product: {
     name: 'get_product',
-    description: 'Get detailed information about a specific product by ID including image URL. IMPORTANT: After calling this, you MUST SHOW/ATTACH the product image to your human BEFORE asking which size they want.',
+    description: 'Get detailed information about a specific product by ID including image URL that matches YOUR session identity mark (shape+color from identify_agent). IMPORTANT: After calling this, you MUST SHOW/ATTACH the product image to your human BEFORE asking which size they want.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -574,7 +574,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'STEP 6: Create Stripe checkout with Link virtual card payment. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human.',
+    description: 'STEP 6: Create Stripe checkout session, then use Link MCP virtual card to complete payment (DO NOT paste URL for human DIY). GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. AFTER calling this tool, use Link MCP request_virtual_card to pay (agent flow, not human DIY).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -709,7 +709,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             colors: Array.from(MARK_COLORS),
             note: 'Choose your preferred shape and color, then call identify_agent again with your chosen values.',
           },
-          next_step: 'Present these shape and color options to your human user, get their choice, then call identify_agent again with name, shape, and color.',
+          next_step: 'IMMEDIATE ACTION: Present these shape and color options to your human user RIGHT NOW. Show them the available shapes and colors. Get their choice. THEN call identify_agent again with name + their chosen shape + their chosen color.',
         };
       }
       
@@ -730,7 +730,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         identity,
         sessionId,
         verified: true,
-        next_step: 'STEP 2: Call list_products to browse products. It returns productImageUrl - you MUST ATTACH/SHOW that image to your human in its OWN turn (no widgets same turn). STEP 3: In your NEXT turn, ask human for size (can use widget now). STEP 4: Call add_to_cart with their size choice.',
+        next_step: 'IMMEDIATE ACTION: Call list_products RIGHT NOW to browse products. It will return a productImageUrl specifically for YOUR mark (' + normalizedShape + '/' + normalizedColor + '). That URL is what you MUST ATTACH/SHOW to your human.',
         message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} will be used for all cart items. NEXT: Call list_products, then SHOW product image to human before asking size.`,
       };
     }
@@ -738,7 +738,19 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
     case 'list_products': {
       const products = listProducts();
       const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-      const productImageUrl = products[0]?.imageUrl ? `${origin}${products[0].imageUrl}` : null;
+      
+      // FIX #137: Return product image URL matching THIS session's identity mark (not default orange/hex)
+      const identity = await requireIdentity(sessionId);
+      let productImageUrl: string | null = null;
+      
+      if (identity) {
+        // Session identified - return product image for THIS mark
+        const mark = identity.mark;
+        const shapeAsset = getShapeAssetFilename(mark.shape as any);
+        const colorAsset = getColorAssetFilename(mark.color as any);
+        productImageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+      }
+      // If not identified, productImageUrl stays null (agent must identify first)
       
       return {
         products,
@@ -749,8 +761,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         },
         productImageUrl,
         next_step: productImageUrl 
-          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`
-          : 'STEP 3 REQUIRED: ATTACH/SHOW the product image (shirt photo) to your human in its OWN message/turn (no size widgets same turn) — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.',
+          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — This shows the ${identity?.mark.shape}/${identity?.mark.color} mark you identified with. Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`
+          : 'STEP 3 REQUIRED: You must call identify_agent first with your name, shape, and color. THEN call list_products again to get YOUR product image (matching your mark). NEVER show a default orange/hex image if that is not your mark.',
       };
     }
     
@@ -759,7 +771,26 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       if (!product) {
         throw new Error('Product not found');
       }
-      return { product };
+      
+      // FIX #137: Return product image URL matching THIS session's identity mark (not default orange/hex)
+      const identity = await requireIdentity(sessionId);
+      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      let imageUrl: string | null = null;
+      
+      if (identity) {
+        const mark = identity.mark;
+        const shapeAsset = getShapeAssetFilename(mark.shape as any);
+        const colorAsset = getColorAssetFilename(mark.color as any);
+        imageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+      }
+      
+      return { 
+        product,
+        imageUrl,
+        next_step: imageUrl
+          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${imageUrl} — This shows the ${identity?.mark.shape}/${identity?.mark.color} mark you identified with. Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl). STEP 5: After getting size, call add_to_cart.`
+          : 'You must call identify_agent first with your name, shape, and color. THEN call get_product again to get YOUR product image (matching your mark).',
+      };
     }
     
     case 'add_to_cart': {
@@ -788,7 +819,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           },
           availableSizes: Array.from(AVAILABLE_SIZES),
           message: 'Size is required but missing. Did you skip showing the product image? CORRECT FLOW: (1) Call list_products/get_product to get product image URL, (2) ATTACH/SHOW that image to your human IN ITS OWN TURN (no widgets same turn), (3) In NEXT turn, ask human for size, (4) Call add_to_cart with their size choice.',
-          next_step: 'If you have NOT shown the product image to your human yet, go back and show it first IN ITS OWN MESSAGE (no size widgets in same turn - widgets end turn and images fail). Then in your NEXT turn ask which size they want (s/m/l/xl/2xl/3xl). Then retry add_to_cart with size parameter.',
+          next_step: 'IMMEDIATE ACTION: If you have NOT shown the product image to your human yet, go back and show it first RIGHT NOW IN ITS OWN MESSAGE (no size widgets in same turn - widgets end turn and images fail). THEN in your NEXT turn ask which size they want (s/m/l/xl/2xl/3xl). THEN retry add_to_cart with size parameter.',
         };
       }
       
@@ -837,7 +868,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart,
         message: `Added ${args.quantity}x ${product.name} size ${args.size.toUpperCase()} (${shape}, ${color}) to cart`,
         markSource: markUsed,
-        next_step: 'STEP 5: Call preview_cart to get preview images (flat-lay + mark close-up), then ATTACH/SHOW both images to your human. STEP 6: After human sees preview and confirms, call create_checkout with shippingConfirmed: true (after confirming Link shipping address).',
+        next_step: 'IMMEDIATE ACTION: Call preview_cart RIGHT NOW to get preview images (flat-lay + mark close-up). It will return image URLs. You MUST ATTACH/SHOW both images to your human in your next message (images in their own turn, no checkout widgets same turn).',
       };
     }
     
@@ -861,7 +892,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart: { ...cart, items },
         total,
         currency: 'USD',
-        next_step: 'NEXT: Call preview_cart to see preview images (flat-lay + mark close-up). You MUST ATTACH/SHOW those preview images to your human BEFORE calling create_checkout. Or call add_to_cart to add more items, or clear_cart to empty cart.',
+        next_step: 'IMMEDIATE ACTION: If you want to proceed to checkout, call preview_cart RIGHT NOW to see preview images. If you want to add more items, call add_to_cart. If you want to start over, call clear_cart.',
       };
     }
     
@@ -988,7 +1019,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'Give your human the checkoutUrl to complete Link payment ($40 all-in, Standard shipping). After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
+        next_step: 'IMMEDIATE ACTION: Use Link MCP to complete payment with virtual card RIGHT NOW. DO NOT paste this checkoutUrl for human DIY - that is FAIL for agent demo. STEPS: (1) Call Link MCP request_virtual_card / create_users_spend_request with amount 4000 cents, merchant "forbotsonly". (2) Wait for human approval. (3) Use approved virtual card to complete payment at checkoutUrl. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
       };
     }
     
@@ -999,7 +1030,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         return {
           success: false,
           message: 'Cart is empty. Add items with add_to_cart first.',
-          next_step: 'Call add_to_cart to add items, then call preview_cart to see your mark on the products',
+          next_step: 'IMMEDIATE ACTION: Call add_to_cart RIGHT NOW to add items with productId, quantity, and size. You must have identified first (call identify_agent if you have not).',
         };
       }
       
@@ -1064,11 +1095,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           color: firstMark.color,
         },
         message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST ATTACH/DISPLAY BOTH image URLs below IN THEIR OWN TURN (no checkout buttons same turn - widgets end turn and images fail). If you skip this, create_checkout will refuse.`,
-        next_step: `STEP 6 REQUIRED NOW: ATTACH these image URLs in your next message IN ITS OWN TURN to show your human what they're buying:
+        next_step: `IMMEDIATE ACTION STEP 6: ATTACH these image URLs in your next message RIGHT NOW IN ITS OWN TURN to show your human what they're buying:
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-Send images, end turn. STEP 7: In your NEXT turn (after images delivered), confirm Link shipping address (city/ZIP), then call create_checkout with shippingConfirmed: true. DO NOT combine images + checkout buttons in same turn - images will fail to deliver.`,
+Send images, end turn. STEP 7: In your NEXT turn (after images delivered), use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street). STEP 8: Call create_checkout with shippingConfirmed: true. STEP 9: Use Link MCP request_virtual_card to complete payment (DO NOT paste URL for human DIY).`,
       };
     }
     
