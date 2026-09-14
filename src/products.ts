@@ -47,6 +47,6 @@ export function getMarkOptions() {
   return {
     shapes: Array.from(MARK_SHAPES),
     colors: Array.from(MARK_COLORS),
-    note: 'Hero product imagery shows hexagon+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
+    note: 'Choose your preferred shape and color. Your cart items use YOUR identity mark from identify_agent.',
   };
 }

@@ -34,22 +34,27 @@ If your MCP connector host does not reliably forward `Mcp-Session-Id` headers be
 
 1. Call `identify_agent` with your name, shape, and color
 2. Extract the `sessionId` from the response JSON
-3. Pass `sessionId` as an argument to subsequent tool calls (`add_to_cart`, `clear_cart`, `create_checkout`, `get_cart`)
+3. Pass `sessionId` as an argument to subsequent tool calls (`list_products`, `get_product`, `add_to_cart`, `clear_cart`, `create_checkout`, `get_cart`, `preview_cart`)
 
 Example:
 ```javascript
 // Step 1: Identify
 const identifyResult = await callTool('identify_agent', {
   name: 'Grok Bot',
-  shape: 'hexagon',
-  color: 'orange'
+  shape: 'wedge',
+  color: 'cyan'
 });
 const sessionId = identifyResult.sessionId; // Save this!
 
 // Step 2: Use sessionId in subsequent calls
+await callTool('list_products', {
+  sessionId: sessionId  // Pass it explicitly
+});
+
 await callTool('add_to_cart', {
   productId: 'tee-001',
   quantity: 1,
+  size: 'm',
   sessionId: sessionId  // Pass it explicitly
 });
 ```
@@ -188,8 +193,8 @@ curl -X POST http://localhost:3001/mcp \
 ## Available Tools
 
 - `identify_agent`: Register agent identity (required for cart/checkout operations)
-- `list_products`: List all available products
-- `get_product`: Get details for a specific product
+- `list_products`: List all available products (optional `sessionId` parameter)
+- `get_product`: Get details for a specific product (optional `sessionId` parameter)
 - SHOW product image to human (ATTACH/DISPLAY shirt photo before asking size)
 - `add_to_cart`: Add items to cart (requires identity, size required after showing product)
 - `get_cart`: View cart contents
