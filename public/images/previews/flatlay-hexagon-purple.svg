@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="800" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Flat-lay preview: Black tee with hexagon mark in purple on left chest -->
+  <defs>
+    <style>
+      .flatlay-background { fill: #F5F5F5; }
+      .tee { fill: #0A0A0A; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="800" height="800" class="flatlay-background"/>
+  
+  <!-- Black tee (front-facing flat-lay) -->
+  <g class="tee">
+    
+  <!-- Black tee body (simplified flat-lay) -->
+  <rect x="250" y="150" width="300" height="500" rx="20" fill="#0A0A0A"/>
+  
+  <!-- Neckline -->
+  <ellipse cx="400" cy="150" rx="60" ry="30" fill="#1A1A1A"/>
+  
+  <!-- Left sleeve (viewer's left) -->
+  <rect x="120" y="200" width="130" height="180" rx="15" fill="#0A0A0A"/>
+  
+  <!-- Right sleeve (viewer's right) -->
+  <rect x="550" y="200" width="130" height="180" rx="15" fill="#0A0A0A"/>
+  
+  <!-- Subtle seam lines for dimension -->
+  <line x1="280" y1="200" x2="280" y2="600" stroke="#1A1A1A" stroke-width="2"/>
+  <line x1="520" y1="200" x2="520" y2="600" stroke="#1A1A1A" stroke-width="2"/>
+
+  </g>
+  
+  <!-- Mark on left chest (wearer's left = right side facing tee) -->
+  <g transform="translate(430, 260) scale(0.35)">
+    <!-- Grok Bot mark: official geometry from grokbot-animation (shape: hex) -->
+  <!-- App picker: hexagon | Eyes: official overflow knockouts (can break silhouette, evenodd fabric-through) -->
+  <g class="grok-bot-mark" data-official-id="hex" data-picker-shape="hexagon">
+    <path class="grok-bot-mark__compound" fill="#6C6CCB" fill-rule="evenodd" d="M217.73 153.04Q217.73 174 199.58 184.48L132.42 223.25Q114.27 233.73 96.12 223.25L28.96 184.48Q10.81 174 10.81 153.04L10.81 75.5Q10.81 54.54 28.96 44.06L96.12 5.29Q114.27 -5.19 132.42 5.29L199.58 44.06Q217.73 54.54 217.73 75.5Z M118.17 70.73L120.45 71.04L122.59 71.76L124.55 72.87L126.18 74.38L127.42 76.24L128.34 78.29L129.10 80.42L129.83 82.57L130.55 84.72L131.27 86.86L131.97 89.02L132.64 91.19L133.29 93.36L133.91 95.55L134.50 97.74L135.05 99.95L135.36 102.23L135.16 104.55L134.41 106.80L133.11 108.84L131.36 110.51L129.28 111.73L127.01 112.45L124.68 112.65L122.41 112.33L120.31 111.51L118.45 110.26L116.93 108.62L115.81 106.69L115.01 104.57L114.39 102.39L113.80 100.19L113.17 98.01L112.52 95.84L111.85 93.66L111.17 91.51L110.47 89.35L109.75 87.20L108.94 85.09L108.17 82.96L107.64 80.75L107.63 78.44L108.31 76.16L109.61 74.14L111.41 72.51L113.54 71.41L115.84 70.83Z M179.77 59.76L182.04 60.05L184.10 60.75L185.92 61.77L187.55 63.03L188.95 64.50L190.10 66.16L191.07 67.95L191.90 69.82L192.67 71.74L193.41 73.66L194.13 75.60L194.80 77.56L195.42 79.55L196.02 81.54L196.56 83.57L197.06 85.61L197.50 87.67L197.90 89.77L198.06 91.94L197.82 94.21L197.15 96.51L195.85 98.72L193.75 100.38L191.30 101.01L189.00 100.81L186.99 100.03L185.30 98.85L183.91 97.38L182.84 95.66L182.05 93.76L181.48 91.76L181.00 89.71L180.53 87.64L180.02 85.60L179.48 83.58L178.89 81.58L178.26 79.60L177.60 77.62L176.90 75.68L176.15 73.76L175.36 71.86L174.53 69.98L173.78 68.06L173.41 65.97L173.71 63.70L175.05 61.53L177.32 60.14Z"/>
+  </g>
+  </g>
+</svg>
