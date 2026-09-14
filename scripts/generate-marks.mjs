@@ -18,19 +18,21 @@ const __dirname = dirname(__filename);
 // ViewBox with padding
 const VIEWBOX = '-15 -15 259 259';
 
-// Color palette (app picker swatches)
+// Color palette (official xAI Grok Bot avatar hexes: x.ai --color-brand-*-400)
+// FINAL LOCK A for #100 pack fills - contained evenodd knockout eyes, NO Material colors
 const COLORS = {
   white: '#FFFFFF',
-  brown: '#8B6F47',
-  red: '#E63946',
-  orange: '#FF6B35', // Brand color
-  gold: '#F4A261',
-  'light-green': '#4CAF50',
-  teal: '#26A69A',
-  blue: '#2196F3',
-  purple: '#9C27B0',
-  'hot-pink': '#E91E63',
-  grey: '#9E9E9E',
+  black: '#0A0A0A',         // Official xAI black
+  brown: '#936439',         // Official xAI brown
+  red: '#DD2229',           // Official xAI red
+  orange: '#E84302',        // Official xAI orange (pack fills; foil hero uses #FF6B35)
+  gold: '#B77400',          // Official xAI yellow
+  'light-green': '#03943C', // Official xAI green (NOT Material #4CAF50)
+  teal: '#0093A3',          // Official xAI cyan
+  blue: '#0E7FCB',          // Official xAI blue
+  purple: '#6C6CCB',        // Official xAI violet
+  'hot-pink': '#C23B90',    // Official xAI magenta
+  grey: '#777777',          // Official xAI gray
 };
 
 /**
@@ -76,10 +78,10 @@ function computeEyePositions(officialID, pickerShape, color) {
   const baseEyeSpacing = EYE_HALF * 2; // Default spacing between eyes
   const eyeScale = face.eye; // Scale factor from face parameters
   
-  // Eye dimensions (slanted oval pills)
-  const eyeRX = 7.0 * eyeScale;
-  const eyeRY = 14.0 * eyeScale;
-  const eyeRotation = -20; // Standard slant angle
+  // Eye dimensions (slanted dark eye slots) - corrected proportions for better visibility
+  const eyeRX = 6.5 * eyeScale; // Slightly narrower for cleaner slot look
+  const eyeRY = 15.0 * eyeScale; // Taller for more prominent eyes
+  const eyeRotation = -24; // More visible tilt (was -20°)
   
   // Face center position with official offset
   const faceCenterX = HEAD_C + face.x;

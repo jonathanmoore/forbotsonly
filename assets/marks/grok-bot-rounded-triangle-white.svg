@@ -3,6 +3,6 @@
   <!-- Grok Bot mark: official geometry from grokbot-animation (shape: wedge) -->
   <!-- App picker: rounded-triangle | Eyes: randomized contained knockouts (stable seed: rounded-triangle-white) -->
   <g class="grok-bot-mark" data-official-id="wedge" data-picker-shape="rounded-triangle">
-    <path class="grok-bot-mark__compound" fill="#FFFFFF" fill-rule="evenodd" d="M77.26 42.06Q114.27 -22.05 151.28 42.06L216.15 154.43Q253.17 218.53 179.14 218.53L49.4 218.53Q-24.62 218.53 12.39 154.43Z M 93.46,98.08 A 5.53,11.06 -20 0,1 102.44,106.59 A 5.53,11.06 -20 0,1 101.03,118.87 A 5.53,11.06 -20 0,1 92.05,110.37 A 5.53,11.06 -20 0,1 93.46,98.08 Z M 124.05,98.08 A 5.53,11.06 -20 0,1 133.03,106.59 A 5.53,11.06 -20 0,1 131.61,118.87 A 5.53,11.06 -20 0,1 122.63,110.37 A 5.53,11.06 -20 0,1 124.05,98.08 Z"/>
+    <path class="grok-bot-mark__compound" fill="#FFFFFF" fill-rule="evenodd" d="M77.26 42.06Q114.27 -22.05 151.28 42.06L216.15 154.43Q253.17 218.53 179.14 218.53L49.4 218.53Q-24.62 218.53 12.39 154.43Z M 92.43,97.65 A 5.13,11.85 -24 0,1 101.94,106.39 A 5.13,11.85 -24 0,1 102.07,119.30 A 5.13,11.85 -24 0,1 92.56,110.57 A 5.13,11.85 -24 0,1 92.43,97.65 Z M 123.01,97.65 A 5.13,11.85 -24 0,1 132.52,106.39 A 5.13,11.85 -24 0,1 132.65,119.30 A 5.13,11.85 -24 0,1 123.14,110.57 A 5.13,11.85 -24 0,1 123.01,97.65 Z"/>
   </g>
 </svg>

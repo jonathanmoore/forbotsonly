@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="229" height="229" viewBox="-15 -15 259 259" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: teardrop) -->
+  <!-- App picker: teardrop | Eyes: randomized contained knockouts (stable seed: teardrop-black) -->
+  <g class="grok-bot-mark" data-official-id="teardrop" data-picker-shape="teardrop">
+    <path class="grok-bot-mark__compound" fill="#0A0A0A" fill-rule="evenodd" d="M125.97 7.2Q114.27 -7.28 102.57 7.2L43.49 80.31C13.46 117.46 17.28 171.51 52.23 204.08C87.17 236.65 141.37 236.65 176.32 204.08C211.26 171.51 215.08 117.46 185.05 80.31Z M 90.74,95.94 A 5.72,13.20 -24 0,1 101.33,105.67 A 5.72,13.20 -24 0,1 101.48,120.06 A 5.72,13.20 -24 0,1 90.88,110.33 A 5.72,13.20 -24 0,1 90.74,95.94 Z M 129.61,95.94 A 5.72,13.20 -24 0,1 140.20,105.67 A 5.72,13.20 -24 0,1 140.35,120.06 A 5.72,13.20 -24 0,1 129.75,110.33 A 5.72,13.20 -24 0,1 129.61,95.94 Z"/>
+  </g>
+</svg>
