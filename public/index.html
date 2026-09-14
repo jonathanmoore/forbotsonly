@@ -148,6 +148,68 @@
       opacity: 0.3;
     }
     
+    /* Physics pile (default human view): full-viewport stage */
+    .pile-container {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+    }
+    
+    /* Human mode control: pile (default) / outline + sound — quiet, bottom-right */
+    .mode-toggle {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    
+    .mode-toggle button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: inherit;
+      letter-spacing: inherit;
+      text-transform: inherit;
+      cursor: pointer;
+      opacity: 0.3;
+      transition: opacity 0.2s ease;
+      padding: 4px 8px;
+    }
+    
+    .mode-toggle button:hover {
+      opacity: 0.6;
+    }
+    
+    .mode-toggle button.active {
+      opacity: 0.8;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+    
+    .mode-toggle .separator {
+      opacity: 0.3;
+    }
+    
+    /* Mode visibility: pile is default; outline morph-bot is the alternate */
+    body:not([data-mode="outline"]) .sticker-container {
+      display: none;
+    }
+    
+    body[data-mode="outline"] .pile-container {
+      display: none;
+    }
+    
+    body[data-mode="outline"] .mode-toggle .sound-control {
+      display: none;
+    }
+    
     /* Agent view: instructional content */
     .agent-content {
       display: none;
@@ -171,6 +233,15 @@
     body[data-view="agent"] .sticker-container {
       opacity: 0.15;
       pointer-events: none;
+    }
+    
+    body[data-view="agent"] .pile-container {
+      opacity: 0.15;
+      pointer-events: none;
+    }
+    
+    body[data-view="agent"] .mode-toggle {
+      display: none;
     }
     
     body[data-view="agent"] .message {
@@ -298,6 +369,11 @@
         right: max(20px, env(safe-area-inset-right, 20px));
       }
       
+      .mode-toggle {
+        bottom: max(20px, env(safe-area-inset-bottom, 20px));
+        right: max(20px, env(safe-area-inset-right, 20px));
+      }
+      
       .agent-content {
         padding: 36px 28px;
         max-width: 90%;
@@ -342,6 +418,17 @@
         padding: 4px 6px;
       }
       
+      .mode-toggle {
+        font-size: 10px;
+        gap: 6px;
+        bottom: max(16px, env(safe-area-inset-bottom, 16px));
+        right: max(16px, env(safe-area-inset-right, 16px));
+      }
+      
+      .mode-toggle button {
+        padding: 4px 6px;
+      }
+      
       .agent-content {
         padding: 28px 20px;
         max-width: 92%;
@@ -361,11 +448,25 @@
     <button id="toggle-agent">Agent</button>
   </div>
   
-  <!-- Human view (default): morph-bot + minimal label -->
+  <!-- Human view (default): physics pile of Grok Bot marks -->
+  <div class="pile-container">
+    <bot-pile id="bot-pile"></bot-pile>
+  </div>
+  
+  <!-- Human view (alternate): outline morph-bot -->
   <div class="sticker-container">
     <div id="foil-stamp"></div>
   </div>
   <div class="message">§ This store is for agents</div>
+  
+  <!-- Human mode control: pile / outline + sound -->
+  <div class="mode-toggle">
+    <button id="mode-pile" class="active">Pile</button>
+    <span class="separator">/</span>
+    <button id="mode-outline">Outline</button>
+    <span class="separator sound-control">·</span>
+    <button id="toggle-sound" class="sound-control">Sound on</button>
+  </div>
   
   <!-- Agent view: instructional content -->
   <div class="agent-content">
@@ -429,7 +530,19 @@ RULES:
   </div>
   
   <script type="module">
-    import '/vendor/grokbot-animation/morph-bot.js';
+    import '/scripts/pile/bot-pile.ts';
+    
+    // Shared state: view (human/agent) x human mode (pile/outline)
+    const pile = document.getElementById('bot-pile');
+    let currentView = 'human';
+    let currentMode = 'pile';
+    let pileFailed = false;
+    
+    // The pile only runs when it is actually the visible experience.
+    function syncPile() {
+      if (!pile) return;
+      pile.paused = pileFailed || currentView !== 'human' || currentMode !== 'pile';
+    }
     
     // View toggle logic
     function initViewToggle() {
@@ -443,6 +556,7 @@ RULES:
       const initialView = urlView || savedView || 'human';
       
       function setView(view) {
+        currentView = view;
         document.body.setAttribute('data-view', view);
         
         if (view === 'human') {
@@ -464,6 +578,8 @@ RULES:
           newUrl.searchParams.delete('view');
         }
         window.history.replaceState({}, '', newUrl);
+        
+        syncPile();
       }
       
       humanBtn.addEventListener('click', () => setView('human'));
@@ -507,11 +623,90 @@ RULES:
       }
     }
     
-    // Initialize toggle first
-    initViewToggle();
+    // Human mode toggle logic: pile (default) / outline + sound control
+    function initModeToggle() {
+      const pileBtn = document.getElementById('mode-pile');
+      const outlineBtn = document.getElementById('mode-outline');
+      const soundBtn = document.getElementById('toggle-sound');
+      const modeToggle = document.querySelector('.mode-toggle');
+      
+      // Get initial mode from URL param or localStorage (default: pile)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlMode = urlParams.get('mode');
+      const savedMode = localStorage.getItem('forbotsonly-human-mode');
+      const valid = ['pile', 'outline'];
+      const initialMode = valid.includes(urlMode) ? urlMode
+        : (valid.includes(savedMode) ? savedMode : 'pile');
+      
+      function setMode(mode) {
+        currentMode = mode;
+        document.body.setAttribute('data-mode', mode);
+        
+        pileBtn.classList.toggle('active', mode === 'pile');
+        outlineBtn.classList.toggle('active', mode === 'outline');
+        
+        localStorage.setItem('forbotsonly-human-mode', mode);
+        
+        // Update URL without reload
+        const newUrl = new URL(window.location);
+        if (mode === 'outline') {
+          newUrl.searchParams.set('mode', 'outline');
+        } else {
+          newUrl.searchParams.delete('mode');
+        }
+        window.history.replaceState({}, '', newUrl);
+        
+        if (mode === 'outline') initOutlineBot();
+        syncPile();
+      }
+      
+      pileBtn.addEventListener('click', () => setMode('pile'));
+      outlineBtn.addEventListener('click', () => setMode('outline'));
+      
+      // Minimal sound control (pile only): soft thuds, defaults on
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const savedSound = localStorage.getItem('forbotsonly-sound');
+      let soundOn = savedSound ? savedSound === 'on' : !prefersReducedMotion;
+      
+      function applySound() {
+        if (pile) pile.muted = !soundOn;
+        soundBtn.textContent = soundOn ? 'Sound on' : 'Sound off';
+      }
+      
+      soundBtn.addEventListener('click', () => {
+        soundOn = !soundOn;
+        localStorage.setItem('forbotsonly-sound', soundOn ? 'on' : 'off');
+        applySound();
+      });
+      
+      applySound();
+      
+      // If the pile fails to initialize, fall back to the outline bot.
+      function handlePileFailure() {
+        if (pileFailed) return;
+        pileFailed = true;
+        modeToggle.style.display = 'none';
+        setMode('outline');
+      }
+      document.body.addEventListener('pile-error', handlePileFailure);
+      if (pile && pile.dataset.failed) handlePileFailure();
+      
+      setMode(initialMode);
+    }
     
-    async function init() {
+    // Outline morph-bot (alternate human view) — lazily initialized
+    let outlineInitialized = false;
+    
+    // Initialize toggles first
+    initViewToggle();
+    initModeToggle();
+    
+    async function initOutlineBot() {
+      if (outlineInitialized) return;
+      outlineInitialized = true;
       try {
+        // Lazy-load the morph-bot runtime; only the outline view needs it.
+        await import('/vendor/grokbot-animation/morph-bot.js');
         const container = document.getElementById('foil-stamp');
         
         // Create morph-bot with wireframe outline styling (no fill, dashed stroke)
@@ -628,8 +823,6 @@ RULES:
         `;
       }
     }
-    
-    init();
   </script>
 </body>
 </html>
