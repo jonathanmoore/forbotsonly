@@ -17,7 +17,7 @@ export class PileSound {
       if (!Ctx) return;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = 0.65; // increased from 0.5 for better audibility
       this.master.connect(this.ctx.destination);
       this.noiseBuffer = this.buildNoise(this.ctx);
     }
@@ -41,7 +41,7 @@ export class PileSound {
     if (now - this.lastPlay < 0.05) return;
     this.lastPlay = now;
 
-    const level = 0.04 + 0.16 * Math.min(1, Math.max(0, intensity));
+    const level = 0.08 + 0.22 * Math.min(1, Math.max(0, intensity)); // increased from 0.04/0.16 for audibility
 
     // Body: a low sine with a quick pitch drop.
     const freq = 150 - 70 * Math.min(1, Math.max(0, size));
