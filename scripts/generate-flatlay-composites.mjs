@@ -37,6 +37,7 @@ const MARK_SHAPES = [
 
 const MARK_COLORS = [
   'white',
+  'black',
   'brown',
   'red',
   'orange',

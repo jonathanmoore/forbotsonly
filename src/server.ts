@@ -491,7 +491,12 @@ const TOOL_DEFINITIONS = {
     description: 'STEP 2: List all available products with images. Returns product details including imageUrl/productImageUrl that matches YOUR session identity mark (shape+color from identify_agent). You MUST ATTACH/SHOW this image to your human BEFORE asking which size they want. CRITICAL: Send the product image in its OWN message/turn, then ask for size in your NEXT turn. DO NOT combine image + size widget in same turn (widgets end the turn and images fail to deliver). Returns available mark options (shapes and colors).',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
     },
   },
   get_product: {
@@ -503,6 +508,10 @@ const TOOL_DEFINITIONS = {
         productId: {
           type: 'string',
           description: 'Product ID (e.g., "tee-001")',
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
         },
       },
       required: ['productId'],
@@ -730,52 +739,50 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         identity,
         sessionId,
         verified: true,
-        next_step: 'IMMEDIATE ACTION: Call list_products RIGHT NOW to browse products. It will return a productImageUrl specifically for YOUR mark (' + normalizedShape + '/' + normalizedColor + '). That URL is what you MUST ATTACH/SHOW to your human.',
-        message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} will be used for all cart items. NEXT: Call list_products, then SHOW product image to human before asking size.`,
+        next_step: `IMMEDIATE ACTION: Call list_products RIGHT NOW with sessionId: "${sessionId}" to browse products. It will return a productImageUrl specifically for YOUR mark (${normalizedShape}/${normalizedColor}). That URL is what you MUST ATTACH/SHOW to your human in its OWN turn. After you attach the image and end your turn, IN YOUR NEXT TURN: Ask your human which size they want (s/m/l/xl/2xl/3xl) using a size picker widget.`,
+        message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} will be used for all cart items. NEXT: Call list_products with sessionId parameter, then SHOW product image to human before asking size.`,
       };
     }
     
     case 'list_products': {
       const products = listProducts();
-      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-      
-      // Get session identity to build session-matched image URLs
       const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
+      const origin = process.env.PUBLIC_URL?.startsWith('https://www.forbotsonly.com') 
+        ? process.env.PUBLIC_URL 
+        : 'https://www.forbotsonly.com';
       
-      // Build session-matched products with correct imageUrl for each product
-      const sessionProducts = products.map(product => {
-        if (!identity?.mark) {
-          // No session mark yet - use default hex/orange
-          return {
-            ...product,
-            imageUrl: `${origin}${product.imageUrl}`,
-          };
-        }
-        
-        // Map session mark to asset filenames
-        const shapeAsset = getShapeAssetFilename(identity.mark.shape as any);
-        const colorAsset = getColorAssetFilename(identity.mark.color as any);
-        
-        // Build session-matched imageUrl
+      // If no identity, return null productImageUrl and instruct to identify first
+      if (!identity) {
         return {
-          ...product,
-          imageUrl: `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`,
+          products,
+          markOptions: {
+            shapes: CHARACTER_PICKER_SHAPES,
+            colors: MARK_COLORS,
+            note: 'Choose your preferred shape and color from your Grok Bot character picker (wedge, green, hex, magenta, etc.). Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases.',
+          },
+          productImageUrl: null,
+          next_step: 'IMMEDIATE ACTION: Call identify_agent with your name, shape, and color from your Grok Bot profile RIGHT NOW. After identify_agent returns sessionId, call list_products again WITH that sessionId parameter to get your personalized product image.',
+          message: 'Identity required. Call identify_agent with your profile shape+color first, then call list_products again with the returned sessionId.',
         };
-      });
+      }
       
-      const productImageUrl = sessionProducts[0]?.imageUrl || null;
+      // Build personalized flatlay URL using identity mark
+      const mark = identity.mark;
+      const shapeAsset = getShapeAssetFilename(mark.shape as any);
+      const colorAsset = getColorAssetFilename(mark.color as any);
+      
+      // ZERO 404s: All Character-picker shapes × MARK_COLORS flatlays now exist (including black, generated in #143)
+      const productImageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
       
       return {
-        products: sessionProducts,
+        products,
         markOptions: {
           shapes: CHARACTER_PICKER_SHAPES,
           colors: MARK_COLORS,
-          note: 'Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). These are the 9 Character-picker shapes available. Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
+          note: 'These are the available Character-picker shapes and colors. Your cart items use YOUR identity mark from identify_agent.',
         },
         productImageUrl,
-        next_step: productImageUrl 
-          ? `IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`
-          : 'IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW the product image (shirt photo) to your human in its OWN message/turn (no size widgets same turn) — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.',
+        next_step: `IMMEDIATE ACTION: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — After you attach the image and end your turn, IN YOUR NEXT TURN: Ask your human which size they want (s/m/l/xl/2xl/3xl) and use a size picker widget. After they choose, call add_to_cart with productId, quantity, and their chosen size.`,
       };
     }
     
@@ -785,32 +792,37 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Product not found');
       }
       
-      // Get session identity to build session-matched image URL
       const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
-      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      const origin = process.env.PUBLIC_URL?.startsWith('https://www.forbotsonly.com') 
+        ? process.env.PUBLIC_URL 
+        : 'https://www.forbotsonly.com';
       
-      let sessionProduct;
-      if (!identity?.mark) {
-        // No session mark yet - use default hex/orange
-        sessionProduct = {
-          ...product,
-          imageUrl: `${origin}${product.imageUrl}`,
-        };
-      } else {
-        // Map session mark to asset filenames
-        const shapeAsset = getShapeAssetFilename(identity.mark.shape as any);
-        const colorAsset = getColorAssetFilename(identity.mark.color as any);
-        
-        // Build session-matched imageUrl
-        sessionProduct = {
-          ...product,
-          imageUrl: `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`,
+      // If no identity, return product without personalized imageUrl
+      if (!identity) {
+        return {
+          product: {
+            ...product,
+            imageUrl: null,
+          },
+          next_step: 'IMMEDIATE ACTION: Call identify_agent with your name, shape, and color from your Grok Bot profile RIGHT NOW. After identify_agent returns sessionId, call get_product again WITH that sessionId parameter to get your personalized product image.',
+          message: 'Identity required. Call identify_agent with your profile shape+color first, then call get_product again with the returned sessionId.',
         };
       }
       
+      // Build personalized flatlay URL using identity mark
+      const mark = identity.mark;
+      const shapeAsset = getShapeAssetFilename(mark.shape as any);
+      const colorAsset = getColorAssetFilename(mark.color as any);
+      
+      // ZERO 404s: All Character-picker shapes × MARK_COLORS flatlays now exist (including black, generated in #143)
+      const productImageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+      
       return {
-        product: sessionProduct,
-        next_step: `IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${sessionProduct.imageUrl} — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`,
+        product: {
+          ...product,
+          imageUrl: productImageUrl,
+        },
+        next_step: `IMMEDIATE ACTION: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — After you attach the image and end your turn, IN YOUR NEXT TURN: Ask your human which size they want (s/m/l/xl/2xl/3xl) and use a size picker widget. After they choose, call add_to_cart with productId, quantity, and their chosen size.`,
       };
     }
     
@@ -889,7 +901,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart,
         message: `Added ${args.quantity}x ${product.name} size ${args.size.toUpperCase()} (${shape}, ${color}) to cart`,
         markSource: markUsed,
-        next_step: 'IMMEDIATE ACTION: Call preview_cart RIGHT NOW to get preview images (flat-lay + mark close-up). It will return image URLs. You MUST ATTACH/SHOW both images to your human in your next message (images in their own turn, no checkout widgets same turn).',
+        next_step: 'IMMEDIATE ACTION: Call preview_cart RIGHT NOW to get preview images (flat-lay + mark close-up). It will return image URLs. You MUST ATTACH/SHOW both images to your human in your next message (images in their own turn, no checkout widgets same turn). After images delivered, IN YOUR NEXT TURN: Use Link MCP to confirm shipping address (city/ZIP), then call create_checkout with shippingConfirmed: true.',
       };
     }
     
@@ -913,7 +925,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart: { ...cart, items },
         total,
         currency: 'USD',
-        next_step: 'IMMEDIATE ACTION: If you want to proceed to checkout, call preview_cart RIGHT NOW to see preview images. If you want to add more items, call add_to_cart. If you want to start over, call clear_cart.',
+        next_step: 'IMMEDIATE ACTION: If you want to proceed to checkout, call preview_cart RIGHT NOW to see preview images, then ATTACH/SHOW those preview images to your human in a separate turn BEFORE calling create_checkout. Or call add_to_cart to add more items, or clear_cart to empty cart.',
       };
     }
     
@@ -1051,7 +1063,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         return {
           success: false,
           message: 'Cart is empty. Add items with add_to_cart first.',
-          next_step: 'IMMEDIATE ACTION: Call add_to_cart RIGHT NOW to add items with productId, quantity, and size. You must have identified first (call identify_agent if you have not).',
+          next_step: 'IMMEDIATE ACTION: Call identify_agent with your profile shape+color RIGHT NOW, then list_products, show product image to human, ask for size, then add_to_cart.',
         };
       }
       
@@ -1059,7 +1071,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
       
       // Build public origin for asset URLs (absolute URLs for image attachment)
-      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      const origin = process.env.PUBLIC_URL?.startsWith('https://www.forbotsonly.com') 
+        ? process.env.PUBLIC_URL 
+        : 'https://www.forbotsonly.com';
       
       // Generate previews for each cart item
       const previews = cart.items.map(item => {
@@ -1074,6 +1088,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         const markUrl = `${origin}/images/marks/grok-bot-${shapeAsset}-${colorAsset}.svg`;
         
         // Flat-lay mock (photo-quality BC-3001 PNG composite with mark on black tee, left chest)
+        // ZERO 404s: All Character-picker shapes × MARK_COLORS flatlays now exist (including black, generated in #143)
         const flatLayUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
         
         return {
@@ -1116,11 +1131,11 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           color: firstMark.color,
         },
         message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST ATTACH/DISPLAY BOTH image URLs below IN THEIR OWN TURN (no checkout buttons same turn - widgets end turn and images fail). If you skip this, create_checkout will refuse.`,
-        next_step: `IMMEDIATE ACTION STEP 6: ATTACH these image URLs in your next message RIGHT NOW IN ITS OWN TURN to show your human what they're buying:
+        next_step: `IMMEDIATE ACTION: ATTACH these image URLs in your next message RIGHT NOW IN ITS OWN TURN to show your human what they're buying:
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-Send images, end turn. STEP 7: In your NEXT turn (after images delivered), use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street). STEP 8: Call create_checkout with shippingConfirmed: true. STEP 9: Use Link MCP request_virtual_card to complete payment (DO NOT paste URL for human DIY).`,
+After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street in public chat). Then call create_checkout with shippingConfirmed: true. Then use Link MCP request_virtual_card to complete payment (DO NOT paste URL for human DIY).`,
       };
     }
     

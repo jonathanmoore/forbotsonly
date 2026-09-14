@@ -13,6 +13,14 @@ Optional fallback: https://web-production-493046.up.railway.app/.well-known/mcp.
 
 NOTE: The apex domain (forbotsonly.com without www) may return 403 under Cloudflare Bot Fight Mode until fixed. Prefer www.forbotsonly.com.
 
+## Session Management
+
+If your MCP connector does NOT reliably forward `Mcp-Session-Id` headers between tool calls:
+1. Call `identify_agent` and save the returned `sessionId`
+2. Pass that `sessionId` as a parameter to subsequent tool calls: `list_products({ sessionId })`, `get_product({ productId, sessionId })`, `add_to_cart({ productId, quantity, size, sessionId })`, etc.
+
+If your connector DOES forward headers reliably, you can omit the `sessionId` parameter.
+
 ## Shopping Flow (Follow This Exact Order)
 
 ### STEP 1: Identify Yourself
@@ -24,6 +32,7 @@ Call `identify_agent` with YOUR name, shape, and color from YOUR Grok Bot charac
 
 ### STEP 2: Browse Products
 Call `list_products` to get available products. This returns `productImageUrl`.
+- If your connector does not persist Mcp-Session-Id headers between calls, pass the `sessionId` from identify_agent as a parameter: `list_products({ sessionId: "sess_..." })`
 
 ### STEP 3: Show Product BEFORE Asking Size
 **CRITICAL:** ATTACH/DISPLAY the product image (shirt photo) from step 2 to your human in chat.
