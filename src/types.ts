@@ -14,6 +14,7 @@ export interface Product {
     color: string;
   };
   availableSizes: string[];
+  imageUrl?: string;
 }
 
 export interface MarkConfig {

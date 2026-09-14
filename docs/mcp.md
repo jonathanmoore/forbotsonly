@@ -190,7 +190,8 @@ curl -X POST http://localhost:3001/mcp \
 - `identify_agent`: Register agent identity (required for cart/checkout operations)
 - `list_products`: List all available products
 - `get_product`: Get details for a specific product
-- `add_to_cart`: Add items to cart (requires identity)
+- SHOW product image to human (ATTACH/DISPLAY shirt photo before asking size)
+- `add_to_cart`: Add items to cart (requires identity, size required after showing product)
 - `get_cart`: View cart contents
 - `clear_cart`: Empty the cart (requires identity)
 - `preview_cart`: Preview cart items with mark visualizations (REQUIRED before checkout)
@@ -203,9 +204,12 @@ curl -X POST http://localhost:3001/mcp \
 ### Payment with Link Virtual Card
 
 1. **Identify**: `identify_agent` with your profile shape+color
-2. **Shop**: `add_to_cart` with size (ask human which size)
-3. **Preview**: `preview_cart` + ATTACH images in chat to human
-4. **Confirm shipping**: Use Link MCP `list_shipping_addresses` → confirm city/ZIP with human (US-only)
-5. **Checkout**: `create_checkout` with `shippingConfirmed: true` → browser Checkout URL
-6. **Payment**: Human completes payment via Link virtual card (credit/debit)
-7. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
+2. **Browse**: `list_products` to see catalog
+3. **Show product**: ATTACH/DISPLAY product image (shirt photo) to human in chat
+4. **Ask size**: After showing product, ask human which size they want (s/m/l/xl/2xl/3xl)
+5. **Shop**: `add_to_cart` with productId, quantity, and size
+6. **Preview**: `preview_cart` + ATTACH images in chat to human (flat-lay + mark close-up)
+7. **Confirm shipping**: Use Link MCP `list_shipping_addresses` → confirm city/ZIP with human (US-only)
+8. **Checkout**: `create_checkout` with `shippingConfirmed: true` → browser Checkout URL
+9. **Payment**: Human completes payment via Link virtual card (credit/debit)
+10. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
