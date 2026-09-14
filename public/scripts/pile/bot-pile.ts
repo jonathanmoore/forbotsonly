@@ -9,7 +9,8 @@
  * expression pool (idle/curious/playful/happy — EXPRESSIONS indices
  * [0, 8, 3, 21, 15, 2, 17, 11, 19]) with the same critically-damped
  * lerpRing morph the engine uses. While a bot is being dragged, every
- * other bot's eyes track it until it settles.
+ * other bot switches to round eyes and slides them across its body toward
+ * the dragged bot (in its own rotated frame) until it settles.
  *
  * Visual reference: the Grok Bot Austin Texas sidewalk sign.
  */
@@ -46,9 +47,21 @@ const BOT_COUNT = 32; // Jonathan wants 2-3x the original ~13
 // the body outline so nothing pokes out at the extremes.
 const GLANCE_X = 13;
 const GLANCE_Y = 8.5;
+// Look-at-dragged: an idle glance (±13 mark units ≈ 5px on a phone-size bot)
+// is far too subtle to read as a stare, and the baked round-eye pair sits
+// left of the mark center anyway. While tracking, the whole eye pair is
+// re-anchored on the body's centroid and pushed toward the dragged bot as
+// far as the outline allows (see lookReach), which reads unmistakably.
+const LOOK_STEP = 6; // reach search resolution (mark units); must stay < eye radius
+const LOOK_MAX = 110; // never push further than this (mark units)
+const LOOK_MARGIN = 3; // keep this much outline clearance around each eye
+const LOOK_BINS = 72; // reach cache resolution (5° per bin)
 // Expression morph spring — mirrors the engine's
 // stepSpring(expressionSpring, frequency 6-8, damping 1, dt).
 const EXPR_FREQ = 6.5;
+// Spawn: the whole outline must start above the top edge with this clearance
+// (px) so a bot is never visible mid-frame on its first painted frame.
+const SPAWN_CLEAR = 12;
 
 /** One baked eye ring, parsed for morphing: 48 points centered on (0,0). */
 interface ParsedEye {
@@ -56,6 +69,8 @@ interface ParsedEye {
   cy: number;
   /** flat [x0, y0, x1, y1, ...] */
   pts: number[];
+  /** ring extent from its center (mark units), for outline containment */
+  r: number;
 }
 const SQUISH_MAX = 0.38; // increased for visibly squishy impacts (was 0.22)
 const SQUISH_STIFFNESS = 210;
@@ -107,14 +122,13 @@ function shuffle<T>(arr: T[]): T[] {
 
 /** Parse a baked "Mx yLx y...Z" eye ring into points for morphing. */
 function parseEye(eye: PileEye): ParsedEye {
-  return {
-    cx: eye.cx,
-    cy: eye.cy,
-    pts: eye.path
-      .slice(1, -1)
-      .split('L')
-      .flatMap((pair) => pair.split(' ').map(Number)),
-  };
+  const pts = eye.path
+    .slice(1, -1)
+    .split('L')
+    .flatMap((pair) => pair.split(' ').map(Number));
+  let r = 0;
+  for (let i = 0; i < pts.length; i += 2) r = Math.max(r, Math.hypot(pts[i], pts[i + 1]));
+  return { cx: eye.cx, cy: eye.cy, pts, r };
 }
 
 /** Blend two parsed eyes — same as the engine's lerpRing, plus centers. */
@@ -123,7 +137,31 @@ function lerpEye(from: ParsedEye, to: ParsedEye, t: number): ParsedEye {
     cx: from.cx + (to.cx - from.cx) * t,
     cy: from.cy + (to.cy - from.cy) * t,
     pts: from.pts.map((v, i) => v + (to.pts[i] - v) * t),
+    r: from.r + (to.r - from.r) * t,
   };
+}
+
+/**
+ * Squared distance from (px, py) to the closed polygon's nearest edge. The
+ * pile outlines are sampled at 48-72 points, so this is cheap enough to run
+ * per tracking bot per frame (and results are cached per direction anyway).
+ */
+function edgeDistanceSq(poly: Array<{ x: number; y: number }>, px: number, py: number): number {
+  let best = Infinity;
+  for (let i = 0, n = poly.length; i < n; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % n];
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const len2 = abx * abx + aby * aby;
+    let t = len2 > 0 ? ((px - a.x) * abx + (py - a.y) * aby) / len2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const dx = px - (a.x + abx * t);
+    const dy = py - (a.y + aby * t);
+    const d = dx * dx + dy * dy;
+    if (d < best) best = d;
+  }
+  return best;
 }
 
 function eyePathD(pts: number[], t: number, to: number[]): string {
@@ -147,6 +185,7 @@ export class BotPile extends HTMLElement {
   private sound = new PileSound();
   private sampleCache = new Map<string, Array<{ x: number; y: number }>>();
   private variantCache = new Map<string, ParsedEye[][]>();
+  private lookCache = new Map<string, number>();
   private clipIds = new Map<string, string>();
   private defs!: SVGDefsElement;
 
@@ -365,11 +404,19 @@ export class BotPile extends HTMLElement {
     if (!item) return;
     const r = item.size / 2;
     const x = rand(this.viewW * 0.18 + r, this.viewW * 0.82 - r);
-    // Spawn clearly above viewport with staggered Y for visible fall-in.
-    const y = this.reducedMotion ? rand(this.viewH * 0.3, this.viewH * 0.7) : -item.size - rand(0, this.viewH * 0.15);
-    this.addBot(item.shape, item.hex, item.size, x, y);
+    // Spawn clearly above the viewport, staggered in Y for a visible fall-in.
+    // Reduced-motion users get the same gentle drop (a 32-bot pop-in that
+    // then bursts apart is more motion, not less); only sound/morphs differ.
+    const y = -item.size - rand(0, this.viewH * 0.15);
+    const bot = this.addBot(item.shape, item.hex, item.size, x, y);
+    // Asymmetric outlines (teardrop, wedge) extend unevenly around their
+    // centroid: guarantee the entire body sits above the top edge.
+    const overshoot = bot.body.bounds.max.y + SPAWN_CLEAR;
+    if (overshoot > 0) {
+      Matter.Body.setPosition(bot.body, { x, y: bot.body.position.y - overshoot });
+    }
     // Faster cadence than the 13-bot pile so ~32 bots land in ~8s.
-    this.spawnTimer = this.reducedMotion ? 0 : rand(0.18, 0.32);
+    this.spawnTimer = this.reducedMotion ? rand(0.1, 0.18) : rand(0.18, 0.32);
   }
 
   private samplePathPoints(shape: PileShape): Array<{ x: number; y: number }> {
@@ -390,7 +437,7 @@ export class BotPile extends HTMLElement {
     return points;
   }
 
-  private addBot(shape: PileShape, hex: string, size: number, x: number, y: number): void {
+  private addBot(shape: PileShape, hex: string, size: number, x: number, y: number): Bot {
     const scale = size / MARK_BOX;
     const points = this.samplePathPoints(shape).map((p) => ({ x: p.x * scale, y: p.y * scale }));
     const com = Matter.Vertices.centre(points);
@@ -413,6 +460,12 @@ export class BotPile extends HTMLElement {
       com.x = MARK_BOX * 0.5 * scale;
       com.y = MARK_BOX * 0.5 * scale;
     }
+    // Matter quirk: when path-sampling noise flags a convex outline as
+    // concave and poly-decomp collapses it back to ONE part (capsule, wedge,
+    // teardrop), Bodies.fromVertices returns that part at its own local
+    // centroid (~size/2, size/2) and silently ignores (x, y) — the bot would
+    // pop in at the top-left of the viewport. Place it explicitly.
+    Matter.Body.setPosition(body, { x, y });
     Matter.Body.setAngularVelocity(body, rand(-0.08, 0.08));
     Matter.Composite.add(this.engine.world, body);
 
@@ -481,6 +534,7 @@ export class BotPile extends HTMLElement {
     this.bots.push(bot);
     this.recomputeSizeNorms();
     for (const part of body.parts) this.botByPartId.set(part.id, bot);
+    return bot;
   }
 
   private recomputeSizeNorms(): void {
@@ -515,6 +569,50 @@ export class BotPile extends HTMLElement {
       this.clipIds.set(shape.id, id);
     }
     return id;
+  }
+
+  /**
+   * How far (mark units) the eye pair of `variant` can slide from the body's
+   * centroid along unit direction `dir` (mark space) with both rings still
+   * fully inside the outline. Marches outward in LOOK_STEP increments until
+   * an eye would breach the clearance band; since the step is smaller than
+   * any eye radius the band can't be skipped, so no point-in-polygon test is
+   * needed. Cached per shape/variant/direction bin.
+   */
+  private lookReach(bot: Bot, variant: number, dir: { x: number; y: number }): number {
+    const bin = Math.round((Math.atan2(dir.y, dir.x) / (Math.PI * 2)) * LOOK_BINS);
+    const key = `${bot.shape.id}/${variant}/${((bin % LOOK_BINS) + LOOK_BINS) % LOOK_BINS}`;
+    const cached = this.lookCache.get(key);
+    if (cached !== undefined) return cached;
+
+    // Evaluate at the bin's center so the cached value matches its key.
+    const theta = (bin / LOOK_BINS) * Math.PI * 2;
+    const dx = Math.cos(theta);
+    const dy = Math.sin(theta);
+    const outline = this.samplePathPoints(bot.shape);
+    const eyes = this.parsedVariants(bot.shape)[variant];
+    const pairX = (eyes[0].cx + eyes[1].cx) / 2;
+    const pairY = (eyes[0].cy + eyes[1].cy) / 2;
+    // Centroid of the mark outline == the body's rotation pivot (com/scale).
+    const anchorX = bot.com.x / bot.scale;
+    const anchorY = bot.com.y / bot.scale;
+    let reach = 0;
+    for (let next = LOOK_STEP; next <= LOOK_MAX; next += LOOK_STEP) {
+      let fits = true;
+      for (const eye of eyes) {
+        const px = anchorX + dx * next + (eye.cx - pairX);
+        const py = anchorY + dy * next + (eye.cy - pairY);
+        const clear = eye.r + LOOK_MARGIN;
+        if (edgeDistanceSq(outline, px, py) < clear * clear) {
+          fits = false;
+          break;
+        }
+      }
+      if (!fits) break;
+      reach = next;
+    }
+    this.lookCache.set(key, reach);
+    return reach;
   }
 
   /** Random pool member different from the bot's current expression. */
@@ -563,18 +661,18 @@ export class BotPile extends HTMLElement {
       this.svg.classList.add('dragging');
       // Being picked up is an event: the grabbed bot swaps expression on the
       // spot, and it holds that face while carried (no mid-drag cycling).
-      // All other bots switch to round eyes (variant 2) for clear tracking stare.
+      // Every other bot switches to the round "circle + circle" pair (pool
+      // index 2 — the same EXPRESSIONS ring for all shapes) and holds that
+      // stare while it tracks; updateTrackSettle hands them back to idle.
       const now = performance.now() / 1000;
-      const ROUND_VARIANT = 2; // Most shapes have circular eyes at index 2
+      const ROUND_VARIANT = 2;
       for (const bot of this.bots) {
         if (bot.body === body) {
           this.setBotExpression(bot, this.pickNextVariant(bot));
           bot.nextExprAt = now + rand(2.6, 5.6);
         } else {
-          // Switch to round eyes for tracking — find the closest round variant
           const roundIdx = Math.min(ROUND_VARIANT, bot.shape.eyeVariants.length - 1);
           this.setBotExpression(bot, roundIdx);
-          bot.nextExprAt = now + rand(3, 6); // Resume cycling after tracking
         }
       }
     });
@@ -695,7 +793,7 @@ export class BotPile extends HTMLElement {
       }
 
       Matter.Engine.update(this.engine, dtMs);
-      this.updateTrackSettle(dt);
+      this.updateTrackSettle(dt, now / 1000);
       this.updateSquish(dt);
       this.updateEyes(dt, now / 1000);
       this.render();
@@ -710,7 +808,7 @@ export class BotPile extends HTMLElement {
     }
   }
 
-  private updateTrackSettle(dt: number): void {
+  private updateTrackSettle(dt: number, now: number): void {
     if (!this.trackBody || this.dragBody) return;
     const b = this.trackBody;
     if (b.speed < 0.35 && Math.abs(b.angularSpeed) < 0.03) {
@@ -718,6 +816,15 @@ export class BotPile extends HTMLElement {
       if (this.settleTime > 0.5) {
         this.trackBody = null;
         this.settleTime = 0;
+        // Release → back to idle: watchers drift off the stare and resume
+        // cycling expressions on staggered timers (not all at once).
+        for (const bot of this.bots) {
+          if (bot.body === b) continue;
+          bot.glanceTarget.x = 0;
+          bot.glanceTarget.y = 0;
+          bot.nextGlanceAt = now + rand(0.4, 1.6);
+          bot.nextExprAt = now + rand(0.6, 3.2);
+        }
       }
     } else {
       this.settleTime = 0;
@@ -751,14 +858,23 @@ export class BotPile extends HTMLElement {
         const dir = Matter.Vector.sub(target.position, bot.body.position);
         const mag = Matter.Vector.magnitude(dir);
         if (mag > 1) {
-          // Transform world-space direction into bot's local (mark) coordinate frame.
-          // The bot element is rotated by body.angle in render(), so to correctly aim
-          // eyes in the bot's local space, we rotate the world direction by -body.angle.
-          const worldDir = { x: dir.x / mag, y: dir.y / mag };
-          // Rotate by +angle instead of -angle for correct local-space transformation
-          const local = Matter.Vector.rotate(worldDir, bot.body.angle);
-          bot.glanceTarget.x = local.x * GLANCE_X;
-          bot.glanceTarget.y = local.y * GLANCE_Y;
+          // World → this bot's mark space. render() draws the mark as
+          // translate(pos) · rotate(angle) · translate(-com) · scale, so a
+          // world direction maps into mark space through the inverse
+          // rotation, R(-angle). Matter's Vector.rotate and SVG rotate()
+          // share the same y-down clockwise convention, so this holds for
+          // sideways / upside-down watchers alike.
+          const local = Matter.Vector.rotate({ x: dir.x / mag, y: dir.y / mag }, -bot.body.angle);
+          // Re-anchor the eye pair on the body centroid and push it toward
+          // the dragged bot as far as the outline allows. A target that is
+          // right on top of us gets a shorter push so the stare doesn't
+          // whip around as the direction flips.
+          const eyes = bot.eyesTo;
+          const pairX = (eyes[0].cx + eyes[1].cx) / 2;
+          const pairY = (eyes[0].cy + eyes[1].cy) / 2;
+          const reach = this.lookReach(bot, bot.variant, local) * Math.min(1, 0.45 + mag / (bot.size * 1.5));
+          bot.glanceTarget.x = bot.com.x / bot.scale + local.x * reach - pairX;
+          bot.glanceTarget.y = bot.com.y / bot.scale + local.y * reach - pairY;
         }
       } else if (now >= bot.nextGlanceAt) {
         // Idle looking-around, tuned to the outline bot's curious/playful
@@ -774,15 +890,17 @@ export class BotPile extends HTMLElement {
         bot.nextGlanceAt = now + rand(1.1, 2.9);
       }
       // Snap to the dragged bot faster than the idle drift.
-      const ease = Math.min(1, dt * (tracking || dragged ? 13 : 9));
+      const ease = Math.min(1, dt * (tracking || dragged ? 14 : 9));
       bot.glance.x += (bot.glanceTarget.x - bot.glance.x) * ease;
       bot.glance.y += (bot.glanceTarget.y - bot.glance.y) * ease;
 
       // Expression cycling through the human-page pool. The outline bot
       // rotates idle/curious/playful/happy every 3-5s and each state also
       // cycles internally (1.5-4.5s cadences) — net feel: a new face every
-      // few seconds. The held bot keeps its face until it's put down.
-      if (!dragged && now >= bot.nextExprAt) {
+      // few seconds. The held bot keeps its face until it's put down, and
+      // watchers hold their round stare until the dragged bot settles
+      // (updateTrackSettle re-arms their timers).
+      if (!dragged && !tracking && now >= bot.nextExprAt) {
         this.setBotExpression(bot, this.pickNextVariant(bot));
         bot.nextExprAt = now + rand(2.6, 5.6);
       }
