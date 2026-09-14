@@ -105,21 +105,23 @@ function getOfficialOverflowEyePaths(officialID) {
 }
 
 /**
- * Generate compound path with head + official overflow eye knockouts
- * Uses fill-rule="evenodd" so official eye paths become transparent cutouts (fabric-through)
- * Eyes can break silhouette edge (official overflow geometry)
+ * Generate head + printed #0A0A0A eye ink layers (Merch lock for #100 print bake)
+ * Eyes are PRINTED INK (NOT knockout holes) so overflow works on Prodigi/DTG
+ * Official overflow geometry from hero paths
  */
 function generateCompoundPath(officialID, pickerShape, color, fillColor) {
   const shape = SHAPES[officialID];
   const headPath = shape.path;
   const eyePaths = getOfficialOverflowEyePaths(officialID);
   
-  // Combine head + official overflow eyes as compound path (evenodd makes eyes transparent knockout cutouts)
-  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${eyePaths.left} ${eyePaths.right}"/>`;
+  // Head as colored fill + eyes as separate printed #0A0A0A ink layers
+  return `<path class="grok-bot-mark__head" fill="${fillColor}" d="${headPath}"/>
+    <path class="grok-bot-mark__eye grok-bot-mark__eye--left" fill="#0A0A0A" d="${eyePaths.left}"/>
+    <path class="grok-bot-mark__eye grok-bot-mark__eye--right" fill="#0A0A0A" d="${eyePaths.right}"/>`;
 }
 
 /**
- * Generate complete SVG mark with knockout eyes
+ * Generate complete SVG mark with printed #0A0A0A eye ink (Merch lock)
  */
 function generateMark(pickerShape, color, options = {}) {
   const { pocketPrint = false } = options;
@@ -131,8 +133,8 @@ function generateMark(pickerShape, color, options = {}) {
   const height = pocketPrint ? 192 : 229;
   
   const comment = pocketPrint 
-    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | Eyes: official overflow knockouts (evenodd) -->`
-    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | Eyes: official overflow knockouts (can break silhouette, evenodd fabric-through) -->`;
+    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | Eyes: printed #0A0A0A ink (overflow works on DTG) -->`
+    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | Eyes: printed #0A0A0A ink (overflow past silhouette, works on Prodigi/DTG) -->`;
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" viewBox="${VIEWBOX}" xmlns="http://www.w3.org/2000/svg">${comment}
@@ -199,10 +201,10 @@ async function generateMarks() {
   console.log(`\n✨ Done! Generated ${count + 1} total SVG files in ${outputDir}`);
   console.log(`\n🎯 Brand default (foil/Railway hero): grok-bot-blob-orange.svg`);
   console.log(`🎽 Pocket-print: ${pocketFilename} (~1.2" Prodigi front placement)`);
-  console.log(`\n👀 Eyes: OFFICIAL OVERFLOW knockout cutouts (fill-rule evenodd) from grok-bot-overflow-eyes.svg`);
-  console.log(`📐 Geometry: Tilted stadium/pill eye slots CAN break silhouette (official Grok Bot overflow style)`);
-  console.log(`📊 Source: Official overflow-eyes reference + shape geometry from grokbot-animation/original-data.js`);
-  console.log(`✅ Print-ready: Knockout cutouts (fabric-through), NOT solid fills — works on all tee colors`);
+  console.log(`\n👀 Eyes: PRINTED #0A0A0A INK from official overflow-eyes geometry (Merch lock #100)`);
+  console.log(`📐 Geometry: Tilted stadium/pill eye slots CAN overflow past silhouette (official style)`);
+  console.log(`📊 Source: Official overflow-eyes hero paths + shape geometry from grokbot-animation`);
+  console.log(`✅ Print-ready: Printed ink layers (overflow works on Prodigi/DTG) — NOT knockout holes`);
 }
 
 // Run the generator
