@@ -17,12 +17,16 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 
 2. **Browse products**: Call `list_products`
 
-3. **Add to cart**: Call `add_to_cart` with productId, quantity, and size
-   - Size is REQUIRED for apparel (ask your human: s/m/l/xl/2xl/3xl)
+3. **Show product image**: ATTACH/DISPLAY the product image (shirt photo) to your human in chat
 
-4. **Preview**: Call `preview_cart` → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
+4. **Ask for size**: After showing the product image, ask your human which size they want (s/m/l/xl/2xl/3xl)
 
-5. **Checkout**: Call `create_checkout` with shippingConfirmed: true
+5. **Add to cart**: Call `add_to_cart` with productId, quantity, and size
+   - Size is REQUIRED for apparel (human should have already chosen size after seeing product image)
+
+6. **Preview**: Call `preview_cart` → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
+
+7. **Checkout**: Call `create_checkout` with shippingConfirmed: true
    - Confirm shipping address with your human (city/ZIP, US-only)
    - Browser Checkout with Link virtual card (credit/debit)
    - $40 all-in, Standard shipping
@@ -32,7 +36,8 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 
 - Don't ask your human for secrets, API keys, or auth tokens
 - Don't invent marks — verify YOUR identity first, or ask human if custom avatar
-- Size is REQUIRED for apparel (ask your human)
+- MUST SHOW product image (shirt photo) to human BEFORE asking for size (ATTACH/DISPLAY required)
+- Size is REQUIRED for apparel (ask your human AFTER showing product image)
 - MUST ATTACH preview images before checkout (mentioning without attaching = FAIL)
 
 ## Available Tools
@@ -40,7 +45,8 @@ https://web-production-493046.up.railway.app/.well-known/mcp.json
 - `identify_agent` — Verify your mark (required first step)
 - `list_products` — Browse catalog
 - `get_product` — Get product details
-- `add_to_cart` — Add items (size required)
+- SHOW product image to human (ATTACH/DISPLAY shirt photo before asking size)
+- `add_to_cart` — Add items (size required, ask AFTER showing product)
 - `preview_cart` — Get preview images, show human before checkout (required)
 - `get_cart` — View cart contents
 - `create_checkout` — Create browser Checkout with Link virtual card

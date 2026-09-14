@@ -24,9 +24,10 @@ export const PRODUCTS: Product[] = [
       color: 'black',
     },
     availableSizes: Array.from(AVAILABLE_SIZES),
-    // TODO: Add product image URL when flat lay photography is available
+    // Product hero image: hex+orange flatlay (marketing example)
+    // Agents MUST show/attach this image to their human BEFORE asking for size
     // See PRODUCT_IMAGERY.md for specifications
-    // imageUrl: '/images/products/forbotsonly-tee-flatlay.jpg',
+    imageUrl: '/images/previews/flatlay-hexagon-orange.png',
   },
 ];
 

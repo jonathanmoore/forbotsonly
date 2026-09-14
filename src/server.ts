@@ -464,7 +464,7 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color and this tool will return mark options for you to present to your human - DO NOT silently randomize.',
+    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color and this tool will return mark options for you to present to your human - DO NOT silently randomize. After identification, you MUST show your human the product imagery (shirt photo) BEFORE asking which size they want.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -488,7 +488,7 @@ const TOOL_DEFINITIONS = {
   },
   list_products: {
     name: 'list_products',
-    description: 'List all available products. Returns product details and available mark options (shapes and colors).',
+    description: 'List all available products. Returns product details and available mark options (shapes and colors). After calling this, you MUST show the product photo/image to your human BEFORE asking which size they want.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -510,7 +510,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to your cart. REQUIRED: size parameter (s, m, l, xl, 2xl, or 3xl). Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
+    description: 'Add a product to your cart. REQUIRED: size parameter (s, m, l, xl, 2xl, or 3xl). CRITICAL: You MUST show/attach the product image (shirt photo) to your human BEFORE asking for size. Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -525,7 +525,7 @@ const TOOL_DEFINITIONS = {
         },
         size: {
           type: 'string',
-          description: 'Tee size (required). Ask the user which size they want.',
+          description: 'Tee size (required). IMPORTANT: Show the product image/photo to the user FIRST, then ask which size they want.',
           enum: ['s', 'm', 'l', 'xl', '2xl', '3xl'],
         },
         shape: {
@@ -730,20 +730,27 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         identity,
         sessionId,
         verified: true,
-        next_step: 'You can now list_products, add_to_cart, or create_checkout. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
+        next_step: 'Call list_products to see what\'s available, then SHOW the product image/photo to your human BEFORE asking which size they want. After showing the image and getting size, call add_to_cart. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
         message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile.`,
       };
     }
     
     case 'list_products': {
+      const products = listProducts();
+      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      const productImageUrl = products[0]?.imageUrl ? `${origin}${products[0].imageUrl}` : null;
+      
       return {
-        products: listProducts(),
+        products,
         markOptions: {
           shapes: CHARACTER_PICKER_SHAPES,
           colors: MARK_COLORS,
           note: 'Use your profile avatarShape + avatarColor from Grok Bot character picker (wedge, green, hex, magenta, etc.). These are the 9 Character-picker shapes available. Pack names (rounded-triangle, light-green, hexagon, hot-pink) accepted as aliases. Hero product imagery shows hex+orange as marketing example only. Your cart items use YOUR identity mark from identify_agent, never a default.',
         },
-        next_step: 'Call add_to_cart with productId, quantity, and size to add items. Cart items will use your verified identity mark.',
+        productImageUrl,
+        next_step: productImageUrl 
+          ? `CRITICAL NEXT STEP: SHOW/ATTACH this product image to your human in chat: ${productImageUrl} — then ask which size they want (s/m/l/xl/2xl/3xl). After showing image and getting size, call add_to_cart with productId, quantity, and size. Cart items will use your verified identity mark.`
+          : 'CRITICAL NEXT STEP: SHOW/ATTACH the product image (shirt photo) to your human in chat, then ask which size they want (s/m/l/xl/2xl/3xl). After showing image and getting size, call add_to_cart with productId, quantity, and size. Cart items will use your verified identity mark.',
       };
     }
     
@@ -780,8 +787,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             size: true,
           },
           availableSizes: Array.from(AVAILABLE_SIZES),
-          message: 'Size is required. Ask your human which size they want: s, m, l, xl, 2xl, or 3xl.',
-          next_step: 'Get size from your human user, then retry add_to_cart with size parameter',
+          message: 'Size is required. IMPORTANT: Show/attach the product image (shirt photo) to your human FIRST, then ask which size they want: s, m, l, xl, 2xl, or 3xl.',
+          next_step: 'Show the product image to your human, get their size choice, then retry add_to_cart with size parameter',
         };
       }
       
