@@ -37,7 +37,7 @@ const BRAND_COLORS: Array<{ id: string; hex: string }> = [
 const EYE_FILL = '#000000'; // dark slots — knockout look against the void
 const BOT_COUNT = 13;
 const GLANCE_MAX = 7; // mark units the eye slots may travel when glancing
-const SQUISH_MAX = 0.22; // "slight" — still 100% recognizable
+const SQUISH_MAX = 0.38; // increased for visibly squishy impacts (was 0.22)
 const SQUISH_STIFFNESS = 210;
 const SQUISH_DAMPING = 13;
 
@@ -357,11 +357,10 @@ export class BotPile extends HTMLElement {
     const eyeEls: SVGGElement[] = [];
     for (const eye of shape.eyes) {
       const eyeGroup = document.createElementNS(SVG_NS, 'g');
-      const slot = document.createElementNS(SVG_NS, 'ellipse');
-      slot.setAttribute('rx', String(eye.rx));
-      slot.setAttribute('ry', String(eye.ry));
-      slot.setAttribute('fill', EYE_FILL);
-      eyeGroup.appendChild(slot);
+      const eyePath = document.createElementNS(SVG_NS, 'path');
+      eyePath.setAttribute('d', eye.path);
+      eyePath.setAttribute('fill', EYE_FILL);
+      eyeGroup.appendChild(eyePath);
       el.appendChild(eyeGroup);
       eyeEls.push(eyeGroup);
     }
@@ -483,21 +482,28 @@ export class BotPile extends HTMLElement {
 
   private onOrientation = (e: DeviceOrientationEvent): void => {
     if (e.beta == null || e.gamma == null) return;
+    
+    // Raw tilt values (-90 to 90 degrees)
     let gx = Math.min(Math.max(e.gamma / 90, -1), 1); // left/right tilt
     let gy = Math.min(Math.max(e.beta / 90, -1), 1); // front/back tilt
 
-    // Remap for the current screen orientation.
+    // Remap for the current screen orientation (works even when orientation is locked)
+    // When locked, angle stays constant but gamma/beta still change with physical tilt
     const angle = (screen.orientation?.angle ?? 0) % 360;
     if (angle === 90) {
+      // Landscape right: swap and flip
       [gx, gy] = [gy, -gx];
     } else if (angle === 270) {
+      // Landscape left: swap and flip opposite
       [gx, gy] = [-gy, gx];
     } else if (angle === 180) {
+      // Portrait upside-down: flip both
       [gx, gy] = [-gx, -gy];
     }
+    // For angle === 0 (portrait), use gx/gy as-is
 
-    // Near-flat device: settle back to plain downward gravity.
-    if (Math.hypot(gx, gy) < 0.18) {
+    // Near-flat device: settle back to plain downward gravity (reduced threshold)
+    if (Math.hypot(gx, gy) < 0.12) {
       gx = 0;
       gy = 1;
     }
@@ -505,7 +511,8 @@ export class BotPile extends HTMLElement {
     this.engine.gravity.x = gx;
     this.engine.gravity.y = gy;
 
-    if (Math.hypot(gx - this.lastGravity.x, gy - this.lastGravity.y) > 0.06) {
+    // Wake sleeping bodies on significant gravity change (reduced threshold for responsiveness)
+    if (Math.hypot(gx - this.lastGravity.x, gy - this.lastGravity.y) > 0.04) {
       this.lastGravity = { x: gx, y: gy };
       for (const bot of this.bots) Matter.Sleeping.set(bot.body, false);
     }
@@ -632,10 +639,10 @@ export class BotPile extends HTMLElement {
         blinkY = 1 - Math.sin(p * Math.PI) * 0.9;
       }
       for (let i = 0; i < bot.eyeEls.length; i++) {
-        const eye = bot.shape.eyes[i];
+        // Eyes are full path shapes, apply glance translation and blink scale
         bot.eyeEls[i].setAttribute(
           'transform',
-          `translate(${(eye.cx + bot.glance.x).toFixed(2)} ${(eye.cy + bot.glance.y).toFixed(2)}) rotate(${eye.angle}) scale(1 ${blinkY.toFixed(3)})`,
+          `translate(${bot.glance.x.toFixed(2)} ${bot.glance.y.toFixed(2)}) scale(1 ${blinkY.toFixed(3)})`,
         );
       }
     }

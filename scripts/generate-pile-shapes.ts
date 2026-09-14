@@ -32,11 +32,7 @@ const PICKER_SHAPES: Array<{ id: string; pack: string }> = [
 ];
 
 interface EyeSpec {
-  cx: number;
-  cy: number;
-  rx: number;
-  ry: number;
-  angle: number;
+  path: string;
 }
 
 function round2(n: number): number {
@@ -48,37 +44,18 @@ function extract(svg: string): { path: string; eyes: EyeSpec[] } {
   if (!dMatch) throw new Error('compound path not found');
   const d = dMatch[1];
 
-  // Body = first subpath (up to and including its closing Z, before eye subpaths).
-  const bodyEnd = d.search(/Z\s*M\s/);
-  if (bodyEnd === -1) throw new Error('eye subpaths not found');
-  const body = d.slice(0, bodyEnd + 1).trim();
-  const eyesRaw = d.slice(bodyEnd + 1);
-
-  // Eye subpaths are ellipses drawn as 4 arcs: M p0 A rx,ry rot 0,1 p1 ... Z
-  const eyes: EyeSpec[] = [];
-  const subpaths = eyesRaw.split(/(?=M\s)/).map((s) => s.trim()).filter(Boolean);
-  for (const sp of subpaths) {
-    const m0 = sp.match(/^M\s+(-?[\d.]+),(-?[\d.]+)/);
-    if (!m0) continue;
-    const arcRe = /A\s+(-?[\d.]+),(-?[\d.]+)\s+(-?[\d.]+)\s+0,1\s+(-?[\d.]+),(-?[\d.]+)/g;
-    const pts: Array<[number, number]> = [[parseFloat(m0[1]), parseFloat(m0[2])]];
-    let rx = 0;
-    let ry = 0;
-    let angle = 0;
-    let am: RegExpExecArray | null;
-    while ((am = arcRe.exec(sp)) !== null) {
-      rx = parseFloat(am[1]);
-      ry = parseFloat(am[2]);
-      angle = parseFloat(am[3]);
-      pts.push([parseFloat(am[4]), parseFloat(am[5])]);
-    }
-    // First 4 points sit on opposite quadrant pairs; their mean is the center.
-    const four = pts.slice(0, 4);
-    const cx = four.reduce((s, p) => s + p[0], 0) / four.length;
-    const cy = four.reduce((s, p) => s + p[1], 0) / four.length;
-    eyes.push({ cx: round2(cx), cy: round2(cy), rx, ry, angle });
+  // Find all Z positions - body ends at first Z, then two eye subpaths
+  const zPositions: number[] = [];
+  for (let i = 0; i < d.length; i++) {
+    if (d[i] === 'Z') zPositions.push(i);
   }
-  if (eyes.length !== 2) throw new Error(`expected 2 eyes, got ${eyes.length}`);
+  if (zPositions.length < 3) throw new Error(`expected 3 Z closures (body + 2 eyes), got ${zPositions.length}`);
+  
+  const body = d.slice(0, zPositions[0] + 1).trim();
+  const eye1 = d.slice(zPositions[0] + 1, zPositions[1] + 1).trim();
+  const eye2 = d.slice(zPositions[1] + 1, zPositions[2] + 1).trim();
+
+  const eyes: EyeSpec[] = [{ path: eye1 }, { path: eye2 }];
   return { path: body, eyes };
 }
 
@@ -94,11 +71,8 @@ lines.push('// Body paths are the official grokbot-animation mark geometry from'
 lines.push('// public/images/marks/ (viewBox -15 -15 259 259, mark box 229x229).');
 lines.push('');
 lines.push('export interface PileEye {');
-lines.push('  cx: number;');
-lines.push('  cy: number;');
-lines.push('  rx: number;');
-lines.push('  ry: number;');
-lines.push('  angle: number;');
+lines.push('  /** True eye path geometry (varies per shape) */');
+lines.push('  path: string;');
 lines.push('}');
 lines.push('');
 lines.push('export interface PileShape {');
@@ -121,11 +95,11 @@ for (const e of entries) {
   lines.push(`    id: ${JSON.stringify(e.id)},`);
   lines.push(`    pack: ${JSON.stringify(e.pack)},`);
   lines.push(`    path: ${JSON.stringify(e.path)},`);
-  lines.push(
-    `    eyes: [${e.eyes
-      .map((eye) => `{ cx: ${eye.cx}, cy: ${eye.cy}, rx: ${eye.rx}, ry: ${eye.ry}, angle: ${eye.angle} }`)
-      .join(', ')}],`,
-  );
+  lines.push(`    eyes: [`);
+  for (const eye of e.eyes) {
+    lines.push(`      { path: ${JSON.stringify(eye.path)} },`);
+  }
+  lines.push(`    ],`);
   lines.push('  },');
 }
 lines.push('];');
