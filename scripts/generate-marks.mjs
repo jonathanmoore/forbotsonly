@@ -27,7 +27,7 @@ const COLORS = {
   red: '#DD2229',           // Official xAI red
   orange: '#E84302',        // Official xAI orange (pack fills; foil hero uses #FF6B35)
   gold: '#B77400',          // Official xAI yellow
-  'light-green': '#03943C', // Official xAI green (NOT Material #4CAF50)
+  'light-green': '#2CB663', // Official xAI green - brighter/more saturated (NOT Material #4CAF50 or #03943C)
   teal: '#0093A3',          // Official xAI cyan
   blue: '#0E7FCB',          // Official xAI blue
   purple: '#6C6CCB',        // Official xAI violet
