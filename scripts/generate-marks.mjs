@@ -3,23 +3,36 @@
 /**
  * Grok Bot Character Mark Generator
  * Source of truth: vendor/grokbot-animation/component/original-data.js
- * 
- * Eyes: Knockout cutouts (evenodd), randomized position within safe face zone per shape
+ *
+ * Eyes: true morph-bot eye rings (EXPRESSIONS) placed with the runtime's own
+ * renderEyes() math (scripts/lib/morph-bot-eyes.mjs), geometrically contained
+ * inside the body, emitted as evenodd knockout cutouts (fabric shows through).
+ *
+ * Writes byte-identical SVGs to BOTH assets/marks/ (source) and
+ * public/images/marks/ (served by store previews / Merch / Prodigi pipeline).
  */
 
 import { mkdir, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { SHAPES, HEAD_C, EYE_HALF } from '../vendor/grokbot-animation/component/original-data.js';
+import { SHAPES } from '../vendor/grokbot-animation/component/original-data.js';
+import { auditMarkEyes, buildMarkEyes, EDGE_MARGIN, SHAPE_EXPRESSION } from './lib/morph-bot-eyes.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const ROOT = join(__dirname, '..');
+
+// Every mark is written to each of these; public/ MUST match assets/ byte-for-byte.
+const OUTPUT_DIRS = [
+  join(ROOT, 'assets', 'marks'),
+  join(ROOT, 'public', 'images', 'marks'),
+];
 
 // ViewBox with padding
 const VIEWBOX = '-15 -15 259 259';
 
 // Color palette (official xAI Grok Bot avatar hexes: x.ai --color-brand-*-400)
-// FINAL LOCK A for #100 pack fills - contained evenodd knockout eyes, NO Material colors
+// FINAL LOCK for #109 pack fills - true morph-bot eyes, contained evenodd knockout
 const COLORS = {
   white: '#FFFFFF',
   black: '#0A0A0A',         // Official xAI black
@@ -50,94 +63,54 @@ const SHAPE_ID_MAP = {
   'teardrop': 'teardrop',      // Teardrop
 };
 
+/**
+ * Eye geometry per official shape, computed once. Each entry is the runtime
+ * morph-bot eye pair for that shape's assigned outline expression, placed by the
+ * ported renderEyes() math and verified contained + non-overlapping.
+ */
+const EYES_BY_SHAPE = Object.fromEntries(
+  Object.values(SHAPE_ID_MAP).map((officialID) => {
+    const built = buildMarkEyes(officialID);
+    const audit = auditMarkEyes(officialID, built.eyes);
+    if (!audit.contained || !audit.separated) {
+      throw new Error(`Eye containment failed for ${officialID}: ${JSON.stringify(audit)}`);
+    }
+    return [officialID, { ...built, audit }];
+  }),
+);
 
 /**
- * Official overflow eye paths from grok-bot-overflow-eyes.svg reference
- * These complex tilted stadium/pill shapes can break the silhouette edge (official geometry)
- * Using as KNOCKOUT cutouts (evenodd) for print - fabric shows through
+ * Generate compound path: head + contained true morph-bot eye knockouts.
+ * fill-rule="evenodd" turns the eye rings into transparent fabric-through holes.
  */
-const OFFICIAL_LEFT_EYE_PATH = "M118.17 70.73L120.45 71.04L122.59 71.76L124.55 72.87L126.18 74.38L127.42 76.24L128.34 78.29L129.10 80.42L129.83 82.57L130.55 84.72L131.27 86.86L131.97 89.02L132.64 91.19L133.29 93.36L133.91 95.55L134.50 97.74L135.05 99.95L135.36 102.23L135.16 104.55L134.41 106.80L133.11 108.84L131.36 110.51L129.28 111.73L127.01 112.45L124.68 112.65L122.41 112.33L120.31 111.51L118.45 110.26L116.93 108.62L115.81 106.69L115.01 104.57L114.39 102.39L113.80 100.19L113.17 98.01L112.52 95.84L111.85 93.66L111.17 91.51L110.47 89.35L109.75 87.20L108.94 85.09L108.17 82.96L107.64 80.75L107.63 78.44L108.31 76.16L109.61 74.14L111.41 72.51L113.54 71.41L115.84 70.83Z";
-
-const OFFICIAL_RIGHT_EYE_PATH = "M179.77 59.76L182.04 60.05L184.10 60.75L185.92 61.77L187.55 63.03L188.95 64.50L190.10 66.16L191.07 67.95L191.90 69.82L192.67 71.74L193.41 73.66L194.13 75.60L194.80 77.56L195.42 79.55L196.02 81.54L196.56 83.57L197.06 85.61L197.50 87.67L197.90 89.77L198.06 91.94L197.82 94.21L197.15 96.51L195.85 98.72L193.75 100.38L191.30 101.01L189.00 100.81L186.99 100.03L185.30 98.85L183.91 97.38L182.84 95.66L182.05 93.76L181.48 91.76L181.00 89.71L180.53 87.64L180.02 85.60L179.48 83.58L178.89 81.58L178.26 79.60L177.60 77.62L176.90 75.68L176.15 73.76L175.36 71.86L174.53 69.98L173.78 68.06L173.41 65.97L173.71 63.70L175.05 61.53L177.32 60.14Z";
-
-/**
- * Get official overflow eye paths scaled for each shape
- * Returns paths as knockout cutouts (evenodd) - NOT solid fills
- */
-function getOfficialOverflowEyePaths(officialID) {
-  const shape = SHAPES[officialID];
-  const eyeScale = shape.face.eye;
-  
-  // Official eyes designed for scale=1.0 (blob), scale proportionally for other shapes
-  if (Math.abs(eyeScale - 1.0) < 0.01) {
-    return {
-      left: OFFICIAL_LEFT_EYE_PATH,
-      right: OFFICIAL_RIGHT_EYE_PATH,
-    };
-  }
-  
-  // Scale paths for shapes with different eye scales
-  const centerX = HEAD_C;
-  const centerY = HEAD_C;
-  
-  const scalePathCoords = (pathStr, scale) => {
-    const coords = pathStr.match(/[\d.]+/g).map(Number);
-    const scaled = [];
-    
-    for (let i = 0; i < coords.length; i += 2) {
-      const x = coords[i];
-      const y = coords[i + 1];
-      scaled.push((centerX + (x - centerX) * scale).toFixed(2));
-      scaled.push((centerY + (y - centerY) * scale).toFixed(2));
-    }
-    
-    let result = 'M' + scaled[0] + ' ' + scaled[1];
-    for (let i = 2; i < scaled.length; i += 2) {
-      result += 'L' + scaled[i] + ' ' + scaled[i + 1];
-    }
-    return result + 'Z';
-  };
-  
-  return {
-    left: scalePathCoords(OFFICIAL_LEFT_EYE_PATH, eyeScale),
-    right: scalePathCoords(OFFICIAL_RIGHT_EYE_PATH, eyeScale),
-  };
+function generateCompoundPath(officialID, fillColor) {
+  const headPath = SHAPES[officialID].path;
+  const { eyes } = EYES_BY_SHAPE[officialID];
+  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${eyes[0].path} ${eyes[1].path}"/>`;
 }
 
 /**
- * Generate compound path with head + CONTAINED slanted eye knockouts (PR #53 style)
- * Uses fill-rule="evenodd" so eyes become transparent fabric-through holes
- * Eyes stay CONTAINED within silhouette (NOT overflow) - awaiting Jonathan A/B decision
- */
-function generateCompoundPath(officialID, pickerShape, color, fillColor) {
-  const shape = SHAPES[officialID];
-  const headPath = shape.path;
-  const eyePaths = getOfficialOverflowEyePaths(officialID);
-  
-  // Single compound path: head + contained eye knockouts (evenodd = fabric-through)
-  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${eyePaths.left} ${eyePaths.right}"/>`;
-}
-
-/**
- * Generate complete SVG mark with CONTAINED knockout eyes (PR #53 style - Default A)
+ * Generate complete SVG mark with contained true morph-bot eye knockouts (#109)
  */
 function generateMark(pickerShape, color, options = {}) {
   const { pocketPrint = false } = options;
   const officialID = SHAPE_ID_MAP[pickerShape];
   const fillColor = COLORS[color];
-  
+  const { expression, audit } = EYES_BY_SHAPE[officialID];
+
   // Pocket print: 192px canvas for ~1.2" @ 300dpi Prodigi placement
   const width = pocketPrint ? 192 : 229;
   const height = pocketPrint ? 192 : 229;
-  
-  const comment = pocketPrint 
-    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | Eyes: contained knockouts (evenodd, slanted) -->`
-    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | Eyes: CONTAINED knockouts (evenodd fabric-through, slanted per shape) -->`;
-  
+
+  const eyeNote = `Eyes: morph-bot EXPRESSIONS[${expression}] via runtime renderEyes() placement, evenodd fabric-through knockouts, contained (min edge depth ${Math.min(...audit.depths).toFixed(1)}u ≥ ${EDGE_MARGIN}u)`;
+  const comment = pocketPrint
+    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | ${eyeNote} -->`
+    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | ${eyeNote} -->`;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" viewBox="${VIEWBOX}" xmlns="http://www.w3.org/2000/svg">${comment}
-  <g class="grok-bot-mark" data-official-id="${officialID}" data-picker-shape="${pickerShape}">
-    ${generateCompoundPath(officialID, pickerShape, color, fillColor)}
+  <g class="grok-bot-mark" data-official-id="${officialID}" data-picker-shape="${pickerShape}" data-expression="${expression}">
+    ${generateCompoundPath(officialID, fillColor)}
   </g>
 </svg>`;
 }
@@ -153,56 +126,50 @@ function getFilename(pickerShape, color, pocketPrint = false) {
 /**
  * Main generation function
  */
+async function writeMark(filename, svg) {
+  await Promise.all(OUTPUT_DIRS.map((dir) => writeFile(join(dir, filename), svg, 'utf-8')));
+}
+
 async function generateMarks() {
-  const outputDir = join(__dirname, '..', 'assets', 'marks');
-  
-  await mkdir(outputDir, { recursive: true });
-  
+  await Promise.all(OUTPUT_DIRS.map((dir) => mkdir(dir, { recursive: true })));
+
   console.log('🤖 Generating Grok Bot character marks (official grokbot-animation geometry)...\n');
-  
+
   const pickerShapes = Object.keys(SHAPE_ID_MAP);
   const colors = Object.keys(COLORS);
-  
-  // Log shape mapping
-  console.log('📐 Shape ID Mapping (App Picker ↔ Official grokbot-animation):');
-  pickerShapes.forEach(shape => {
+
+  console.log('📐 Shape ↔ official id ↔ morph-bot expression (eye containment audit):');
+  pickerShapes.forEach((shape) => {
     const officialID = SHAPE_ID_MAP[shape];
-    const shapeData = SHAPES[officialID];
-    console.log(`   ${shape.padEnd(18)} → ${officialID.padEnd(10)} (face eye scale: ${shapeData.face.eye.toFixed(2)})`);
+    const { expression, audit } = EYES_BY_SHAPE[officialID];
+    console.log(
+      `   ${shape.padEnd(18)} → ${officialID.padEnd(9)} EXPRESSIONS[${String(expression).padEnd(2)}]` +
+      ` face.eye=${SHAPES[officialID].face.eye.toFixed(2)}` +
+      ` depth=${audit.depths.map((d) => d.toFixed(1)).join('/')}u gap=${audit.gap.toFixed(1)}u`,
+    );
   });
   console.log('');
-  
+
   let count = 0;
-  
-  // Generate all picker shape × color combinations
   for (const shape of pickerShapes) {
     for (const color of colors) {
-      const svg = generateMark(shape, color);
-      const filename = getFilename(shape, color);
-      const filepath = join(outputDir, filename);
-      
-      await writeFile(filepath, svg, 'utf-8');
+      await writeMark(getFilename(shape, color), generateMark(shape, color));
       count++;
     }
   }
-  
-  console.log(`✓ Generated ${count} base marks (9 app picker shapes × 11 colors)`);
-  
-  // Generate pocket-print brand default (orange blob)
-  const pocketSvg = generateMark('blob', 'orange', { pocketPrint: true });
+  console.log(`✓ Generated ${count} base marks (${pickerShapes.length} app picker shapes × ${colors.length} colors)`);
+
   const pocketFilename = getFilename('blob', 'orange', true);
-  const pocketFilepath = join(outputDir, pocketFilename);
-  
-  await writeFile(pocketFilepath, pocketSvg, 'utf-8');
+  await writeMark(pocketFilename, generateMark('blob', 'orange', { pocketPrint: true }));
   console.log(`✓ Generated pocket-print brand default: ${pocketFilename}`);
-  
-  console.log(`\n✨ Done! Generated ${count + 1} total SVG files in ${outputDir}`);
+
+  console.log(`\n✨ Done! Generated ${count + 1} SVG files in each of:`);
+  for (const dir of OUTPUT_DIRS) console.log(`   ${dir}`);
   console.log(`\n🎯 Brand default (foil/Railway hero): grok-bot-blob-orange.svg`);
   console.log(`🎽 Pocket-print: ${pocketFilename} (~1.2" Prodigi front placement)`);
-  console.log(`\n👀 Eyes: CONTAINED knockout holes (evenodd fabric-through) - PR #53 style (Default A)`);
-  console.log(`📐 Geometry: Slanted eye layout from official overflow-eyes, CONTAINED within silhouette`);
-  console.log(`📊 Source: Official overflow-eyes hero paths (scaled/contained per shape) + grokbot-animation`);
-  console.log(`✅ Print-ready: Evenodd knockouts (fabric-through) — awaiting Jonathan A/B on overflow`);
+  console.log(`\n👀 Eyes: true morph-bot EXPRESSIONS rings (${Object.values(SHAPE_EXPRESSION).join(', ')}), one outline expression per shape`);
+  console.log(`📐 Placement: runtime renderEyes() port (face x/y/sx/sy/eye, fit, shapeSpanAt clamp) + geometric containment ≥ ${EDGE_MARGIN}u`);
+  console.log(`✅ Print-ready: evenodd knockouts (fabric-through), no edge escape, public/ == assets/`);
 }
 
 // Run the generator
