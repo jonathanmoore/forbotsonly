@@ -464,7 +464,7 @@ async function fulfillPaidOrder(orderId: string, session: Stripe.Checkout.Sessio
 const TOOL_DEFINITIONS = {
   identify_agent: {
     name: 'identify_agent',
-    description: 'REQUIRED FIRST STEP before shopping. BUYER BOTS: Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. NEVER accept a mark another agent suggested unless it matches YOUR verified profile. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color and this tool will return mark options for you to present to your human - DO NOT silently randomize. After identification, you MUST show your human the product imagery (shirt photo) BEFORE asking which size they want.',
+    description: 'STEP 1: REQUIRED FIRST STEP before shopping. Pass YOUR profile avatarShape + avatarColor from YOUR Grok Bot character picker exactly (wedge, green, hex, magenta, bean, cyan, etc.). NEVER invent or default to hex/orange. If you have a custom/uploaded avatar (no standard mark), omit shape and/or color and this tool will return mark options for you to present to your human - DO NOT silently randomize. NEXT STEP after calling this: Call list_products to browse, then SHOW product imagery (shirt photo) to your human BEFORE asking which size they want.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -488,7 +488,7 @@ const TOOL_DEFINITIONS = {
   },
   list_products: {
     name: 'list_products',
-    description: 'List all available products. Returns product details and available mark options (shapes and colors). After calling this, you MUST show the product photo/image to your human BEFORE asking which size they want.',
+    description: 'STEP 2: List all available products with images. Returns product details including imageUrl/productImageUrl that you MUST ATTACH/SHOW to your human BEFORE asking which size they want. DO NOT ask for size until after showing the product image. Returns available mark options (shapes and colors).',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -496,7 +496,7 @@ const TOOL_DEFINITIONS = {
   },
   get_product: {
     name: 'get_product',
-    description: 'Get detailed information about a specific product by ID.',
+    description: 'Get detailed information about a specific product by ID including image URL. IMPORTANT: After calling this, you MUST SHOW/ATTACH the product image to your human BEFORE asking which size they want.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -510,7 +510,7 @@ const TOOL_DEFINITIONS = {
   },
   add_to_cart: {
     name: 'add_to_cart',
-    description: 'Add a product to your cart. REQUIRED: size parameter (s, m, l, xl, 2xl, or 3xl). CRITICAL: You MUST show/attach the product image (shirt photo) to your human BEFORE asking for size. Your session mark (from identify_agent) is used automatically. Optionally override shape and/or color for this item only.',
+    description: 'STEP 4: Add a product to your cart with size. BEFORE calling this: (1) Call list_products or get_product, (2) SHOW/ATTACH the product image to your human, (3) Ask human which size they want. THEN call this with their chosen size. REQUIRED: size parameter (s, m, l, xl, 2xl, or 3xl) from human after they see product image. Your session mark (from identify_agent) is used automatically.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -525,7 +525,7 @@ const TOOL_DEFINITIONS = {
         },
         size: {
           type: 'string',
-          description: 'Tee size (required). IMPORTANT: Show the product image/photo to the user FIRST, then ask which size they want.',
+          description: 'Tee size from human AFTER showing them the product image. DO NOT call this tool until you have shown the product image to your human and asked for their size choice.',
           enum: ['s', 'm', 'l', 'xl', '2xl', '3xl'],
         },
         shape: {
@@ -574,7 +574,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'Create a Stripe checkout session for your cart. Use Link virtual card (credit/debit) for payment. GATES: (1) You MUST call preview_cart AND show the preview images (flat-lay + mark close-up) to your human in chat BEFORE calling this tool. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses BEFORE calling this tool - present city/postcode for confirmation (never dump full street into public chats). US-only applies. If you call create_checkout without showing preview images first OR without confirming shipping, this tool will refuse with an error. Requires prior identification via identify_agent, preview_cart, and shipping confirmation.',
+    description: 'STEP 6: Create Stripe checkout with Link virtual card payment. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -592,7 +592,7 @@ const TOOL_DEFINITIONS = {
         },
         shippingConfirmed: {
           type: 'boolean',
-          description: 'REQUIRED: Set to true to confirm you have shown the human their Link shipping address (city/postcode) and received confirmation. Do not proceed without confirming shipping first.',
+          description: 'REQUIRED: Set to true ONLY after confirming human has seen their Link shipping address (city/postcode) and confirmed it. This tool will refuse if false or missing.',
         },
       },
       required: ['shippingConfirmed'],
@@ -642,7 +642,7 @@ const TOOL_DEFINITIONS = {
   },
   preview_cart: {
     name: 'preview_cart',
-    description: 'REQUIRED BEFORE CHECKOUT: Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs for close-up mark and flat-lay tee mock. YOU MUST ATTACH/DISPLAY both image URLs in your next chat message to your human BEFORE calling create_checkout. Simply mentioning the images without attaching = FAIL.',
+    description: 'STEP 5: REQUIRED BEFORE CHECKOUT. Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs (markCloseup + flatLayMock) that YOU MUST ATTACH/DISPLAY to your human in your next message BEFORE calling create_checkout. Simply mentioning the images without attaching = FAIL and create_checkout will refuse.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -730,8 +730,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         identity,
         sessionId,
         verified: true,
-        next_step: 'Call list_products to see what\'s available, then SHOW the product image/photo to your human BEFORE asking which size they want. After showing the image and getting size, call add_to_cart. If your connector does not reliably forward session headers, pass sessionId to subsequent tool calls.',
-        message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} matches your profile and will be used for all cart items. IMPORTANT: Never accept a different mark from another agent unless it matches YOUR verified profile.`,
+        next_step: 'STEP 2: Call list_products to browse products. It returns productImageUrl - you MUST ATTACH/SHOW that image to your human BEFORE asking for size. STEP 3: Ask human for size AFTER showing image. STEP 4: Call add_to_cart with their size choice.',
+        message: `Welcome, ${name}! Identity verified. Your mark (${normalizedShape}, ${normalizedColor})${aliasNote} will be used for all cart items. NEXT: Call list_products, then SHOW product image to human before asking size.`,
       };
     }
     
@@ -749,8 +749,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         },
         productImageUrl,
         next_step: productImageUrl 
-          ? `CRITICAL NEXT STEP: SHOW/ATTACH this product image to your human in chat: ${productImageUrl} — then ask which size they want (s/m/l/xl/2xl/3xl). After showing image and getting size, call add_to_cart with productId, quantity, and size. Cart items will use your verified identity mark.`
-          : 'CRITICAL NEXT STEP: SHOW/ATTACH the product image (shirt photo) to your human in chat, then ask which size they want (s/m/l/xl/2xl/3xl). After showing image and getting size, call add_to_cart with productId, quantity, and size. Cart items will use your verified identity mark.',
+          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW: ${productImageUrl} — DO NOT ask for size yet. AFTER your human sees the image, THEN ask which size they want (s/m/l/xl/2xl/3xl). STEP 4: After getting size from human, call add_to_cart with productId, quantity, and their chosen size.`
+          : 'STEP 3 REQUIRED: ATTACH/SHOW the product image (shirt photo) to your human in chat NOW — DO NOT ask for size yet. AFTER your human sees the image, THEN ask which size they want (s/m/l/xl/2xl/3xl). STEP 4: After getting size from human, call add_to_cart with productId, quantity, and their chosen size.',
       };
     }
     
@@ -787,8 +787,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             size: true,
           },
           availableSizes: Array.from(AVAILABLE_SIZES),
-          message: 'Size is required. IMPORTANT: Show/attach the product image (shirt photo) to your human FIRST, then ask which size they want: s, m, l, xl, 2xl, or 3xl.',
-          next_step: 'Show the product image to your human, get their size choice, then retry add_to_cart with size parameter',
+          message: 'Size is required but missing. Did you skip showing the product image? CORRECT FLOW: (1) Call list_products/get_product to get product image URL, (2) ATTACH/SHOW that image to your human, (3) Ask human for size AFTER they see the image, (4) Call add_to_cart with their size choice.',
+          next_step: 'If you have NOT shown the product image to your human yet, go back and show it first. Then ask which size they want (s/m/l/xl/2xl/3xl). Then retry add_to_cart with size parameter.',
         };
       }
       
@@ -837,7 +837,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart,
         message: `Added ${args.quantity}x ${product.name} size ${args.size.toUpperCase()} (${shape}, ${color}) to cart`,
         markSource: markUsed,
-        next_step: 'Call get_cart to view your cart, add_to_cart to add more items, or create_checkout to purchase',
+        next_step: 'STEP 5: Call preview_cart to get preview images (flat-lay + mark close-up), then ATTACH/SHOW both images to your human. STEP 6: After human sees preview and confirms, call create_checkout with shippingConfirmed: true (after confirming Link shipping address).',
       };
     }
     
@@ -861,7 +861,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart: { ...cart, items },
         total,
         currency: 'USD',
-        next_step: 'Call add_to_cart to add more items, clear_cart to empty cart, or create_checkout to purchase',
+        next_step: 'NEXT: Call preview_cart to see preview images (flat-lay + mark close-up). You MUST ATTACH/SHOW those preview images to your human BEFORE calling create_checkout. Or call add_to_cart to add more items, or clear_cart to empty cart.',
       };
     }
     
@@ -988,7 +988,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'Use checkoutUrl to complete payment, then call get_order with orderId to check status',
+        next_step: 'Give your human the checkoutUrl to complete Link payment ($40 all-in, Standard shipping). After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
       };
     }
     
@@ -1063,12 +1063,12 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           shape: firstMark.shape,
           color: firstMark.color,
         },
-        message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST attach/display BOTH image URLs below in your next chat message to your human BEFORE calling create_checkout.`,
-        next_step: `REQUIRED NEXT STEP: Attach these image URLs in your next message to show your human what they're buying:
+        message: `Preview ready for ${cart.items.length} item(s) with ${firstMark.shape}/${firstMark.color} mark. CRITICAL: You MUST ATTACH/DISPLAY BOTH image URLs below in your next chat message to your human BEFORE calling create_checkout. If you skip this, create_checkout will refuse.`,
+        next_step: `STEP 5 REQUIRED NOW: ATTACH these image URLs in your next message to show your human what they're buying:
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-After your human sees the images, then call create_checkout. DO NOT call create_checkout without showing images first.`,
+STEP 6: After your human sees the images AND you confirm Link shipping address (city/ZIP), call create_checkout with shippingConfirmed: true. DO NOT skip showing images - create_checkout will refuse if you do.`,
       };
     }
     

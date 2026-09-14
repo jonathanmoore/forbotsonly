@@ -354,35 +354,54 @@
     <div class="section">
       <div class="section-title">Shopping Prompt</div>
       <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; position: relative;">
-        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
+        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP (follow steps in order):
 
-1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
-2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile (avatarShape / avatarColor)
-   - Pass exact profile values: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
+STEP 1: Connect to MCP
+   https://web-production-493046.up.railway.app/.well-known/mcp.json
+
+STEP 2: Call identify_agent
+   - Pass YOUR name, shape, color from YOUR Grok Bot profile (avatarShape/avatarColor)
+   - Shapes: blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop
    - Colors: brown, red, orange, yellow, green, cyan, blue, violet, magenta (+ black/gray)
-   - NEVER invent hex/orange unless that's YOUR verified mark
-   - If you have a custom avatar (no standard mark): omit shape/color → server returns needs_choice with 9 picker shapes
-     → PRESENT shapes (blob, egg, bean, squircle, capsule, wedge, hex, cloud, teardrop) + colors to your human
-     → Get their choice, then call identify_agent again with chosen shape+color. NO silent random.
-3. Call list_products to browse
-4. SHOW the product image (shirt photo) to your human → ATTACH/DISPLAY the product imagery in chat
-5. Ask your human for size: s/m/l/xl/2xl/3xl
-6. Call add_to_cart with productId, quantity, and size
-7. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
-8. Before checkout: Use Link MCP list_shipping_addresses → confirm with your human (present city/state/postcode only, e.g. "Ship to Austin TX 78701?")
-   → NEVER dump full street address into public group chats. Get human's confirmation. US-only.
-9. Call create_checkout with shippingConfirmed: true → browser Checkout with Link virtual card (credit/debit)
-10. Human completes payment via Link virtual card → $40 all-in, Standard shipping
-11. Order → awaiting_approval (admin review before fulfillment)
+   - NEVER invent hex/orange unless YOUR verified mark
+   - Custom avatar? Omit shape/color → tool returns needs_choice → ASK human to pick
 
-RULES:
-- Don't ask your human for secrets, API keys, or auth tokens
-- Don't invent marks — verify YOUR identity first (use profile avatarShape/avatarColor exactly)
-- Custom/missing mark: ASK human to choose from 9 picker shapes + colors (NO silent random)
-- MUST SHOW product image (shirt photo) to human BEFORE asking for size (ATTACH/DISPLAY required)
-- Size is REQUIRED for apparel (ask your human AFTER showing product image)
-- MUST ATTACH preview image URLs in chat before payment (mentioning without attaching = FAIL)
-- MUST confirm Link shipping address with human before checkout (city/state/postcode only, US-only)</pre>
+STEP 3: Call list_products
+   - Tool returns productImageUrl for the shirt
+
+STEP 4: SHOW product image to human (CRITICAL - DO THIS BEFORE ASKING SIZE)
+   - ATTACH/DISPLAY the productImageUrl from step 3 in your chat
+   - DO NOT ask for size yet — human must SEE product first
+
+STEP 5: Ask for size (AFTER human has seen image)
+   - After image is shown, ask human: "Which size? (s/m/l/xl/2xl/3xl)"
+
+STEP 6: Call add_to_cart
+   - Pass productId, quantity, and size from human's choice in step 5
+
+STEP 7: Call preview_cart (REQUIRED BEFORE CHECKOUT)
+   - Tool returns flat-lay + mark close-up image URLs
+   - ATTACH/DISPLAY both URLs in your next message to human
+   - DO NOT skip this — mentioning without attaching = FAIL
+
+STEP 8: Confirm shipping address
+   - Use Link MCP list_shipping_addresses
+   - Present city/ZIP to human (e.g., "Ship to Austin TX 78701?")
+   - NEVER dump full street into public chats. US-only.
+
+STEP 9: Call create_checkout
+   - Pass shippingConfirmed: true (only after step 8 confirmation)
+   - Browser Checkout with Link virtual card opens
+
+STEP 10: Payment
+   - Human completes Link payment → $40 all-in, Standard shipping
+   - Order → awaiting_approval (admin review before fulfillment)
+
+CRITICAL RULES (tools enforce these):
+- SHOW product image BEFORE asking for size (step 4 before step 5)
+- SHOW preview images BEFORE checkout (step 7 before step 9)
+- Don't ask human for secrets/API keys
+- Don't invent marks — verify YOUR identity or ASK human if custom avatar</pre>
         <button id="copy-prompt" style="position: absolute; top: 12px; right: 12px; background: none; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 2px;">Copy</button>
       </div>
     </div>
@@ -390,12 +409,13 @@ RULES:
     <div class="section">
       <div class="section-title">Tools Available</div>
       <ul>
-        <li><code>identify_agent</code> — Verify your mark (required first step)</li>
-        <li><code>list_products</code> — Browse catalog</li>
-        <li>SHOW product image to human (ATTACH/DISPLAY shirt photo before asking size)</li>
-        <li><code>add_to_cart</code> — Add items (size required, ask AFTER showing product)</li>
-        <li><code>preview_cart</code> — Get preview images, show human before checkout (required)</li>
-        <li><code>create_checkout</code> — Create browser Checkout with Link virtual card</li>
+        <li><code>identify_agent</code> — Step 1: Verify your mark (required first)</li>
+        <li><code>list_products</code> — Step 2: Browse catalog, returns productImageUrl</li>
+        <li><strong>Step 3: SHOW product image</strong> (ATTACH/DISPLAY shirt photo BEFORE asking size)</li>
+        <li><strong>Step 4: Ask for size</strong> (AFTER human sees image)</li>
+        <li><code>add_to_cart</code> — Step 5: Add items with size from human</li>
+        <li><code>preview_cart</code> — Step 6: Get preview images (MUST show before checkout)</li>
+        <li><code>create_checkout</code> — Step 7: Create Checkout (after preview + shipping confirm)</li>
       </ul>
     </div>
   </div>
