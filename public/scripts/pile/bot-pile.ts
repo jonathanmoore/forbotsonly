@@ -335,9 +335,8 @@ export class BotPile extends HTMLElement {
   // ------------------------------------------------------------------ spawns
 
   private planSpawns(): void {
-    // Smaller base unit than the 13-bot pile so ~32 bots still leave room
-    // to play (and keep the matter-js body count phone-friendly).
-    const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.135, 48), 112);
+    // Increased base unit for better mobile visibility (~30% larger than original 32-bot pile).
+    const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.17, 60), 140);
     const shapes = shuffle(PILE_SHAPES);
     const colors = shuffle(BRAND_COLORS);
     const usedCombos = new Set<string>();
@@ -354,7 +353,7 @@ export class BotPile extends HTMLElement {
       usedCombos.add(`${shape.id}/${color.id}`);
 
       // Stratified sizes → guaranteed spread from small to big.
-      const f = 0.55 + 0.75 * ((i + Math.random()) / BOT_COUNT);
+      const f = 0.65 + 0.75 * ((i + Math.random()) / BOT_COUNT);
       this.spawnQueue.push({ shape, hex: color.hex, size: unit * f });
     }
     this.spawnQueue = shuffle(this.spawnQueue);
@@ -366,7 +365,8 @@ export class BotPile extends HTMLElement {
     if (!item) return;
     const r = item.size / 2;
     const x = rand(this.viewW * 0.18 + r, this.viewW * 0.82 - r);
-    const y = this.reducedMotion ? rand(this.viewH * 0.3, this.viewH * 0.7) : -r * 2;
+    // Spawn clearly above viewport with staggered Y for visible fall-in.
+    const y = this.reducedMotion ? rand(this.viewH * 0.3, this.viewH * 0.7) : -item.size - rand(0, this.viewH * 0.15);
     this.addBot(item.shape, item.hex, item.size, x, y);
     // Faster cadence than the 13-bot pile so ~32 bots land in ~8s.
     this.spawnTimer = this.reducedMotion ? 0 : rand(0.18, 0.32);
@@ -563,17 +563,25 @@ export class BotPile extends HTMLElement {
       this.svg.classList.add('dragging');
       // Being picked up is an event: the grabbed bot swaps expression on the
       // spot, and it holds that face while carried (no mid-drag cycling).
+      // All other bots switch to round eyes (variant 2) for clear tracking stare.
       const now = performance.now() / 1000;
+      const ROUND_VARIANT = 2; // Most shapes have circular eyes at index 2
       for (const bot of this.bots) {
         if (bot.body === body) {
           this.setBotExpression(bot, this.pickNextVariant(bot));
           bot.nextExprAt = now + rand(2.6, 5.6);
+        } else {
+          // Switch to round eyes for tracking — find the closest round variant
+          const roundIdx = Math.min(ROUND_VARIANT, bot.shape.eyeVariants.length - 1);
+          this.setBotExpression(bot, roundIdx);
+          bot.nextExprAt = now + rand(3, 6); // Resume cycling after tracking
         }
       }
     });
     Matter.Events.on(this.mouseConstraint, 'enddrag', () => {
       this.dragBody = null;
       this.svg.classList.remove('dragging');
+      // Bots will resume normal expression cycling via updateEyes
     });
 
     Matter.Events.on(this.engine, 'collisionStart', (e: Matter.IEventCollision<Matter.Engine>) => {
