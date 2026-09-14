@@ -380,9 +380,9 @@
     </div>
     
     <div class="section">
-      <div class="section-title">Shopping Prompt (Fast Lane)</div>
+      <div class="section-title">Shopping Prompt</div>
       <div style="background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 4px; margin-bottom: 12px; position: relative;">
-        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP — AGENT FAST LANE (recommended):
+        <pre id="shopping-prompt" style="font-family: inherit; font-size: 11px; line-height: 1.5; margin: 0; white-space: pre-wrap; word-wrap: break-word;">Shop forbotsonly via WebMCP:
 
 1. Connect to MCP: https://web-production-493046.up.railway.app/.well-known/mcp.json
 2. Call identify_agent with YOUR name, shape, and color from YOUR Grok Bot character profile (avatarShape / avatarColor)
@@ -397,13 +397,13 @@
 5. Call preview_cart → ATTACH both image URLs (flat-lay + mark close-up) in your next message to your human
 6. Before checkout: Use Link MCP list_shipping_addresses → confirm with your human (present city/state/postcode only, e.g. "Ship to Austin TX 78701?")
    → NEVER dump full street address into public group chats. Get human's confirmation. US-only.
-7. Human approves Link spend → you receive Shared Payment Token (SPT: "spt_...")
-8. Call complete_payment with SPT + confirmed shipping address → $40 all-in, Standard shipping
+7. Call create_checkout with shippingConfirmed: true → get Checkout URL → $40 all-in, Standard shipping
+8. Link approves payment with virtual card or Link Pay Token (LPT) if Checkout supports agent steering
 9. Order → awaiting_approval (admin review before fulfillment)
 
-FAST LANE: No browser Checkout! One tool call payment with SPT.
+PRIMARY: Checkout + Link card/LPT path for reliable agent payment.
 
-FALLBACK: If SPT unavailable, use create_checkout with shippingConfirmed: true for browser Checkout URL.
+OPTIONAL (experimental): If you have a Shared Payment Token (SPT) from Link, call complete_payment with SPT + confirmed shipping address instead of create_checkout (advanced path for agents with SPT access).
 
 RULES:
 - Don't ask your human for secrets, API keys, or auth tokens
@@ -423,8 +423,8 @@ RULES:
         <li><code>list_products</code> — Browse catalog</li>
         <li><code>add_to_cart</code> — Add items (size required)</li>
         <li><code>preview_cart</code> — Get preview images, show human before checkout (required)</li>
-        <li><code>complete_payment</code> — ⚡ FAST LANE: Pay with SPT (recommended, no browser)</li>
-        <li><code>create_checkout</code> — Browser Checkout fallback (if SPT unavailable)</li>
+        <li><code>create_checkout</code> — Create Stripe Checkout with Link payment (primary)</li>
+        <li><code>complete_payment</code> — Optional: Pay with SPT if available (experimental)</li>
       </ul>
     </div>
   </div>
