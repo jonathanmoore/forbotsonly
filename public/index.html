@@ -414,6 +414,8 @@ STEP 9: Payment (PREFERRED: API with Link SPT)
 STEP 9 FALLBACK: Browser Checkout (if native UI unavailable)
    - Call create_checkout with shippingConfirmed: true
    - Human completes payment at checkoutUrl → $40 all-in, Standard shipping
+   - CRITICAL: Pass checkoutUrl EXACTLY as returned (never truncate/modify)
+   - Truncating URL causes Stripe "link incomplete" error
 
 CRITICAL RULES (tools enforce these):
 - SEND IMAGES IN THEIR OWN TURN — never combine images + widgets in same message

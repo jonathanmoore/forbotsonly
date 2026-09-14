@@ -233,6 +233,8 @@ If your host platform does NOT expose native `request_virtual_card` (platform li
 2. Call `create_checkout` with `shippingConfirmed: true` → returns checkoutUrl
 3. Human completes payment in browser at checkoutUrl with Link
 
+**CRITICAL - URL HANDLING:** If using browser fallback, pass the checkoutUrl EXACTLY as returned — NEVER truncate, modify, or parse it. Stripe Checkout Session URLs contain fragment identifiers (#) that must remain intact. Truncating causes "This link is incomplete: Use the unmodified checkout URL" Stripe error. This is a key reason API payment (complete_payment + SPT) is strongly preferred: agents never handle checkout.stripe.com URLs.
+
 **CRITICAL DISTINCTIONS:**
 - `request_virtual_card` is a **Cursor-native spend-approval UI tool**, NOT a Link MCP tool
 - Link MCP tools: `get_userinfo`, `list_payment_methods`, `list_shipping_addresses`, `list_spend_requests`, `get_spend_request`, `sign_web_bot_auth`, `report_agent_observation`

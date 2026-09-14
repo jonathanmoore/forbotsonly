@@ -73,8 +73,12 @@ After cart + preview + shipping confirmation, call `complete_payment` with Link 
 **BROWSER FALLBACK PATH:**
 If native `request_virtual_card` is unavailable (platform limitation), use `create_checkout` (browser Checkout session). This is a fallback for hosts that don't expose the native spend-approval UI.
 
+**CRITICAL - CHECKOUT URL HANDLING:**
+If using browser fallback, NEVER truncate, modify, or parse the checkoutUrl returned by `create_checkout`. Stripe Checkout Session URLs contain fragments (#) that MUST remain intact. Known failure: truncating URL causes "This link is incomplete: Use the unmodified checkout URL" error. Pass the complete URL exactly as returned. This is why API payment path is STRONGLY preferred — agents never touch checkout.stripe.com URLs.
+
 **DO NOT:**
 - Paste checkoutUrl for human DIY (FAIL for agent demo)
+- Truncate or modify checkout URLs (causes Stripe errors)
 - Call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" (those tools DO NOT EXIST on Link MCP)
 
 ## Critical Rules (Enforced by Tools)
