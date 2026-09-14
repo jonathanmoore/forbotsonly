@@ -65,11 +65,14 @@
       margin: 0;
       font-size: 11px;
       font-weight: 400;
-      opacity: 0.4;
+      opacity: 1;
       text-align: left;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       z-index: 2;
+      background: #000000;
+      padding: 6px 10px;
+      color: rgba(255, 255, 255, 0.7);
     }
     
     /* View toggle control: small, muted, top-right corner */
@@ -128,11 +131,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
       max-width: 680px;
+      max-height: calc(100vh - 80px);
       width: 90%;
       padding: 48px;
       z-index: 5;
       opacity: 0;
       transition: opacity 0.3s ease;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     
     body[data-view="agent"] .agent-content {
@@ -254,9 +260,10 @@
       }
       
       .message {
-        font-size: 11px;
+        font-size: 10px;
         bottom: max(20px, env(safe-area-inset-bottom, 20px));
         left: max(20px, env(safe-area-inset-left, 20px));
+        padding: 5px 8px;
       }
       
       .view-toggle {
@@ -267,6 +274,8 @@
       .agent-content {
         padding: 36px 28px;
         max-width: 90%;
+        max-height: calc(100vh - 100px);
+        max-height: calc(100dvh - 100px);
       }
       
       .agent-content h1 {
@@ -286,9 +295,10 @@
     
     @media (max-width: 480px) {
       .message {
-        font-size: 10px;
+        font-size: 9px;
         bottom: max(16px, env(safe-area-inset-bottom, 16px));
         left: max(16px, env(safe-area-inset-left, 16px));
+        padding: 4px 7px;
       }
       
       .view-toggle {
@@ -305,6 +315,8 @@
       .agent-content {
         padding: 28px 20px;
         max-width: 92%;
+        max-height: calc(100vh - 80px);
+        max-height: calc(100dvh - 80px);
       }
       
       .agent-content .section {
