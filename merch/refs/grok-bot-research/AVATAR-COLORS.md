@@ -10,7 +10,7 @@
 |--------------|--------------|-----------|---------------|
 | brown        | `--color-brand-brown-400` | `#936439` | brown |
 | red          | `--color-brand-red-400` | `#DD2229` | red |
-| orange       | `--color-brand-orange-400` | `#FF6B35` | orange |
+| orange       | `--color-brand-orange-400` | `#E84302` | orange |
 | yellow       | `--color-brand-yellow-400` | `#B77400` | gold |
 | green        | `--color-brand-green-400` | `#03943C` | light-green |
 | cyan         | `--color-brand-cyan-400` | `#0093A3` | teal |
@@ -35,13 +35,14 @@
 - **Source**: Official xAI Grok Bot app CSS tokens
 - **Primary**: Use `*-400` variants for all avatar colors
 - **Green**: Default to green-400 (`#03943C`), NOT green-350 (`#2CB663`)
+- **Orange**: Pack/identify marks use `#E84302`; foil hero blob may keep `#FF6B35`
 
 ## Color Verification Status
 
 All colors verified from official source CSS:
 - ✅ brown `#936439` (brand-brown-400)
 - ✅ red `#DD2229` (brand-red-400)
-- ✅ orange `#FF6B35` (brand-orange-400)
+- ✅ orange `#E84302` (brand-orange-400 for pack marks; foil hero `#FF6B35`)
 - ✅ yellow `#B77400` (brand-yellow-400)
 - ✅ green `#03943C` (brand-green-400 PRIMARY)
 - ✅ cyan `#0093A3` (brand-cyan-400)
