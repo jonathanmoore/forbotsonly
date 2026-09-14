@@ -751,10 +751,14 @@ export class BotPile extends HTMLElement {
         const dir = Matter.Vector.sub(target.position, bot.body.position);
         const mag = Matter.Vector.magnitude(dir);
         if (mag > 1) {
-          // Rotate world direction into the bot's local (mark) frame.
-          const local = Matter.Vector.rotate(dir, -bot.body.angle);
-          bot.glanceTarget.x = (local.x / mag) * GLANCE_X;
-          bot.glanceTarget.y = (local.y / mag) * GLANCE_Y;
+          // Transform world-space direction into bot's local (mark) coordinate frame.
+          // The bot element is rotated by body.angle in render(), so to correctly aim
+          // eyes in the bot's local space, we rotate the world direction by -body.angle.
+          const worldDir = { x: dir.x / mag, y: dir.y / mag };
+          // Rotate by +angle instead of -angle for correct local-space transformation
+          const local = Matter.Vector.rotate(worldDir, bot.body.angle);
+          bot.glanceTarget.x = local.x * GLANCE_X;
+          bot.glanceTarget.y = local.y * GLANCE_Y;
         }
       } else if (now >= bot.nextGlanceAt) {
         // Idle looking-around, tuned to the outline bot's curious/playful
