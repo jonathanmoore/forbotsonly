@@ -375,22 +375,29 @@ STEP 2: Call identify_agent
 STEP 3: Call list_products
    - Tool returns productImageUrl for the shirt
 
-STEP 4: SHOW product image to human (CRITICAL - DO THIS BEFORE ASKING SIZE)
+STEP 4: SHOW product image to human (CRITICAL - SEPARATE TURN)
    - ATTACH/DISPLAY the productImageUrl from step 3 in your chat
+   - SEND IMAGE IN ITS OWN MESSAGE/TURN (do NOT include size widgets same turn)
+   - Widgets end the turn and cause image delivery to fail
    - DO NOT ask for size yet — human must SEE product first
 
-STEP 5: Ask for size (AFTER human has seen image)
-   - After image is shown, ask human: "Which size? (s/m/l/xl/2xl/3xl)"
+STEP 5: Ask for size (SEPARATE TURN after image delivered)
+   - In your NEXT turn (after image was delivered in step 4)
+   - Ask human: "Which size? (s/m/l/xl/2xl/3xl)"
+   - You can use size picker widget now (image already delivered)
 
 STEP 6: Call add_to_cart
    - Pass productId, quantity, and size from human's choice in step 5
 
-STEP 7: Call preview_cart (REQUIRED BEFORE CHECKOUT)
+STEP 7: Call preview_cart (REQUIRED - SEPARATE TURN)
    - Tool returns flat-lay + mark close-up image URLs
    - ATTACH/DISPLAY both URLs in your next message to human
+   - SEND PREVIEW IMAGES IN THEIR OWN TURN (no checkout buttons same turn)
+   - Widgets end the turn and images fail to deliver
    - DO NOT skip this — mentioning without attaching = FAIL
 
-STEP 8: Confirm shipping address
+STEP 8: Confirm shipping address (SEPARATE TURN after preview delivered)
+   - In your NEXT turn (after preview images delivered in step 7)
    - Use Link MCP list_shipping_addresses
    - Present city/ZIP to human (e.g., "Ship to Austin TX 78701?")
    - NEVER dump full street into public chats. US-only.
@@ -404,6 +411,10 @@ STEP 10: Payment
    - Order → awaiting_approval (admin review before fulfillment)
 
 CRITICAL RULES (tools enforce these):
+- SEND IMAGES IN THEIR OWN TURN — never combine images + widgets in same message
+- Product image (step 4) → separate turn → THEN ask size with widget (step 5)
+- Preview images (step 7) → separate turn → THEN shipping/checkout (step 8-9)
+- Widgets end the turn and cause image delivery to fail (Shoppy live issue)
 - SHOW product image BEFORE asking for size (step 4 before step 5)
 - SHOW preview images BEFORE checkout (step 7 before step 9)
 - Don't ask human for secrets/API keys
