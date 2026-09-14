@@ -12,7 +12,7 @@
 
 import Matter from 'matter-js';
 import decomp from 'poly-decomp';
-import { PILE_SHAPES, MARK_BOX, type PileShape } from './shapes-data';
+import { PILE_SHAPES, MARK_BOX, type PileEye, type PileShape } from './shapes-data';
 import { PileSound } from './sound';
 
 Matter.Common.setDecomp(decomp);
@@ -45,6 +45,8 @@ interface Bot {
   body: Matter.Body;
   el: SVGGElement;
   eyeEls: SVGGElement[];
+  /** this bot's baked eye pair (one expression from the morph-bot pool) */
+  eyes: PileEye[];
   shape: PileShape;
   scale: number;
   com: { x: number; y: number };
@@ -354,9 +356,15 @@ export class BotPile extends HTMLElement {
     bodyPath.setAttribute('fill', hex);
     el.appendChild(bodyPath);
 
+    // True morph-bot eyes: each bot picks one expression from the baked
+    // human-page pool (neutral quotes, circles, pills, ...). Paths are
+    // centered on (0,0) so glance translates and blink scales around each
+    // eye's own center (like the morph-bot's translate/scale/translate).
+    const eyes = shape.eyeVariants[Math.floor(Math.random() * shape.eyeVariants.length)];
     const eyeEls: SVGGElement[] = [];
-    for (const eye of shape.eyes) {
+    for (const eye of eyes) {
       const eyeGroup = document.createElementNS(SVG_NS, 'g');
+      eyeGroup.setAttribute('transform', `translate(${eye.cx} ${eye.cy})`);
       const eyePath = document.createElementNS(SVG_NS, 'path');
       eyePath.setAttribute('d', eye.path);
       eyePath.setAttribute('fill', EYE_FILL);
@@ -371,6 +379,7 @@ export class BotPile extends HTMLElement {
       body,
       el,
       eyeEls,
+      eyes,
       shape,
       scale,
       com,
@@ -639,10 +648,11 @@ export class BotPile extends HTMLElement {
         blinkY = 1 - Math.sin(p * Math.PI) * 0.9;
       }
       for (let i = 0; i < bot.eyeEls.length; i++) {
-        // Eyes are full path shapes, apply glance translation and blink scale
+        const eye = bot.eyes[i];
+        // Glance shifts the eye; blink squashes it around its own center.
         bot.eyeEls[i].setAttribute(
           'transform',
-          `translate(${bot.glance.x.toFixed(2)} ${bot.glance.y.toFixed(2)}) scale(1 ${blinkY.toFixed(3)})`,
+          `translate(${(eye.cx + bot.glance.x).toFixed(2)} ${(eye.cy + bot.glance.y).toFixed(2)}) scale(1 ${blinkY.toFixed(3)})`,
         );
       }
     }
