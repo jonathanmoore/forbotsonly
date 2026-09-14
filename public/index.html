@@ -403,13 +403,17 @@ STEP 8: Confirm shipping address (SEPARATE TURN after preview delivered)
    - Present city/ZIP to human (e.g., "Ship to Austin TX 78701?")
    - NEVER dump full street into public chats. US-only.
 
-STEP 9: Call create_checkout
-   - Pass shippingConfirmed: true (only after step 8 confirmation)
-   - Browser Checkout with Link virtual card opens
-
-STEP 10: Payment
-   - Human completes Link payment → $40 all-in, Standard shipping
+STEP 9: Payment (PREFERRED: API with Link SPT)
+   - Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP)
+     • amountCents: 4000, merchantName: "forbotsonly"
+   - Wait for human approval
+   - Call Link MCP get_spend_request (include shared_payment_token) to get SPT
+   - Call complete_payment with sharedPaymentToken + shippingAddress
    - Order → awaiting_approval (admin review before fulfillment)
+
+STEP 9 FALLBACK: Browser Checkout (if native UI unavailable)
+   - Call create_checkout with shippingConfirmed: true
+   - Human completes payment at checkoutUrl → $40 all-in, Standard shipping
 
 CRITICAL RULES (tools enforce these):
 - SEND IMAGES IN THEIR OWN TURN — never combine images + widgets in same message
@@ -432,8 +436,9 @@ CRITICAL RULES (tools enforce these):
         <li><strong>Step 3: SHOW product image</strong> (ATTACH/DISPLAY shirt photo BEFORE asking size)</li>
         <li><strong>Step 4: Ask for size</strong> (AFTER human sees image)</li>
         <li><code>add_to_cart</code> — Step 5: Add items with size from human</li>
-        <li><code>preview_cart</code> — Step 6: Get preview images (MUST show before checkout)</li>
-        <li><code>create_checkout</code> — Step 7: Create Checkout (after preview + shipping confirm)</li>
+        <li><code>preview_cart</code> — Step 6: Get preview images (MUST show before payment)</li>
+        <li><code>complete_payment</code> — Step 7: Pay via Link SPT (preferred agent API path)</li>
+        <li><code>create_checkout</code> — Step 7 fallback: Browser Checkout (if native UI unavailable)</li>
       </ul>
     </div>
   </div>

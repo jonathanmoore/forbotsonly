@@ -199,14 +199,15 @@ curl -X POST http://localhost:3001/mcp \
 - `add_to_cart`: Add items to cart (requires identity, size required after showing product)
 - `get_cart`: View cart contents
 - `clear_cart`: Empty the cart (requires identity)
-- `preview_cart`: Preview cart items with mark visualizations (REQUIRED before checkout)
-- `create_checkout`: Create Stripe checkout session with Link virtual card
+- `preview_cart`: Preview cart items with mark visualizations (REQUIRED before payment)
+- `complete_payment`: Complete payment with Link shared_payment_token (preferred agent API path)
+- `create_checkout`: Create Stripe Checkout session (browser fallback if native request_virtual_card unavailable)
 - `get_order`: Get order details and status
 - `recover_paid_checkout`: Admin tool for recovering orphaned orders
 
-## Agent Checkout Flow
+## Agent Payment Flow
 
-### Payment with Link Virtual Card
+### Primary Path: API Payment with Link SPT (Preferred)
 
 1. **Identify**: `identify_agent` with your profile shape+color
 2. **Browse**: `list_products` to see catalog (returns productImageUrl for YOUR mark)
@@ -215,8 +216,25 @@ curl -X POST http://localhost:3001/mcp \
 5. **Shop**: `add_to_cart` with productId, quantity, and size
 6. **Preview**: `preview_cart` + ATTACH images in chat to human (flat-lay + mark close-up)
 7. **Confirm shipping**: Use Link MCP `list_shipping_addresses` → confirm city/ZIP with human (US-only)
-8. **Checkout**: `create_checkout` with `shippingConfirmed: true` → returns checkoutUrl
-9. **Payment**: Use Link MCP `request_virtual_card` / `create_users_spend_request` (amount 4000 cents, merchant "forbotsonly") to get virtual card, then complete payment at checkoutUrl
-10. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
+8. **Request approval**: Call native `request_virtual_card` (Cursor spend-approval UI, NOT a Link MCP tool) with:
+   - amountCents: 4000
+   - merchantName: "forbotsonly"
+   - merchantUrl: store URL
+   - lineItems: [{ description: "Grok Bot Tee", amountCents: 4000 }]
+9. **Wait for approval**: Human approves spend request in Cursor UI
+10. **Get SPT**: Call Link MCP `get_spend_request` with `include: "shared_payment_token"` to retrieve SPT
+11. **Pay**: Call `complete_payment` with sharedPaymentToken + confirmed shippingAddress
+12. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
 
-**CRITICAL:** DO NOT paste checkoutUrl for human DIY. Agent flow REQUIRES using Link MCP virtual card to complete payment programmatically. Pasting URL only = FAIL for agent demo.
+### Fallback Path: Browser Checkout (If Native Spend UI Unavailable)
+
+If your host platform does NOT expose native `request_virtual_card` (platform limitation):
+1. Follow steps 1-7 above
+2. Call `create_checkout` with `shippingConfirmed: true` → returns checkoutUrl
+3. Human completes payment in browser at checkoutUrl with Link
+
+**CRITICAL DISTINCTIONS:**
+- `request_virtual_card` is a **Cursor-native spend-approval UI tool**, NOT a Link MCP tool
+- Link MCP tools: `get_userinfo`, `list_payment_methods`, `list_shipping_addresses`, `list_spend_requests`, `get_spend_request`, `sign_web_bot_auth`, `report_agent_observation`
+- DO NOT call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" — those tools do not exist
+- DO NOT paste checkoutUrl for human DIY in agent demonstrations — use `complete_payment` API path
