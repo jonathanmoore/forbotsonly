@@ -739,21 +739,34 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       const products = listProducts();
       const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
       
-      // FIX #137: Return product image URL matching THIS session's identity mark (not default orange/hex)
-      const identity = await requireIdentity(sessionId);
-      let productImageUrl: string | null = null;
+      // Get session identity to build session-matched image URLs
+      const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
       
-      if (identity) {
-        // Session identified - return product image for THIS mark
-        const mark = identity.mark;
-        const shapeAsset = getShapeAssetFilename(mark.shape as any);
-        const colorAsset = getColorAssetFilename(mark.color as any);
-        productImageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
-      }
-      // If not identified, productImageUrl stays null (agent must identify first)
+      // Build session-matched products with correct imageUrl for each product
+      const sessionProducts = products.map(product => {
+        if (!identity?.mark) {
+          // No session mark yet - use default hex/orange
+          return {
+            ...product,
+            imageUrl: `${origin}${product.imageUrl}`,
+          };
+        }
+        
+        // Map session mark to asset filenames
+        const shapeAsset = getShapeAssetFilename(identity.mark.shape as any);
+        const colorAsset = getColorAssetFilename(identity.mark.color as any);
+        
+        // Build session-matched imageUrl
+        return {
+          ...product,
+          imageUrl: `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`,
+        };
+      });
+      
+      const productImageUrl = sessionProducts[0]?.imageUrl || null;
       
       return {
-        products,
+        products: sessionProducts,
         markOptions: {
           shapes: CHARACTER_PICKER_SHAPES,
           colors: MARK_COLORS,
@@ -761,8 +774,8 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         },
         productImageUrl,
         next_step: productImageUrl 
-          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — This shows the ${identity?.mark.shape}/${identity?.mark.color} mark you identified with. Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`
-          : 'STEP 3 REQUIRED: You must call identify_agent first with your name, shape, and color. THEN call list_products again to get YOUR product image (matching your mark). NEVER show a default orange/hex image if that is not your mark.',
+          ? `IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${productImageUrl} — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`
+          : 'IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW the product image (shirt photo) to your human in its OWN message/turn (no size widgets same turn) — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.',
       };
     }
     
@@ -772,24 +785,32 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Product not found');
       }
       
-      // FIX #137: Return product image URL matching THIS session's identity mark (not default orange/hex)
-      const identity = await requireIdentity(sessionId);
+      // Get session identity to build session-matched image URL
+      const identity = isUsingPostgres() ? await getAgentIdentityAsync(sessionId) : getAgentIdentity(sessionId);
       const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
-      let imageUrl: string | null = null;
       
-      if (identity) {
-        const mark = identity.mark;
-        const shapeAsset = getShapeAssetFilename(mark.shape as any);
-        const colorAsset = getColorAssetFilename(mark.color as any);
-        imageUrl = `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`;
+      let sessionProduct;
+      if (!identity?.mark) {
+        // No session mark yet - use default hex/orange
+        sessionProduct = {
+          ...product,
+          imageUrl: `${origin}${product.imageUrl}`,
+        };
+      } else {
+        // Map session mark to asset filenames
+        const shapeAsset = getShapeAssetFilename(identity.mark.shape as any);
+        const colorAsset = getColorAssetFilename(identity.mark.color as any);
+        
+        // Build session-matched imageUrl
+        sessionProduct = {
+          ...product,
+          imageUrl: `${origin}/images/previews/flatlay-${shapeAsset}-${colorAsset}.png`,
+        };
       }
       
-      return { 
-        product,
-        imageUrl,
-        next_step: imageUrl
-          ? `STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${imageUrl} — This shows the ${identity?.mark.shape}/${identity?.mark.color} mark you identified with. Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl). STEP 5: After getting size, call add_to_cart.`
-          : 'You must call identify_agent first with your name, shape, and color. THEN call get_product again to get YOUR product image (matching your mark).',
+      return {
+        product: sessionProduct,
+        next_step: `IMMEDIATE ACTION: STEP 3 REQUIRED: ATTACH/SHOW this product image to your human NOW in its OWN message/turn (no size widgets same turn): ${sessionProduct.imageUrl} — Send image, end turn. STEP 4: In your NEXT turn (after image delivered), ask which size they want (s/m/l/xl/2xl/3xl) - you can use widget now. STEP 5: After getting size, call add_to_cart with productId, quantity, and their chosen size.`,
       };
     }
     
