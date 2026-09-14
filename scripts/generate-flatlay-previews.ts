@@ -17,7 +17,7 @@ const SHAPES = [
 
 const COLORS = [
   'white', 'brown', 'red', 'orange', 'gold', 'light-green',
-  'teal', 'blue', 'purple', 'hot-pink', 'grey'
+  'teal', 'blue', 'purple', 'hot-pink', 'grey', 'black'
 ] as const;
 
 type Shape = typeof SHAPES[number];

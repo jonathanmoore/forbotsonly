@@ -47,6 +47,7 @@ const MARK_COLORS = [
   'purple',
   'hot-pink',
   'grey',
+  'black',
 ];
 
 // Canvas and mark positioning
