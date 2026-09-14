@@ -25,7 +25,7 @@ const COLORS = {
   black: '#0A0A0A',         // Official xAI black
   brown: '#936439',         // Official xAI brown
   red: '#DD2229',           // Official xAI red
-  orange: '#FF6B35',        // Official xAI orange (hero overflow-eyes ref, NOT undersaturated #E84302)
+  orange: '#E84302',        // Official xAI orange (brand-400 for pack marks; foil hero may use #FF6B35)
   gold: '#B77400',          // Official xAI yellow
   'light-green': '#03943C', // Official xAI green-400 (PRIMARY - NOT green-350 alt #2CB663)
   teal: '#0093A3',          // Official xAI cyan
