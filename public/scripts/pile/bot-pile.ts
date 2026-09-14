@@ -24,9 +24,8 @@ Matter.Common.setDecomp(decomp);
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Official brand-400 avatar fills (Research), plus white as an accent. */
+/** Official brand-400 avatar fills (Research), split by visual saturation. */
 const COLORFUL_COLORS: Array<{ id: string; hex: string }> = [
-  { id: 'brown', hex: '#936439' },
   { id: 'red', hex: '#DD2229' },
   { id: 'orange', hex: '#E84302' },
   { id: 'yellow', hex: '#B77400' },
@@ -38,8 +37,9 @@ const COLORFUL_COLORS: Array<{ id: string; hex: string }> = [
 ];
 
 const NEUTRAL_COLORS: Array<{ id: string; hex: string }> = [
+  { id: 'brown', hex: '#936439' },
   { id: 'gray', hex: '#777777' },
-  // White removed — pops too hard on black background and dominates the pile visually
+  { id: 'white', hex: '#FFFFFF' },
 ];
 
 const BRAND_COLORS = [...COLORFUL_COLORS, ...NEUTRAL_COLORS];
@@ -382,43 +382,28 @@ export class BotPile extends HTMLElement {
     // Increased base unit for better mobile visibility (~30% larger than original 32-bot pile).
     const unit = Math.min(Math.max(Math.min(this.viewW, this.viewH) * 0.17, 60), 140);
     const shapes = shuffle(PILE_SHAPES);
-    const usedCombos = new Set<string>();
-
-    // Pre-allocate exact 70/30 split: 22 colorful, 10 neutral (out of 32).
-    const colorfulCount = Math.round(BOT_COUNT * 0.7);
-    const neutralCount = BOT_COUNT - colorfulCount;
-    
-    // Build color assignment list: deterministic count, shuffled within each category.
-    const colorAssignments: Array<{ id: string; hex: string }> = [];
     const colorfulShuffled = shuffle(COLORFUL_COLORS);
     const neutralShuffled = shuffle(NEUTRAL_COLORS);
-    
-    for (let i = 0; i < colorfulCount; i++) {
-      colorAssignments.push(colorfulShuffled[i % colorfulShuffled.length]);
-    }
-    for (let i = 0; i < neutralCount; i++) {
-      colorAssignments.push(neutralShuffled[i % neutralShuffled.length]);
-    }
-    
-    // Shuffle the combined list so colorful/neutral are randomly distributed.
-    const shuffledColors = shuffle(colorAssignments);
+    const usedCombos = new Set<string>();
 
     for (let i = 0; i < BOT_COUNT; i++) {
       const shape = shapes[i % shapes.length];
-      let color = shuffledColors[i];
       
-      // Avoid repeating a shape+color combo; try alternates from the shuffled pool.
+      // ~70% colorful, ~30% neutral: weighted random selection from shuffled buckets.
+      // Natural randomness (not sterile exact count) while biasing toward colorful.
+      const isColorful = Math.random() < 0.7;
+      const bucket = isColorful ? colorfulShuffled : neutralShuffled;
+      let color = bucket[i % bucket.length];
+      
+      // Prefer variety: avoid repeating a shape+color combo when possible.
       let guard = 0;
-      while (usedCombos.has(`${shape.id}/${color.id}`) && guard++ < BOT_COUNT) {
-        color = shuffledColors[(i + guard) % BOT_COUNT];
+      while (usedCombos.has(`${shape.id}/${color.id}`) && guard++ < bucket.length) {
+        color = bucket[(i + guard) % bucket.length];
       }
       usedCombos.add(`${shape.id}/${color.id}`);
 
-      // Stratified sizes → guaranteed spread from small to big.
-      // Bias: neutral bots capped at 80% max size to prevent large neutral landmarks.
-      const isNeutral = NEUTRAL_COLORS.some(c => c.id === color.id);
-      const maxF = isNeutral ? 0.8 : 1.0;
-      const f = 0.65 + 0.75 * maxF * ((i + Math.random()) / BOT_COUNT);
+      // Stratified sizes → guaranteed spread from small to big, all colors get full variety.
+      const f = 0.65 + 0.75 * ((i + Math.random()) / BOT_COUNT);
       this.spawnQueue.push({ shape, hex: color.hex, size: unit * f });
     }
     this.spawnQueue = shuffle(this.spawnQueue);
