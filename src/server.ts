@@ -581,9 +581,62 @@ const TOOL_DEFINITIONS = {
       },
     },
   },
+  complete_payment: {
+    name: 'complete_payment',
+    description: 'STEP 6: PREFERRED AGENT PATH - Complete payment using Link shared_payment_token (SPT) after approval. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. FLOW: After cart+preview+shippingConfirmed → (a) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl checkoutUrl; (b) Wait for human approval; (c) Call Link MCP get_spend_request with include shared_payment_token to get SPT; (d) Call this tool with sharedPaymentToken + shippingAddress. On success, order → awaiting_approval (manual review before fulfillment).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sharedPaymentToken: {
+          type: 'string',
+          description: 'Link shared_payment_token from get_spend_request (after native request_virtual_card approval). This is the SPT used to complete payment via Stripe API.',
+        },
+        shippingAddress: {
+          type: 'object',
+          description: 'Complete US shipping address confirmed with human via Link MCP list_shipping_addresses. REQUIRED fields: name, line1, city, state, postalCode, country (must be "US"). Optional: line2.',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Recipient name',
+            },
+            line1: {
+              type: 'string',
+              description: 'Address line 1',
+            },
+            line2: {
+              type: 'string',
+              description: 'Optional: Address line 2',
+            },
+            city: {
+              type: 'string',
+              description: 'City',
+            },
+            state: {
+              type: 'string',
+              description: 'State (2-letter code, e.g. "TX")',
+            },
+            postalCode: {
+              type: 'string',
+              description: 'ZIP code',
+            },
+            country: {
+              type: 'string',
+              description: 'Country code - must be "US" (US-only)',
+            },
+          },
+          required: ['name', 'line1', 'city', 'state', 'postalCode', 'country'],
+        },
+        sessionId: {
+          type: 'string',
+          description: 'Optional: Session ID from identify_agent. Use this if your connector does not reliably forward Mcp-Session-Id headers between calls.',
+        },
+      },
+      required: ['sharedPaymentToken', 'shippingAddress'],
+    },
+  },
   create_checkout: {
     name: 'create_checkout',
-    description: 'STEP 6: Create Stripe checkout session, then use Link MCP virtual card to complete payment (DO NOT paste URL for human DIY). GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. AFTER calling this tool, use Link MCP request_virtual_card to pay (agent flow, not human DIY).',
+    description: 'OPTIONAL BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. AGENTS SHOULD PREFER complete_payment (API path with Link SPT) instead to avoid handling checkout.stripe.com URLs. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. CRITICAL: If using this fallback, pass the returned checkoutUrl EXACTLY as-is (never truncate/modify). Truncating Checkout URLs causes Stripe "link incomplete" errors.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -651,7 +704,7 @@ const TOOL_DEFINITIONS = {
   },
   preview_cart: {
     name: 'preview_cart',
-    description: 'STEP 5: REQUIRED BEFORE CHECKOUT. Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs (markCloseup + flatLayMock) that YOU MUST ATTACH/DISPLAY to your human in your next message. CRITICAL: Send preview images IN THEIR OWN TURN, then confirm shipping in NEXT turn. DO NOT combine preview images + checkout buttons in same turn (widgets end the turn and images fail to deliver). Simply mentioning the images without attaching = FAIL and create_checkout will refuse.',
+    description: 'STEP 5: REQUIRED BEFORE PAYMENT. Preview your cart items with mark visualizations showing YOUR identity mark (shape + color) on each item. Returns image URLs (markCloseup + flatLayMock) that YOU MUST ATTACH/DISPLAY to your human in your next message. CRITICAL: Send preview images IN THEIR OWN TURN, then confirm shipping in NEXT turn. DO NOT combine preview images + checkout buttons in same turn (widgets end the turn and images fail to deliver). Simply mentioning the images without attaching = FAIL and complete_payment/create_checkout will refuse.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -662,9 +715,6 @@ const TOOL_DEFINITIONS = {
       },
     },
   },
-  // complete_payment: INTERNAL ONLY - hidden from agent-facing tool list
-  // Implementation kept for potential future use, but not advertised to agents
-  // Agents should use create_checkout → Link virtual card flow instead
 };
 
 async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
@@ -913,7 +963,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         cart,
         message: `Added ${args.quantity}x ${product.name} size ${args.size.toUpperCase()} (${shape}, ${color}) to cart`,
         markSource: markUsed,
-        next_step: 'IMMEDIATE ACTION: Call preview_cart RIGHT NOW to get preview images (flat-lay + mark close-up). It will return image URLs. You MUST ATTACH/SHOW both images to your human in your next message (images in their own turn, no checkout widgets same turn). After images delivered, IN YOUR NEXT TURN: Use Link MCP to confirm shipping address (city/ZIP), then call create_checkout with shippingConfirmed: true.',
+        next_step: 'IMMEDIATE ACTION: Call preview_cart RIGHT NOW to get preview images (flat-lay + mark close-up). It will return image URLs. You MUST ATTACH/SHOW both images to your human in your next message (images in their own turn, no payment widgets same turn). After images delivered, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to confirm shipping address (city/ZIP), then call complete_payment with Link SPT (preferred agent path) OR create_checkout for browser fallback.',
       };
     }
     
@@ -987,7 +1037,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
             `Call preview_cart now, then attach these image URLs in your chat to show your human what they're buying:\n` +
             `1. Flat-lay: ${flatLayUrl}\n` +
             `2. Mark close-up: ${markUrl}\n\n` +
-            'After your human sees the images, then call create_checkout. DO NOT proceed to checkout without showing preview images first.'
+            'After your human sees the images, then call complete_payment (preferred agent API path) or create_checkout (browser fallback). DO NOT proceed to payment without showing preview images first.'
           );
         }
       }
@@ -998,7 +1048,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
           'SHIPPING CONFIRMATION REQUIRED: You must confirm shipping address with your human BEFORE calling create_checkout. ' +
           'Use Link MCP list_shipping_addresses to get their saved shipping address, then present city and postal code to your human for confirmation (e.g., "Ship to Austin TX 78701?"). ' +
           'NEVER dump full street address into public group chats. ' +
-          'After your human confirms the shipping address, call create_checkout with shippingConfirmed: true. ' +
+          'After your human confirms the shipping address, AGENTS SHOULD PREFER complete_payment (API path with Link SPT) over create_checkout (browser fallback). ' +
           'US-only shipping applies.'
         );
       }
@@ -1064,7 +1114,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'IMMEDIATE ACTION: Use Link MCP to complete payment with virtual card RIGHT NOW. DO NOT paste this checkoutUrl for human DIY - that is FAIL for agent demo. STEPS: (1) Call Link MCP request_virtual_card / create_users_spend_request with amount 4000 cents, merchant "forbotsonly". (2) Wait for human approval. (3) Use approved virtual card to complete payment at checkoutUrl. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
+        next_step: 'BROWSER CHECKOUT CREATED (fallback path). For agent demonstrations, PREFER complete_payment with Link SPT instead: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include shared_payment_token to get SPT; (4) Call complete_payment with sharedPaymentToken + confirmed shippingAddress. If native request_virtual_card unavailable (platform limitation), human can complete browser checkout at checkoutUrl — CRITICAL: Pass checkoutUrl EXACTLY as returned (never truncate/modify it, causes Stripe "link incomplete" error). After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
       };
     }
     
@@ -1147,7 +1197,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street in public chat). Then call create_checkout with shippingConfirmed: true. Then use Link MCP request_virtual_card to complete payment (DO NOT paste URL for human DIY).`,
+After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street in public chat). Then AGENTS SHOULD call complete_payment (API path with Link SPT - preferred) OR create_checkout (browser fallback). AGENT PAYMENT: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP) with amountCents 4000; (2) Wait approval; (3) Call Link MCP get_spend_request to get SPT; (4) Call complete_payment with SPT + shippingAddress.`,
       };
     }
     
@@ -1175,11 +1225,23 @@ After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP l
       
       const { sharedPaymentToken, shippingAddress } = args;
       
+      // GATE: Require sharedPaymentToken
+      if (!sharedPaymentToken) {
+        throw new Error(
+          'SHARED PAYMENT TOKEN REQUIRED: complete_payment requires a sharedPaymentToken from Link. ' +
+          'FLOW: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly"; ' +
+          '(2) Wait for human approval; ' +
+          '(3) Call Link MCP get_spend_request with include shared_payment_token to retrieve SPT; ' +
+          '(4) Pass that SPT to this tool as sharedPaymentToken parameter.'
+        );
+      }
+      
       // GATE: Require shippingAddress
       if (!shippingAddress) {
         throw new Error(
           'SHIPPING ADDRESS REQUIRED: complete_payment requires a shippingAddress. ' +
-          'Confirm the shipping address (name, line1, city, state, postalCode, country) with your human before calling complete_payment.'
+          'Use Link MCP list_shipping_addresses to get saved address, then confirm city/ZIP with your human before calling complete_payment. ' +
+          'REQUIRED fields: name, line1, city, state, postalCode, country (must be "US").'
         );
       }
       
@@ -1267,7 +1329,7 @@ After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP l
         orderId: order.id,
         paymentIntentId: paymentResult.paymentIntentId,
         status: 'awaiting_approval',
-        message: `Payment successful! Order ${order.id} is awaiting manual approval before fulfillment.`,
+        message: `Payment successful via Link SPT! Order ${order.id} is awaiting manual approval before fulfillment.`,
         next_step: 'Order will be reviewed and approved before Prodigi fulfillment. Call get_order to check status.',
       };
     }

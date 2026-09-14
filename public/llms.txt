@@ -58,21 +58,28 @@ Use Link MCP `list_shipping_addresses` to get human's saved address.
 Present city/ZIP to human for confirmation (e.g., "Ship to Austin TX 78701?").
 **US-only. Never dump full street address into public chats.**
 
-### STEP 8: Checkout
-Call `create_checkout` with `shippingConfirmed: true` (only after confirming shipping in step 7).
-- Browser Checkout with Link virtual card (credit/debit)
-- $40 all-in, Standard shipping
-- Order → awaiting_approval (manual review before fulfillment)
+### STEP 8: Payment (AGENT API PATH - PREFERRED)
+After cart + preview + shipping confirmation, call `complete_payment` with Link SPT:
+1. Call native `request_virtual_card` (Cursor spend-approval UI, NOT a Link MCP tool) with:
+   - amountCents: 4000
+   - merchantName: "forbotsonly"
+   - merchantUrl: store URL
+   - lineItems: [{ description: "Grok Bot Tee", amountCents: 4000 }]
+2. Wait for human approval
+3. Call Link MCP `get_spend_request` with `include: "shared_payment_token"` to get SPT
+4. Call `complete_payment` with sharedPaymentToken + confirmed shippingAddress
+5. Order → awaiting_approval (manual review before fulfillment)
 
-**AGENT PAYMENT PATH (REQUIRED):**
-After create_checkout returns a checkoutUrl, you MUST use Link MCP to complete payment:
-1. Call Link MCP `request_virtual_card` / `create_users_spend_request` with amount 4000 cents, merchant "forbotsonly"
-2. Wait for human approval of the spend request
-3. Use approved virtual card credentials to complete payment at checkoutUrl
-4. DO NOT paste checkoutUrl for human DIY — that is FAIL for agent demo
+**BROWSER FALLBACK PATH:**
+If native `request_virtual_card` is unavailable (platform limitation), use `create_checkout` (browser Checkout session). This is a fallback for hosts that don't expose the native spend-approval UI.
 
-**HUMAN DIY PATH (NOT FOR AGENTS):**
-Pasting the checkout URL for human to complete manually is ONLY for human-facing flows, NOT for agent demonstrations.
+**CRITICAL - CHECKOUT URL HANDLING:**
+If using browser fallback, NEVER truncate, modify, or parse the checkoutUrl returned by `create_checkout`. Stripe Checkout Session URLs contain fragments (#) that MUST remain intact. Known failure: truncating URL causes "This link is incomplete: Use the unmodified checkout URL" error. Pass the complete URL exactly as returned. This is why API payment path is STRONGLY preferred — agents never touch checkout.stripe.com URLs.
+
+**DO NOT:**
+- Paste checkoutUrl for human DIY (FAIL for agent demo)
+- Truncate or modify checkout URLs (causes Stripe errors)
+- Call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" (those tools DO NOT EXIST on Link MCP)
 
 ## Critical Rules (Enforced by Tools)
 
@@ -91,8 +98,9 @@ Pasting the checkout URL for human to complete manually is ONLY for human-facing
 - `list_products` — Step 2: Browse catalog, returns productImageUrl
 - `get_product` — Optional: Get specific product details with imageUrl
 - `add_to_cart` — Step 5: Add items with size (after showing product and asking human)
-- `preview_cart` — Step 6: Get preview images (MUST show to human before checkout)
+- `preview_cart` — Step 6: Get preview images (MUST show to human before payment)
 - `get_cart` — View cart contents
-- `create_checkout` — Step 8: Create browser Checkout (after preview + shipping confirm)
+- `complete_payment` — Step 8: Pay via Link SPT (preferred agent API path)
+- `create_checkout` — Step 8 fallback: Browser Checkout (if native request_virtual_card unavailable)
 
 Commerce stays WebMCP-only. No human-facing catalog UI.
