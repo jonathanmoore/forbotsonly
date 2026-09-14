@@ -50,105 +50,72 @@ const SHAPE_ID_MAP = {
   'teardrop': 'teardrop',      // Teardrop
 };
 
-/**
- * Seeded random number generator for stable eye positions
- * Based on shape+color for deterministic randomization
- */
-function seededRandom(seed) {
-  let state = seed;
-  return function() {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    return state / 4294967296;
-  };
-}
 
 /**
- * Compute randomized eye positions within safe face zone
- * Uses official face parameters from grokbot-animation
+ * Official overflow eye paths from grok-bot-overflow-eyes.svg reference
+ * These complex tilted stadium/pill shapes can break the silhouette edge (official geometry)
+ * Using as KNOCKOUT cutouts (evenodd) for print - fabric shows through
  */
-function computeEyePositions(officialID, pickerShape, color) {
+const OFFICIAL_LEFT_EYE_PATH = "M118.17 70.73L120.45 71.04L122.59 71.76L124.55 72.87L126.18 74.38L127.42 76.24L128.34 78.29L129.10 80.42L129.83 82.57L130.55 84.72L131.27 86.86L131.97 89.02L132.64 91.19L133.29 93.36L133.91 95.55L134.50 97.74L135.05 99.95L135.36 102.23L135.16 104.55L134.41 106.80L133.11 108.84L131.36 110.51L129.28 111.73L127.01 112.45L124.68 112.65L122.41 112.33L120.31 111.51L118.45 110.26L116.93 108.62L115.81 106.69L115.01 104.57L114.39 102.39L113.80 100.19L113.17 98.01L112.52 95.84L111.85 93.66L111.17 91.51L110.47 89.35L109.75 87.20L108.94 85.09L108.17 82.96L107.64 80.75L107.63 78.44L108.31 76.16L109.61 74.14L111.41 72.51L113.54 71.41L115.84 70.83Z";
+
+const OFFICIAL_RIGHT_EYE_PATH = "M179.77 59.76L182.04 60.05L184.10 60.75L185.92 61.77L187.55 63.03L188.95 64.50L190.10 66.16L191.07 67.95L191.90 69.82L192.67 71.74L193.41 73.66L194.13 75.60L194.80 77.56L195.42 79.55L196.02 81.54L196.56 83.57L197.06 85.61L197.50 87.67L197.90 89.77L198.06 91.94L197.82 94.21L197.15 96.51L195.85 98.72L193.75 100.38L191.30 101.01L189.00 100.81L186.99 100.03L185.30 98.85L183.91 97.38L182.84 95.66L182.05 93.76L181.48 91.76L181.00 89.71L180.53 87.64L180.02 85.60L179.48 83.58L178.89 81.58L178.26 79.60L177.60 77.62L176.90 75.68L176.15 73.76L175.36 71.86L174.53 69.98L173.78 68.06L173.41 65.97L173.71 63.70L175.05 61.53L177.32 60.14Z";
+
+/**
+ * Get official overflow eye paths scaled for each shape
+ * Returns paths as knockout cutouts (evenodd) - NOT solid fills
+ */
+function getOfficialOverflowEyePaths(officialID) {
   const shape = SHAPES[officialID];
-  const face = shape.face;
+  const eyeScale = shape.face.eye;
   
-  // Create seeded RNG based on shape+color for stable positions
-  const seed = (pickerShape + color).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const random = seededRandom(seed);
+  // Official eyes designed for scale=1.0 (blob), scale proportionally for other shapes
+  if (Math.abs(eyeScale - 1.0) < 0.01) {
+    return {
+      left: OFFICIAL_LEFT_EYE_PATH,
+      right: OFFICIAL_RIGHT_EYE_PATH,
+    };
+  }
   
-  // Base eye dimensions from official face parameters
-  const baseEyeSpacing = EYE_HALF * 2; // Default spacing between eyes
-  const eyeScale = face.eye; // Scale factor from face parameters
+  // Scale paths for shapes with different eye scales
+  const centerX = HEAD_C;
+  const centerY = HEAD_C;
   
-  // Eye dimensions (slanted dark eye slots) - corrected proportions for better visibility
-  const eyeRX = 6.5 * eyeScale; // Slightly narrower for cleaner slot look
-  const eyeRY = 15.0 * eyeScale; // Taller for more prominent eyes
-  const eyeRotation = -24; // More visible tilt (was -20°)
-  
-  // Face center position with official offset
-  const faceCenterX = HEAD_C + face.x;
-  const faceCenterY = HEAD_C + face.y - 30; // Upper region for eyes
-  
-  // Safe zone based on face scale parameters
-  const safeZoneX = face.sx * 50; // Horizontal safe zone
-  const safeZoneY = face.sy * 30; // Vertical safe zone
-  
-  // Randomize within ±30% of safe zone
-  const randomVarianceX = (random() - 0.5) * 0.6;
-  const randomVarianceY = (random() - 0.5) * 0.6;
-  
-  // Compute eye spacing with variance
-  const eyeSpacing = (baseEyeSpacing * eyeScale) + (randomVarianceX * safeZoneX * 0.3);
-  
-  // Compute eye centers
-  const leftEyeX = faceCenterX - eyeSpacing / 2 + (randomVarianceX * safeZoneX * 0.2);
-  const leftEyeY = faceCenterY + (randomVarianceY * safeZoneY * 0.3);
-  
-  const rightEyeX = faceCenterX + eyeSpacing / 2 + (randomVarianceX * safeZoneX * 0.2);
-  const rightEyeY = faceCenterY + (randomVarianceY * safeZoneY * 0.3);
+  const scalePathCoords = (pathStr, scale) => {
+    const coords = pathStr.match(/[\d.]+/g).map(Number);
+    const scaled = [];
+    
+    for (let i = 0; i < coords.length; i += 2) {
+      const x = coords[i];
+      const y = coords[i + 1];
+      scaled.push((centerX + (x - centerX) * scale).toFixed(2));
+      scaled.push((centerY + (y - centerY) * scale).toFixed(2));
+    }
+    
+    let result = 'M' + scaled[0] + ' ' + scaled[1];
+    for (let i = 2; i < scaled.length; i += 2) {
+      result += 'L' + scaled[i] + ' ' + scaled[i + 1];
+    }
+    return result + 'Z';
+  };
   
   return {
-    left: { cx: leftEyeX, cy: leftEyeY, rx: eyeRX, ry: eyeRY, rotation: eyeRotation },
-    right: { cx: rightEyeX, cy: rightEyeY, rx: eyeRX, ry: eyeRY, rotation: eyeRotation },
+    left: scalePathCoords(OFFICIAL_LEFT_EYE_PATH, eyeScale),
+    right: scalePathCoords(OFFICIAL_RIGHT_EYE_PATH, eyeScale),
   };
 }
 
 /**
- * Generate SVG path for rotated ellipse eye
- */
-function generateEyePath(eye) {
-  const { cx, cy, rx, ry, rotation } = eye;
-  const rad = (rotation * Math.PI) / 180;
-  const cosR = Math.cos(rad);
-  const sinR = Math.sin(rad);
-  
-  // Compute ellipse boundary points (top, right, bottom, left)
-  const pts = [
-    [0, -ry],  // top
-    [rx, 0],   // right
-    [0, ry],   // bottom
-    [-rx, 0],  // left
-  ].map(([x, y]) => [
-    cx + x * cosR - y * sinR,
-    cy + x * sinR + y * cosR,
-  ]);
-  
-  // Build elliptical arc path (4 quarters)
-  return `M ${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${rotation} 0,1 ${pts[1][0].toFixed(2)},${pts[1][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${rotation} 0,1 ${pts[2][0].toFixed(2)},${pts[2][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${rotation} 0,1 ${pts[3][0].toFixed(2)},${pts[3][1].toFixed(2)} A ${rx.toFixed(2)},${ry.toFixed(2)} ${rotation} 0,1 ${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)} Z`;
-}
-
-/**
- * Generate compound path with head + eye knockouts
- * Uses fill-rule="evenodd" so eyes become transparent cutouts
+ * Generate compound path with head + official overflow eye knockouts
+ * Uses fill-rule="evenodd" so official eye paths become transparent cutouts (fabric-through)
+ * Eyes can break silhouette edge (official overflow geometry)
  */
 function generateCompoundPath(officialID, pickerShape, color, fillColor) {
   const shape = SHAPES[officialID];
   const headPath = shape.path;
-  const eyes = computeEyePositions(officialID, pickerShape, color);
+  const eyePaths = getOfficialOverflowEyePaths(officialID);
   
-  const leftEyePath = generateEyePath(eyes.left);
-  const rightEyePath = generateEyePath(eyes.right);
-  
-  // Combine head + eyes as compound path (evenodd makes eyes transparent)
-  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${leftEyePath} ${rightEyePath}"/>`;
+  // Combine head + official overflow eyes as compound path (evenodd makes eyes transparent knockout cutouts)
+  return `<path class="grok-bot-mark__compound" fill="${fillColor}" fill-rule="evenodd" d="${headPath} ${eyePaths.left} ${eyePaths.right}"/>`;
 }
 
 /**
@@ -164,8 +131,8 @@ function generateMark(pickerShape, color, options = {}) {
   const height = pocketPrint ? 192 : 229;
   
   const comment = pocketPrint 
-    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | Eyes: randomized knockout cutouts (evenodd) -->`
-    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | Eyes: randomized contained knockouts (stable seed: ${pickerShape}-${color}) -->`;
+    ? `\n  <!-- Pocket-print: 192px canvas for ~1.2" Prodigi front placement (~360px @ 300dpi) -->\n  <!-- Official shape: ${officialID} (${pickerShape}) | Eyes: official overflow knockouts (evenodd) -->`
+    : `\n  <!-- Grok Bot mark: official geometry from grokbot-animation (shape: ${officialID}) -->\n  <!-- App picker: ${pickerShape} | Eyes: official overflow knockouts (can break silhouette, evenodd fabric-through) -->`;
   
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="${width}" height="${height}" viewBox="${VIEWBOX}" xmlns="http://www.w3.org/2000/svg">${comment}
@@ -232,10 +199,10 @@ async function generateMarks() {
   console.log(`\n✨ Done! Generated ${count + 1} total SVG files in ${outputDir}`);
   console.log(`\n🎯 Brand default (foil/Railway hero): grok-bot-blob-orange.svg`);
   console.log(`🎽 Pocket-print: ${pocketFilename} (~1.2" Prodigi front placement)`);
-  console.log(`\n👀 Eyes: RANDOMIZED knockout transparent cutouts (fill-rule evenodd) — NOT solid black fills`);
-  console.log(`📐 Positioning: CONTAINED inside each shape with stable random variance per shape+color`);
-  console.log(`📊 Source: Official geometry from vendor/grokbot-animation/component/original-data.js`);
-  console.log(`🔑 Seed: Each shape+color combination has stable eye positions (deterministic randomization)`);
+  console.log(`\n👀 Eyes: OFFICIAL OVERFLOW knockout cutouts (fill-rule evenodd) from grok-bot-overflow-eyes.svg`);
+  console.log(`📐 Geometry: Tilted stadium/pill eye slots CAN break silhouette (official Grok Bot overflow style)`);
+  console.log(`📊 Source: Official overflow-eyes reference + shape geometry from grokbot-animation/original-data.js`);
+  console.log(`✅ Print-ready: Knockout cutouts (fabric-through), NOT solid fills — works on all tee colors`);
 }
 
 // Run the generator
