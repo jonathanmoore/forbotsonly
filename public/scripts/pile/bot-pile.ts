@@ -701,7 +701,8 @@ export class BotPile extends HTMLElement {
         const relVel = Matter.Vector.sub(pair.bodyA.velocity, pair.bodyB.velocity);
         const normal = pair.collision.normal;
         const speed = Math.abs(Matter.Vector.dot(relVel, normal));
-        if (speed < 1.4) continue;
+        const threshold = 1.8;
+        if (speed < threshold) continue;
         const angle = Math.atan2(normal.y, normal.x);
         let sizeNorm = 0.5;
         let involvedBots = 0;
@@ -715,7 +716,9 @@ export class BotPile extends HTMLElement {
           involvedBots++;
         }
         if (involvedBots > 0) {
-          this.sound.thud(Math.min(1, (speed - 1.4) / 9), sizeNorm);
+          const excessSpeed = speed - threshold;
+          const intensity = Math.min(1, Math.pow(excessSpeed / 10, 0.8));
+          this.sound.thud(intensity, sizeNorm);
         }
       }
     });
