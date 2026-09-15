@@ -222,9 +222,9 @@ curl -X POST http://localhost:3001/mcp \
    - merchantUrl: store URL
    - lineItems: [{ description: "Grok Bot Tee", amountCents: 4000 }]
 9. **Wait for approval**: Human approves spend request in Cursor UI
-10. **Get SPT**: Call Link MCP `get_spend_request` with `include: "shared_payment_token"` to retrieve SPT
-11. **Pay**: Call `complete_payment` with sharedPaymentToken + confirmed shippingAddress
-12. **Done**: Order → `awaiting_approval` (admin review before Prodigi)
+10. **Get SPT**: Call Link MCP `get_spend_request` with `include: ["shared_payment_token"]` (array format) to retrieve SPT
+11a. **IF SPT present**: Call `complete_payment` with sharedPaymentToken + confirmed shippingAddress → Order → `awaiting_approval` (admin review before Prodigi)
+11b. **IF SPT unavailable**: Response has `credential_type: card` but NO `shared_payment_token` → Use `create_checkout` fallback with EXACT full checkoutUrl (never truncate #) and instruct human to fill card at Stripe Checkout
 
 ### Fallback Path: Browser Checkout (If Native Spend UI Unavailable)
 
@@ -238,5 +238,8 @@ If your host platform does NOT expose native `request_virtual_card` (platform li
 **CRITICAL DISTINCTIONS:**
 - `request_virtual_card` is a **Cursor-native spend-approval UI tool**, NOT a Link MCP tool
 - Link MCP tools: `get_userinfo`, `list_payment_methods`, `list_shipping_addresses`, `list_spend_requests`, `get_spend_request`, `sign_web_bot_auth`, `report_agent_observation`
+- After RVC approval, call Link MCP `get_spend_request` with `include: ["shared_payment_token"]` (array format)
+- IF response includes `shared_payment_token` → use `complete_payment` API path (preferred)
+- IF response has `credential_type: card` but NO `shared_payment_token` → SPT unavailable, use `create_checkout` fallback with EXACT full checkoutUrl (never truncate #) and tell human to fill card at Stripe Checkout
 - DO NOT call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" — those tools do not exist
-- DO NOT paste checkoutUrl for human DIY in agent demonstrations — use `complete_payment` API path
+- DO NOT paste checkoutUrl for human DIY in agent demonstrations when SPT is available — use `complete_payment` API path

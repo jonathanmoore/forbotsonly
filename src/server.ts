@@ -583,7 +583,7 @@ const TOOL_DEFINITIONS = {
   },
   complete_payment: {
     name: 'complete_payment',
-    description: 'STEP 6: PREFERRED AGENT PATH - Complete payment using Link shared_payment_token (SPT) after approval. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. FLOW: After cart+preview+shippingConfirmed → (a) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl checkoutUrl; (b) Wait for human approval; (c) Call Link MCP get_spend_request with include shared_payment_token to get SPT; (d) Call this tool with sharedPaymentToken + shippingAddress. On success, order → awaiting_approval (manual review before fulfillment).',
+    description: 'STEP 6: PREFERRED AGENT PATH - Complete payment using Link shared_payment_token (SPT) after approval. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. FLOW: After cart+preview+shippingConfirmed → (a) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl checkoutUrl; (b) Wait for human approval; (c) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (d) If response includes shared_payment_token → call this tool with sharedPaymentToken + shippingAddress; (e) If response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback with EXACT full checkoutUrl (never truncate #). On success, order → awaiting_approval (manual review before fulfillment).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -636,7 +636,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'OPTIONAL BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. AGENTS SHOULD PREFER complete_payment (API path with Link SPT) instead to avoid handling checkout.stripe.com URLs. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. CRITICAL: If using this fallback, pass the returned checkoutUrl EXACTLY as-is (never truncate/modify). Truncating Checkout URLs causes Stripe "link incomplete" errors.',
+    description: 'BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. USE WHEN: (a) Native request_virtual_card unavailable (platform limitation), OR (b) After RVC approval, Link MCP get_spend_request returns credential_type: card but NO shared_payment_token (SPT unavailable - cannot use complete_payment). AGENTS SHOULD PREFER complete_payment (API path with Link SPT) when SPT is available to avoid handling checkout.stripe.com URLs. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. CRITICAL: Pass the returned checkoutUrl EXACTLY as-is (never truncate/modify the URL, especially the # fragment). Truncating Checkout URLs causes Stripe "link incomplete" errors. Tell human to fill card details at Stripe Checkout.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1114,7 +1114,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'BROWSER CHECKOUT CREATED (fallback path). For agent demonstrations, PREFER complete_payment with Link SPT instead: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include shared_payment_token to get SPT; (4) Call complete_payment with sharedPaymentToken + confirmed shippingAddress. If native request_virtual_card unavailable (platform limitation), human can complete browser checkout at checkoutUrl — CRITICAL: Pass checkoutUrl EXACTLY as returned (never truncate/modify it, causes Stripe "link incomplete" error). After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
+        next_step: 'BROWSER CHECKOUT CREATED (fallback path). CRITICAL: Pass checkoutUrl EXACTLY as returned (never truncate/modify it, especially the # fragment — causes Stripe "link incomplete" error). For agent demonstrations where complete_payment with Link SPT is available: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (4a) IF response includes shared_payment_token → call complete_payment with sharedPaymentToken + confirmed shippingAddress; (4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, instruct human to complete browser checkout at checkoutUrl and fill card at Stripe Checkout. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
       };
     }
     
@@ -1231,8 +1231,9 @@ After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP l
           'SHARED PAYMENT TOKEN REQUIRED: complete_payment requires a sharedPaymentToken from Link. ' +
           'FLOW: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly"; ' +
           '(2) Wait for human approval; ' +
-          '(3) Call Link MCP get_spend_request with include shared_payment_token to retrieve SPT; ' +
-          '(4) Pass that SPT to this tool as sharedPaymentToken parameter.'
+          '(3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; ' +
+          '(4a) IF response includes shared_payment_token → pass that SPT to this tool as sharedPaymentToken parameter; ' +
+          '(4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback (browser payment) with EXACT full checkoutUrl (never truncate #) and instruct human to fill card at Stripe Checkout.'
         );
       }
       

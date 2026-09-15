@@ -66,8 +66,9 @@ After cart + preview + shipping confirmation, call `complete_payment` with Link 
    - merchantUrl: store URL
    - lineItems: [{ description: "Grok Bot Tee", amountCents: 4000 }]
 2. Wait for human approval
-3. Call Link MCP `get_spend_request` with `include: "shared_payment_token"` to get SPT
-4. Call `complete_payment` with sharedPaymentToken + confirmed shippingAddress
+3. Call Link MCP `get_spend_request` with `include: ["shared_payment_token"]` (array format) to retrieve SPT
+4a. IF response includes `shared_payment_token` → call `complete_payment` with sharedPaymentToken + confirmed shippingAddress
+4b. IF response has `credential_type: card` but NO `shared_payment_token` → SPT unavailable, use `create_checkout` fallback (browser payment) with EXACT full checkoutUrl (never truncate #) and instruct human to fill card at Stripe Checkout
 5. Order → awaiting_approval (manual review before fulfillment)
 
 **BROWSER FALLBACK PATH:**
@@ -77,9 +78,10 @@ If native `request_virtual_card` is unavailable (platform limitation), use `crea
 If using browser fallback, NEVER truncate, modify, or parse the checkoutUrl returned by `create_checkout`. Stripe Checkout Session URLs contain fragments (#) that MUST remain intact. Known failure: truncating URL causes "This link is incomplete: Use the unmodified checkout URL" error. Pass the complete URL exactly as returned. This is why API payment path is STRONGLY preferred — agents never touch checkout.stripe.com URLs.
 
 **DO NOT:**
-- Paste checkoutUrl for human DIY (FAIL for agent demo)
+- Paste checkoutUrl for human DIY when SPT is available (FAIL for agent demo)
 - Truncate or modify checkout URLs (causes Stripe errors)
 - Call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" (those tools DO NOT EXIST on Link MCP)
+- Skip the conditional SPT check: ALWAYS call get_spend_request with include: ["shared_payment_token"], THEN check if SPT is present before deciding complete_payment vs create_checkout
 
 ## Critical Rules (Enforced by Tools)
 
