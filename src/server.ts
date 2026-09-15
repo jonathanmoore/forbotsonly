@@ -1108,8 +1108,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
       // Store Stripe session ID and checkout URL on order
       updateOrderStripeSession(order.id, checkoutSession.sessionId, checkoutSession.url);
       
-      // Build short pay URL
-      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      // Build short pay URL (reuse origin from above)
       const payUrl = `${origin}/pay/${order.id}`;
       
       return {
