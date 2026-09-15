@@ -690,3 +690,37 @@ export function markShippingConfirmed(orderId: string): void {
     }
   }
 }
+
+export async function listOrdersByStatus(status: Order['status']): Promise<Order[]> {
+  if (usePostgres && pool) {
+    try {
+      const result = await pool.query(
+        `SELECT * FROM orders WHERE status = $1 ORDER BY created_at DESC`,
+        [status]
+      );
+      return result.rows.map(row => ({
+        id: row.id,
+        sessionId: row.session_id,
+        status: row.status,
+        stripeCheckoutSessionId: row.stripe_checkout_session_id,
+        stripeCheckoutUrl: row.stripe_checkout_url,
+        prodigiOrderId: row.prodigi_order_id,
+        items: row.items,
+        createdAt: row.created_at,
+        approvedAt: row.approved_at,
+        deniedAt: row.denied_at,
+        refundId: row.refund_id,
+        shippingAddress: row.shipping_address,
+        customerEmail: row.customer_email,
+        customerName: row.customer_name,
+        customerPhone: row.customer_phone,
+      }));
+    } catch (err) {
+      console.error('[Store] Failed to list orders by status:', err);
+      return [];
+    }
+  }
+  return Array.from(orders.values())
+    .filter(order => order.status === status)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
