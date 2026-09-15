@@ -556,8 +556,10 @@ Follow-up ticket [#4](https://github.com/jonathanmoore/forbotsonly/issues/4) tra
 3. Agent calls `add_to_cart` (uses identity mark by default, can override)
 4. Agent calls `preview_cart` and **shows images to human**
 5. Agent confirms shipping address with human using Link MCP `list_shipping_addresses` (city/ZIP minimum, US-only)
-6. Agent calls `create_checkout` with `shippingConfirmed: true` to get payment URL
-7. Human completes payment via browser Checkout with Link virtual card (credit/debit)
+6. **PREFERRED PATH**: Agent calls native `request_virtual_card`, waits for approval, then calls Link MCP `get_spend_request` with `include: ["shared_payment_token"]`
+   - **IF SPT present**: Call `complete_payment` with sharedPaymentToken + shippingAddress
+   - **IF SPT unavailable** (credential_type: card only): Call `create_checkout` with `shippingConfirmed: true`, instruct human to fill card at Stripe Checkout with EXACT full checkoutUrl (never truncate #)
+7. **FALLBACK**: If native `request_virtual_card` unavailable (platform limitation), call `create_checkout` and human completes browser payment
 8. Order created → `awaiting_approval` (manual review before Prodigi)
 
 ### Stripe Checkout + Link
