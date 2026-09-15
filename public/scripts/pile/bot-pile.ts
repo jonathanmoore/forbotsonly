@@ -205,6 +205,8 @@ export class BotPile extends HTMLElement {
   private orientationAttached = false;
   private permissionRequested = false;
   private lastGravity = { x: 0, y: 1 };
+  private initialSpawnComplete = false; // #164: mute sound during initial fall
+  private idleFrames = 0; // track pile stillness to detect initial settle
 
   private _paused = false;
 
@@ -711,11 +713,15 @@ export class BotPile extends HTMLElement {
           if (!bot) continue;
           bot.squishAngle = angle;
           bot.squishVel += Math.min(0.9, speed * 0.055) * (0.7 + 0.3 * Math.random());
-          bot.blinkStart = now;
+          // #165: only blink on high-impact direct collisions (speed > 4.5)
+          if (speed > 4.5) {
+            bot.blinkStart = now;
+          }
           sizeNorm = bot.sizeNorm;
           involvedBots++;
         }
-        if (involvedBots > 0) {
+        // #164: mute sound during initial spawn/settle; #163: use pow curve intensity mapping
+        if (involvedBots > 0 && this.initialSpawnComplete) {
           const excessSpeed = speed - threshold;
           const intensity = Math.min(1, Math.pow(excessSpeed / 10, 0.8));
           this.sound.thud(intensity, sizeNorm);
@@ -814,6 +820,7 @@ export class BotPile extends HTMLElement {
       this.updateTrackSettle(dt, now / 1000);
       this.updateSquish(dt);
       this.updateEyes(dt, now / 1000);
+      this.updateInitialSettle();
       this.render();
     };
     this.rafId = requestAnimationFrame(step);
@@ -859,6 +866,35 @@ export class BotPile extends HTMLElement {
         bot.squish = 0;
         bot.squishVel = 0;
       }
+    }
+  }
+
+  /**
+   * #164: detect when initial spawn/settle is complete to unmute collision sound.
+   * Waits for all bots to spawn, then monitors pile stillness for 1.5s.
+   */
+  private updateInitialSettle(): void {
+    if (this.initialSpawnComplete) return;
+    if (this.spawnQueue.length > 0) {
+      this.idleFrames = 0;
+      return;
+    }
+    // All bots spawned — check if pile is calm (low speeds, mostly sleeping)
+    let activeCount = 0;
+    let maxSpeed = 0;
+    for (const bot of this.bots) {
+      if (!bot.body.isSleeping) activeCount++;
+      maxSpeed = Math.max(maxSpeed, bot.body.speed, Math.abs(bot.body.angularSpeed) * 10);
+    }
+    // Pile is settled when most bots are asleep and speeds are low
+    if (activeCount < this.bots.length * 0.3 && maxSpeed < 1.2) {
+      this.idleFrames++;
+      // 1.5s at 60fps = ~90 frames
+      if (this.idleFrames > 90) {
+        this.initialSpawnComplete = true;
+      }
+    } else {
+      this.idleFrames = 0;
     }
   }
 

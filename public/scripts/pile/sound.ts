@@ -17,7 +17,7 @@ export class PileSound {
       if (!Ctx) return;
       this.ctx = new Ctx();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.12;
+      this.master.gain.value = 0.05; // dialed way down for barely-there texture (#164)
       this.master.connect(this.ctx.destination);
       this.noiseBuffer = this.buildNoise(this.ctx);
     }
@@ -42,7 +42,7 @@ export class PileSound {
     this.lastPlay = now;
 
     const clampedIntensity = Math.min(1, Math.max(0, intensity));
-    const level = 0.015 + 0.135 * Math.pow(clampedIntensity, 1.6);
+    const level = 0.008 + 0.055 * Math.pow(clampedIntensity, 1.8); // barely-there texture (#164)
 
     // Body: a low sine with a quick pitch drop. Harder hits = slightly higher pitch.
     const baseFreq = 150 - 70 * Math.min(1, Math.max(0, size));
