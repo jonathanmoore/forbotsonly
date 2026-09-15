@@ -39,6 +39,7 @@ graph TD
     B -->|POD strategy| G[Merch]
     B -->|Mark geometry| H[Research]
     B -->|Demo hosting| I[Demo Guide]
+    B -->|Fulfillment review| M[Fulfillment QA]
     C -->|Ping for verify| J[Channel: forbotsonly QA ↔ Coding]
     D --> J
     E --> J
@@ -47,6 +48,9 @@ graph TD
     L -->|Visual verify| D
     L -->|Buyer testing| E
     L -->|Real purchases| F
+    L -->|Order webhook| B
+    M -->|PASS → approve| B
+    M -->|Issues → escalate| A
 ```
 
 ### Decision Flow
@@ -148,6 +152,18 @@ graph TD
 - Explains agent-only concept, soft identity gate, WebMCP flow, mark options, $40 pricing, dragon foil human page
 - Owns demo scripts for external audiences
 
+### Fulfillment QA — Order Review Specialist
+**Role**: Automated order approval workflow for tweet traffic
+
+**What they do**:
+- Receives non-sensitive order payload via webhook when payment completes
+- Reviews US shipping address completeness, tee size, and artwork/mark selection
+- Validates order data without exposing full street addresses to group channels
+- On clean PASS: Pings Chief of Staff with orderId + PASS verdict → CoS calls admin approve API → Prodigi fulfillment begins
+- On issues: Escalates to Jonathan with orderId + specific problem for manual review/deny/refund
+- Enables automated fulfillment for standard tweet-originated orders while preserving privacy
+- Works in tandem with backup polling: CoS cron checks admin list endpoint every 10m for any missed webhook orders
+
 ### Channel: forbotsonly QA ↔ Coding
 **Members**: QA, Coding, QA Shopper (+ Chief of Staff observing)
 
@@ -180,7 +196,7 @@ graph TD
 
 ### Phase 2: Human Page Evolution
 
-**Current State**: The human page features a **physics pile of Grok Bot marks** — ~32 bots with collision physics, living eyes (blink, glance, expression morphing), drag-and-throw interaction, and mobile gyro-driven gravity. Uses official mark geometry from Research with brand-400 colors (orange `#E84302`, not `#FF6B35`). The Human/Agent toggle (top-right) switches between the physics pile and agent instructions.
+**Current State**: The human page features a **physics pile of Grok Bot marks** — denser pile of ~26–39 bots with collision physics, living eyes (blink, glance, expression morphing with look-at-dragged behavior), drag-and-throw interaction, collision-triggered blink, and mobile gyro-driven gravity. Uses official mark geometry from Research with brand-400 colors (orange `#E84302`, not `#FF6B35`). Includes collision sound system. The Human/Agent toggle (top-right) switches between the physics pile and agent instructions. **No Sound/Pile/Outline chrome UI** — pure black void aesthetic.
 
 #### Historical Iterations (For Reference)
 
@@ -201,12 +217,13 @@ The human page went through multiple design iterations before arriving at the cu
 - Shape morphing, eye animation, pointer-reactive states
 - **Status**: Superseded by outline-only rendering
 
-#### Phase 2c: Outline + Fine Grain (Current as of 2026-09-11)
+#### Phase 2c: Outline + Fine Grain (Historical)
 - **Rendering**: Dashed dark charcoal outline only (#2a2a2a, ~1.8px, 8-4 dash pattern), **no fill** on body or eyes
 - **Grain overlay**: Fine SVG fractal noise (baseFrequency ~4.2, opacity ~0.05, in-place SMIL seed animation, **no x/y translate**)
 - **Animation**: Shape morphing and eye animation from vendored morph-bot component (English-only)
 - **QA bar**: Outline-only with fine grain, no foil/chrome/opal/rainbow-glass effects
 - **Design**: Abloh-minimal aesthetic — black void, tiny muted copy, no marketing chrome
+- **Status**: Superseded by current physics pile
 
 ### Phase 3: Stripe + Prodigi Integration (Test Mode)
 - **Stripe Checkout**: Test mode with 4242 card stubs
@@ -246,40 +263,47 @@ The human page went through multiple design iterations before arriving at the cu
   - Manual recovery of orphaned orders without re-charging customers
 - **Outcome**: Both orders successfully fulfilled via Prodigi, no duplicate charges
 
-### Phase 7: Order Approval Workflow (Security Lock)
-- **Critical security requirement from Jonathan**: After Stripe payment succeeds, do NOT create Prodigi order yet
-- **Manual review gate**: All paid orders held for Jonathan's secure manual review
-- **New order flow**:
-  1. Customer pays → order marked `awaiting_approval` (no Prodigi yet)
-  2. Jonathan reviews shipping address, tee size, mark/artwork via secure admin API
-  3. Approve → creates Prodigi order
-  4. Deny → refunds Stripe, no Prodigi order
-- **Admin interface**:
-  - `GET /admin/orders/:id` - View order details (address, size, mark, artwork URL)
+### Phase 7: Automated Fulfillment Review (Webhook-Driven)
+- **Webhook-driven workflow**: After Stripe payment succeeds, store POSTs non-sensitive payload to `ORDER_REVIEW_WEBHOOK_URL` (configured on Railway web console)
+- **Automated review flow**:
+  1. Payment completes → order marked `awaiting_approval` (no Prodigi order yet)
+  2. Store webhook wakes **Chief of Staff** routine `forbotsonly order review`
+  3. CoS pings **Fulfillment QA** bot to review order: US shipping completeness, size, artwork/mark selection
+  4. **Privacy preserved**: Full street addresses never exposed in QA↔Coding group channels — webhook payload includes only orderId, status, createdAt, size, mark, artworkUrl (no PII/street)
+  5. On clean PASS: Fulfillment QA pings CoS with orderId + PASS → CoS calls `POST /admin/orders/:id/approve` with `FULFILLMENT_REVIEW_SECRET` → Prodigi order created
+  6. On issues: Fulfillment QA pings Jonathan with orderId + specific problem → manual deny/refund via admin API
+- **Backup polling**: CoS cron polls `GET /admin/orders?status=awaiting_approval` every 10m (secured by admin secret). List endpoint returns orderId/status/createdAt/size/mark/artworkUrl — **no full street addresses in list** (PR #158 / commit `d8dfee0`). Full address only available via `GET /admin/orders/:id`.
+- **Demo hold policy**: Recording demo orders (e.g. `ord_1789439440750_eux9majig`) can be held indefinitely without Prodigi fulfillment while tweet-originated orders flow through automated approval
+- **Admin interface** (for escalations):
+  - `GET /admin/orders/:id` - View full order details including address (secured)
   - `POST /admin/orders/:id/approve` - Approve and create Prodigi order
   - `POST /admin/orders/:id/deny` - Deny and refund via Stripe
   - Secured by `FULFILLMENT_REVIEW_SECRET` environment variable
 - **US-only shipping**: Hard-fail on non-US addresses, no sandbox fallbacks
-- **Privacy**: Orders and addresses NEVER exposed publicly (no listing endpoint)
 - **Idempotency**: Approve/deny operations safe to call multiple times
 - **Documentation**: `docs/ADMIN-REVIEW.md` for admin usage guide
 
-### Phase 8: Ready for Production (Current State)
-- **Proven live end-to-end with manual approval**: Shopping bot → Stripe Link → Jonathan review → Prodigi fulfillment → shipped tees
-- **Human page**: Physics pile of Grok Bot marks with living eyes, collision physics, and Human/Agent toggle
-- **Mark colors**: Official brand-400 palette with orange `#E84302` (not `#FF6B35`)
-- **Agent flow**: Documented in `TOOL_EXAMPLES.md`, `docs/mcp.md`
-- **Admin review**: Documented in `docs/ADMIN-REVIEW.md`
+### Phase 8: Automated Fulfillment Goes Live
+- **Webhook-driven approval**: Store → webhook → Chief of Staff → Fulfillment QA → automated approve flow operational for tweet-originated orders
+- **Backup polling**: CoS cron polling admin list endpoint every 10m (catches any missed webhook orders)
+- **Privacy-preserving**: Admin list endpoint omits full street addresses (PR #158 / commit `d8dfee0`); full address only via individual order detail endpoint
+- **Demo hold policy**: Recording demo orders (e.g. `ord_1789439440750_eux9majig`) can be held indefinitely without triggering Prodigi fulfillment
+- **Payment path verified**: Short payUrl (`https://www.forbotsonly.com/pay/{orderId}`) fallback working for blank-bot agents through `www` subdomain
+
+### Phase 9: Production-Ready Tweet Commerce (Current State as of 2026-09-15)
+- **Proven end-to-end with automated approval**: Tweet agents → MCP discovery (`www.forbotsonly.com`) → soft identity → cart → checkout → Stripe Link → webhook → Fulfillment QA review → CoS approve → Prodigi fulfillment → shipped tees
+- **Human page**: Denser physics pile (~26–39 bots) with collision blink, look-at-dragged eyes, gyro/sound, no UI chrome — pure black void aesthetic
+- **Fulfillment automation**: Webhook + Fulfillment QA + backup polling enables unattended order approval for standard tweet traffic while preserving privacy (no street addresses in group channels)
+- **Agent flow**: Documented in `TOOL_EXAMPLES.md`, `docs/mcp.md`, `docs/ADMIN-REVIEW.md`
 - **Security locks in place**:
-  - Manual approval gate before fulfillment
+  - Automated Fulfillment QA review before approval (with Jonathan escalation path)
   - US-only shipping (no fallbacks)
-  - Private admin API (no public address exposure)
+  - Private admin API (no public address exposure; list endpoint omits full street)
   - Idempotent approve/deny operations
-- **Open follow-up work**:
-  - Custom domain HTTPS cert reliability (use Railway URL for demos)
-  - Stripe receipt emails not configured
-  - Optional `preview_cart` images before checkout (low priority)
-  - Cryptographic auth (Issue #4 follow-up: HTTP Message Signatures, Link `sign_web_bot_auth`)
+- **Known platform gaps**:
+  - Apex domain `forbotsonly.com` still hits Cloudflare Bot Fight for some agent traffic (use `www` subdomain)
+  - Some agent platforms lack native `request_virtual_card` exposure (short payUrl fallback handles this)
+  - Device-specific physics pile rendering nits on certain mobile browsers
 
 ---
 
@@ -294,6 +318,11 @@ For full examples with JSON request/response payloads, see [`TOOL_EXAMPLES.md`](
 4. **`get_cart`** — View cart contents with mark choices and total
 5. **`create_checkout`** — Get Stripe Checkout session URL (US-only shipping addresses)
 6. **`get_order`** — Check order status (pending → awaiting_approval → paid → fulfilled)
+
+### Payment Path (Agent-Specific Considerations)
+- **Preferred flow**: Agents with native `request_virtual_card` (Cursor-native, when exposed) → Link `get_spend_request` returns `shared_payment_token` → agent calls `complete_payment` tool with SPT to finalize checkout server-side
+- **Fallback for card-only agents**: When Link returns virtual card credentials without SPT, or when agent lacks native RVC, `create_checkout` returns **short payUrl** format: `https://www.forbotsonly.com/pay/{orderId}` (302 redirects to full Stripe Checkout URL, avoids agent URL truncation issues). Related work: PR #153 / #156 area.
+- **MCP discovery**: Prefers `www.forbotsonly.com` subdomain (apex `forbotsonly.com` still experiences Cloudflare Bot Fight issues for some agent traffic)
 
 ### Order Status Flow (With Manual Approval Gate)
 ```
@@ -320,11 +349,12 @@ See `docs/mcp.md` § Session Management for details.
 **forbotsonly** is both a storefront prototype and an artifact of multi-agent product development.
 
 The repository captures:
-- **Multi-agent orchestration** at work: Chief of Staff coordinating specialists (Coding, QA, Shopping, Merch, Research, Demo Guide) through GitHub as the shared board
+- **Multi-agent orchestration** at work: Chief of Staff coordinating specialists (Coding, QA, Shopping, Merch, Research, Demo Guide, Fulfillment QA) through GitHub as the shared board
 - **Autonomous implementation cycles**: Coding bot via Cursor cloud agents → GitHub PRs → Railway auto-deploy → QA verification → iterate or merge
+- **Automated fulfillment workflows**: Webhook-driven order review by Fulfillment QA bot, with backup polling and human escalation paths
 - **Human-in-the-loop YOLO gates**: Live key flips, real Link spends, domain purchases held for Jonathan approval
 - **Quality bars as coordination**: "Face-visible silver foil" became the shared success criteria across QA/Coding iterations
-- **Real production outcomes**: Live Prodigi fulfillments (`ord_14501989`, `ord_14501990`) prove end-to-end agent commerce flow
+- **Real production outcomes**: Live Prodigi fulfillments (`ord_14501989`, `ord_14501990`) prove end-to-end agent commerce flow; automated webhook→approve flow handles tweet traffic
 
 The code is functional production software. The Git history, issues, and PRs are a log of how autonomous agents built it.
 
@@ -377,4 +407,4 @@ forbotsonly/
 
 ---
 
-*This document captures the forbotsonly prototype as of 2026-09-11. The Chief of Staff bot coordinated this work; Coding, QA, Shopping, Merch, Research, QA Shopper, and Demo Guide bots executed it. Jonathan Moore approved all consequential spends and product decisions. The artifact is both a working store and a record of autonomous multi-agent product development.*
+*This document captures the forbotsonly prototype as of 2026-09-15. The Chief of Staff bot coordinated this work; Coding, QA, Shopping, Merch, Research, QA Shopper, Demo Guide, and Fulfillment QA bots executed it. Jonathan Moore approved all consequential spends and product decisions. The artifact is both a working store and a record of autonomous multi-agent product development.*
