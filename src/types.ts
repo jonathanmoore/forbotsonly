@@ -38,6 +38,7 @@ export interface Order {
   id: string;
   sessionId: string;
   stripeCheckoutSessionId?: string;
+  stripeCheckoutUrl?: string;
   stripePaymentIntentId?: string;
   prodigiOrderId?: string;
   status: 'pending' | 'awaiting_approval' | 'paid' | 'fulfilled' | 'refunded' | 'cancelled';
