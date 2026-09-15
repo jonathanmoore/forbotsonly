@@ -636,7 +636,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. USE WHEN: (a) Native request_virtual_card unavailable (platform limitation), OR (b) After RVC approval, Link MCP get_spend_request returns credential_type: card but NO shared_payment_token (SPT unavailable - cannot use complete_payment). AGENTS SHOULD PREFER complete_payment (API path with Link SPT) when SPT is available to avoid handling checkout.stripe.com URLs. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. CRITICAL: Pass the returned checkoutUrl EXACTLY as-is (never truncate/modify the URL, especially the # fragment). Truncating Checkout URLs causes Stripe "link incomplete" errors. Tell human to fill card details at Stripe Checkout.',
+    description: 'BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. USE WHEN: (a) Native request_virtual_card unavailable (platform limitation), OR (b) After RVC approval, Link MCP get_spend_request returns credential_type: card but NO shared_payment_token (SPT unavailable - cannot use complete_payment). AGENTS SHOULD PREFER complete_payment (API path with Link SPT) when SPT is available. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. Returns payUrl (short redirect URL) that agents should open EXACTLY as-is. This URL redirects to the full checkout.stripe.com URL automatically, avoiding URL truncation issues. Tell human to fill card details at Stripe Checkout.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1105,16 +1105,21 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         };
       }
       
-      // Store Stripe session ID on order
-      updateOrderStripeSession(order.id, checkoutSession.sessionId);
+      // Store Stripe session ID and checkout URL on order
+      updateOrderStripeSession(order.id, checkoutSession.sessionId, checkoutSession.url);
+      
+      // Build short pay URL
+      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      const payUrl = `${origin}/pay/${order.id}`;
       
       return {
         success: true,
         orderId: order.id,
+        payUrl,
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'BROWSER CHECKOUT CREATED (fallback path). CRITICAL: Pass checkoutUrl EXACTLY as returned (never truncate/modify it, especially the # fragment — causes Stripe "link incomplete" error). For agent demonstrations where complete_payment with Link SPT is available: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (4a) IF response includes shared_payment_token → call complete_payment with sharedPaymentToken + confirmed shippingAddress; (4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, instruct human to complete browser checkout at checkoutUrl and fill card at Stripe Checkout. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
+        next_step: 'BROWSER CHECKOUT CREATED (fallback path). For agent demonstrations where complete_payment with Link SPT is available: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (4a) IF response includes shared_payment_token → call complete_payment with sharedPaymentToken + confirmed shippingAddress; (4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, instruct human to complete browser checkout at payUrl — OPEN EXACTLY AS-IS (opens full checkout.stripe.com URL via redirect) and fill card at Stripe Checkout. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
       };
     }
     
@@ -1963,6 +1968,53 @@ serve({
         return errorResponse('Method not allowed', 405);
       }
       return handleWebhook(req);
+    }
+    
+    // GET /pay/:orderId - Redirect to stored Stripe Checkout URL
+    if (url.pathname.startsWith('/pay/') && req.method === 'GET') {
+      const orderId = url.pathname.split('/')[2];
+      
+      if (!orderId) {
+        return errorResponse('Order ID required', 400);
+      }
+      
+      try {
+        const order = isUsingPostgres() ? await getOrderAsync(orderId) : getOrder(orderId);
+        
+        if (!order) {
+          return new Response('Order not found', {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        }
+        
+        // Check if order has a stored checkout URL
+        if (!order.stripeCheckoutUrl) {
+          return new Response('Payment link not available for this order', {
+            status: 404,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        }
+        
+        // Check if order is already paid/expired
+        if (order.status === 'fulfilled' || order.status === 'paid' || order.status === 'refunded') {
+          return new Response(`Order already ${order.status}. Payment link is no longer valid.`, {
+            status: 410,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        }
+        
+        // Redirect to stored Stripe Checkout URL
+        return new Response(null, {
+          status: 302,
+          headers: {
+            'Location': order.stripeCheckoutUrl,
+          },
+        });
+      } catch (err: any) {
+        console.error('[Pay redirect] Error:', err);
+        return errorResponse('Internal server error', 500);
+      }
     }
     
     if (url.pathname === '/recover-paid-checkout') {

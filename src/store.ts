@@ -158,6 +158,12 @@ async function initPostgres(): Promise<void> {
       ADD COLUMN IF NOT EXISTS shipping_confirmed BOOLEAN DEFAULT FALSE
     `);
 
+    // #151 Short pay URLs (idempotent)
+    await client.query(`
+      ALTER TABLE orders 
+      ADD COLUMN IF NOT EXISTS stripe_checkout_url TEXT
+    `);
+
     // Create index on stripe_checkout_session_id for faster lookups
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_stripe_session 
@@ -448,6 +454,7 @@ export async function getOrderAsync(orderId: string): Promise<Order | undefined>
           sessionId: row.session_id,
           status: row.status,
           stripeCheckoutSessionId: row.stripe_checkout_session_id,
+          stripeCheckoutUrl: row.stripe_checkout_url,
           prodigiOrderId: row.prodigi_order_id,
           items: row.items,
           createdAt: row.created_at,
@@ -468,11 +475,11 @@ export async function getOrderAsync(orderId: string): Promise<Order | undefined>
   return orders.get(orderId);
 }
 
-export function updateOrderStripeSession(orderId: string, stripeSessionId: string): void {
+export function updateOrderStripeSession(orderId: string, stripeSessionId: string, checkoutUrl?: string): void {
   if (usePostgres && pool) {
     pool.query(
-      `UPDATE orders SET stripe_checkout_session_id = $1, updated_at = NOW() WHERE id = $2`,
-      [stripeSessionId, orderId]
+      `UPDATE orders SET stripe_checkout_session_id = $1, stripe_checkout_url = $2, updated_at = NOW() WHERE id = $3`,
+      [stripeSessionId, checkoutUrl || null, orderId]
     ).catch(err => {
       console.error('[Store] Failed to update order Stripe session:', err);
     });
@@ -480,6 +487,9 @@ export function updateOrderStripeSession(orderId: string, stripeSessionId: strin
     const order = orders.get(orderId);
     if (order) {
       order.stripeCheckoutSessionId = stripeSessionId;
+      if (checkoutUrl) {
+        order.stripeCheckoutUrl = checkoutUrl;
+      }
       saveOrdersToFile();
     }
   }
@@ -544,6 +554,7 @@ export async function findOrderByStripeSessionAsync(stripeSessionId: string): Pr
           sessionId: row.session_id,
           status: row.status,
           stripeCheckoutSessionId: row.stripe_checkout_session_id,
+          stripeCheckoutUrl: row.stripe_checkout_url,
           prodigiOrderId: row.prodigi_order_id,
           items: row.items,
           createdAt: row.created_at,

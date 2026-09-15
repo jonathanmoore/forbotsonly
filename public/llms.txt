@@ -75,11 +75,12 @@ After cart + preview + shipping confirmation, call `complete_payment` with Link 
 If native `request_virtual_card` is unavailable (platform limitation), use `create_checkout` (browser Checkout session). This is a fallback for hosts that don't expose the native spend-approval UI.
 
 **CRITICAL - CHECKOUT URL HANDLING:**
-If using browser fallback, NEVER truncate, modify, or parse the checkoutUrl returned by `create_checkout`. Stripe Checkout Session URLs contain fragments (#) that MUST remain intact. Known failure: truncating URL causes "This link is incomplete: Use the unmodified checkout URL" error. Pass the complete URL exactly as returned. This is why API payment path is STRONGLY preferred — agents never touch checkout.stripe.com URLs.
+`create_checkout` returns a SHORT `payUrl` (e.g., https://www.forbotsonly.com/pay/ord_123) that redirects to the full Stripe Checkout URL. ALWAYS use the `payUrl` field from the response — NEVER use `checkoutUrl` directly (it's included for internal/admin reference only). The short payUrl avoids URL truncation issues that cause Stripe "This link is incomplete" errors. Open payUrl EXACTLY as returned.
 
 **DO NOT:**
-- Paste checkoutUrl for human DIY when SPT is available (FAIL for agent demo)
-- Truncate or modify checkout URLs (causes Stripe errors)
+- Use `checkoutUrl` field (long Stripe URL, for internal use only)
+- Paste payUrl for human DIY when SPT is available (FAIL for agent demo)
+- Truncate or modify payUrl (causes redirect failures)
 - Call nonexistent "Link MCP request_virtual_card" or "Link MCP create_users_spend_request" (those tools DO NOT EXIST on Link MCP)
 - Skip the conditional SPT check: ALWAYS call get_spend_request with include: ["shared_payment_token"], THEN check if SPT is present before deciding complete_payment vs create_checkout
 
@@ -103,6 +104,6 @@ If using browser fallback, NEVER truncate, modify, or parse the checkoutUrl retu
 - `preview_cart` — Step 6: Get preview images (MUST show to human before payment)
 - `get_cart` — View cart contents
 - `complete_payment` — Step 8: Pay via Link SPT (preferred agent API path)
-- `create_checkout` — Step 8 fallback: Browser Checkout (if native request_virtual_card unavailable)
+- `create_checkout` — Step 8 fallback: Browser Checkout (returns short payUrl for redirect)
 
 Commerce stays WebMCP-only. No human-facing catalog UI.
