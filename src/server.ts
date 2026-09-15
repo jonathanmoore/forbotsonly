@@ -31,6 +31,7 @@ import {
   hasPreviewBeenCalled,
   updateOrderPaymentIntent,
   markShippingConfirmed,
+  listOrdersByStatus,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
 import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment, createPaymentIntentWithSPT } from './stripe';
@@ -1775,6 +1776,60 @@ serve({
     }
     
     // Admin routes (secured by FULFILLMENT_REVIEW_SECRET)
+    
+    // GET /admin/orders?status=awaiting_approval - List orders by status
+    if (url.pathname === '/admin/orders' && req.method === 'GET') {
+      if (!verifyAdminSecret(req.headers)) {
+        return errorResponse('Unauthorized: Invalid or missing admin secret', 401);
+      }
+      
+      const status = url.searchParams.get('status');
+      if (!status) {
+        return errorResponse('Status query parameter required', 400);
+      }
+      
+      if (status !== 'awaiting_approval' && status !== 'pending' && status !== 'paid' && status !== 'fulfilled' && status !== 'refunded' && status !== 'cancelled') {
+        return errorResponse('Invalid status. Must be one of: awaiting_approval, pending, paid, fulfilled, refunded, cancelled', 400);
+      }
+      
+      try {
+        const ordersList = await listOrdersByStatus(status as Order['status']);
+        const publicUrl = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+        
+        const summaries = ordersList.map(order => {
+          const firstItem = order.items[0];
+          const product = getProduct(firstItem.productId);
+          const mark = firstItem.mark;
+          
+          // Map picker names → asset filenames
+          const shapeAsset = getShapeAssetFilename(mark.shape as any);
+          const colorAsset = getColorAssetFilename(mark.color as any);
+          
+          const artworkUrl = `${publicUrl}/images/prodigi-positioned/grok-bot-${shapeAsset}-${colorAsset}-positioned.png`;
+          
+          return {
+            orderId: order.id,
+            status: order.status,
+            createdAt: order.createdAt,
+            size: firstItem.size,
+            mark: {
+              shape: mark.shape,
+              color: mark.color,
+            },
+            artworkUrl,
+          };
+        });
+        
+        return jsonResponse({
+          orders: summaries,
+          count: summaries.length,
+        });
+      } catch (err: any) {
+        console.error('[Admin] Failed to list orders:', err);
+        return errorResponse(err.message, 500);
+      }
+    }
+    
     if (url.pathname.startsWith('/admin/orders/')) {
       if (!verifyAdminSecret(req.headers)) {
         return errorResponse('Unauthorized: Invalid or missing admin secret', 401);
