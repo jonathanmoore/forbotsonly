@@ -6,7 +6,7 @@
 
 ## What forbotsonly Is
 
-**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a physics pile of Grok Bot marks on a black void with a Human/Agent toggle. Agents shop via WebMCP tools.
+**forbotsonly** is an agent-only proof-of-concept store for print-on-demand merchandise. Human visitors see a physics pile of Grok Bot marks on a black void (pile-only, no toggle). Agents shop via WebMCP tools.
 
 ### Product
 - **One SKU**: Black tee (Prodigi `GLOBAL-TEE-BC-3001`, Bella+Canvas-class)
@@ -100,7 +100,7 @@ graph TD
 **What they did**:
 - Verified human page rendering against product spec on every PR
 - **Initial foil era** (historical): Verified dragon foil shader iterations through PRs #25, #28, #33 — silver metallic foil with official overflow-eyes Grok Bot face visible under shimmer
-- **Current physics pile**: PASS only if physics pile shows official mark geometry with brand-400 colors (orange `#E84302`), living eyes (blink/glance/expression), collision physics, and Human/Agent toggle
+- **Current physics pile**: PASS only if physics pile shows official mark geometry with brand-400 colors (orange `#E84302`), living eyes (blink/glance/expression), collision physics
 - Filed GitHub issues labeled `qa` with screenshots on FAIL
 - Verified sticker centering, state transitions, pointer following
 - Confirmed Railway auto-deploys matched built assets
@@ -196,7 +196,7 @@ graph TD
 
 ### Phase 2: Human Page Evolution
 
-**Current State**: The human page features a **physics pile of Grok Bot marks** — denser pile of ~26–39 bots with collision physics, living eyes (blink, glance, expression morphing with look-at-dragged behavior), drag-and-throw interaction, collision-triggered blink, and mobile gyro-driven gravity. Uses official mark geometry from Research with brand-400 colors (orange `#E84302`, not `#FF6B35`). Includes collision sound system. The Human/Agent toggle (top-right) switches between the physics pile and agent instructions. **No Sound/Pile/Outline chrome UI** — pure black void aesthetic.
+**Current State**: The human page features a **physics pile of Grok Bot marks** — denser pile of ~26–39 bots with collision physics, living eyes (blink, glance, expression morphing with look-at-dragged behavior), drag-and-throw interaction, collision-triggered blink, and mobile gyro-driven gravity. Uses official mark geometry from Research with brand-400 colors (orange `#E84302`, not `#FF6B35`). Includes collision sound system. **No Sound/Pile/Outline chrome UI** — pure black void aesthetic.
 
 #### Historical Iterations (For Reference)
 
@@ -366,7 +366,7 @@ The code is functional production software. The Git history, issues, and PRs are
 ```
 forbotsonly/
 ├── public/
-│   ├── index.html                        # Physics pile human page with Human/Agent toggle
+│   ├── index.html                        # Physics pile human page
 │   ├── scripts/pile/                     # Physics pile implementation
 │   │   ├── bot-pile.ts                   # Main pile web component
 │   │   ├── shapes-data.ts                # Official mark geometry
@@ -395,7 +395,7 @@ forbotsonly/
 - **Human page evolution**:
   - Foil era (historical): Issues #14, #15, #22 (centering), #23 (peach→silver); PRs #25, #28, #33
   - Opal glass era (historical): PR #55 (animated foil with rainbow-glass/opal)
-  - Physics pile (current): ~32 bots with collision physics, living eyes, Human/Agent toggle
+  - Physics pile (current): ~32 bots with collision physics, living eyes
 - **Prodigi fixes**: PRs #31 (address mapping + sizing), #32 (retry paid orders), #34 (API path casing)
 - **MCP session**: PR #16 area (sessionId argument support for connectors)
 - **Recovery**: PR for durable storage + `recover_paid_checkout` tool
