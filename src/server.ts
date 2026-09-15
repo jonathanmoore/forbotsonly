@@ -42,6 +42,25 @@ const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const FULFILLMENT_REVIEW_SECRET = process.env.FULFILLMENT_REVIEW_SECRET;
 const ORDER_REVIEW_WEBHOOK_URL = process.env.ORDER_REVIEW_WEBHOOK_URL;
 
+/**
+ * Extract public origin from request headers or environment.
+ * Preference order (issue #154):
+ * 1. Request host (x-forwarded-host or host header) - supports www.forbotsonly.com and Railway preview URLs
+ * 2. PUBLIC_URL environment variable
+ * 3. www.forbotsonly.com (primary domain fallback)
+ */
+function getPublicOrigin(req: Request): string {
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  
+  // Fall back to PUBLIC_URL if set, otherwise www.forbotsonly.com
+  return process.env.PUBLIC_URL || 'https://www.forbotsonly.com';
+}
+
 function verifyAdminSecret(headers: Headers): boolean {
   if (!FULFILLMENT_REVIEW_SECRET) {
     console.error('[Admin] FULFILLMENT_REVIEW_SECRET not configured');
@@ -583,7 +602,7 @@ const TOOL_DEFINITIONS = {
   },
   complete_payment: {
     name: 'complete_payment',
-    description: 'STEP 6: PREFERRED AGENT PATH - Complete payment using Link shared_payment_token (SPT) after approval. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. FLOW: After cart+preview+shippingConfirmed → (a) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl checkoutUrl; (b) Wait for human approval; (c) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (d) If response includes shared_payment_token → call this tool with sharedPaymentToken + shippingAddress; (e) If response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback with EXACT full checkoutUrl (never truncate #). On success, order → awaiting_approval (manual review before fulfillment).',
+    description: 'STEP 6: PREFERRED AGENT PATH - Complete payment using Link shared_payment_token (SPT) after approval. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. FLOW: After cart+preview+shippingConfirmed → (a) Call native request_virtual_card with amountCents 4000, merchantName "forbotsonly", merchantUrl checkoutUrl; (b) Wait for human approval; (c) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (d) If response includes shared_payment_token → call this tool with sharedPaymentToken + shippingAddress; (e) If response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback (card-only path). On success, order → awaiting_approval (manual review before fulfillment).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -636,7 +655,7 @@ const TOOL_DEFINITIONS = {
   },
   create_checkout: {
     name: 'create_checkout',
-    description: 'BROWSER FALLBACK - Create Stripe Checkout session for human browser payment. USE WHEN: (a) Native request_virtual_card unavailable (platform limitation), OR (b) After RVC approval, Link MCP get_spend_request returns credential_type: card but NO shared_payment_token (SPT unavailable - cannot use complete_payment). AGENTS SHOULD PREFER complete_payment (API path with Link SPT) when SPT is available. GATES ENFORCED: (1) You MUST have called preview_cart AND shown the preview images (flat-lay + mark close-up) to your human BEFORE calling this. (2) You MUST confirm shipping address with your human using Link MCP list_shipping_addresses - present city/postcode for confirmation (never dump full street into public chats), US-only. If you skip preview images OR shipping confirmation, this tool returns an error explaining what you missed. Set shippingConfirmed: true only after confirming address with human. Returns payUrl (short redirect URL) that agents should open EXACTLY as-is. This URL redirects to the full checkout.stripe.com URL automatically, avoiding URL truncation issues. Tell human to fill card details at Stripe Checkout.',
+    description: 'CARD-ONLY FALLBACK - Create Stripe Checkout session for browser card payment. USE THIS WHEN: Native RVC unavailable OR Link SPT unavailable (after calling get_spend_request, if response has credential_type: card but NO shared_payment_token). AGENTS SHOULD PREFER complete_payment (Link SPT path) when available. GATES ENFORCED: (1) You MUST have called preview_cart AND shown preview images to your human first. (2) You MUST confirm shipping address (city/ZIP) with your human via Link MCP list_shipping_addresses (US-only). Set shippingConfirmed: true only after confirming address. Returns payUrl - a short URL that redirects to Stripe Checkout. Open payUrl EXACTLY as-is (never truncate). Human fills card at Stripe. After payment, order → awaiting_approval (manual review before fulfillment).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -717,7 +736,7 @@ const TOOL_DEFINITIONS = {
   },
 };
 
-async function handleToolCall(toolName: string, args: any, sessionId: string): Promise<any> {
+async function handleToolCall(toolName: string, args: any, sessionId: string, requestOrigin?: string): Promise<any> {
   // Session is already resolved in the main handler via getSessionId with args
   createSession(sessionId);
   
@@ -1071,9 +1090,9 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         throw new Error('Stripe price ID not configured');
       }
       
-      // Build public origin for success/cancel URLs
-      // Use PUBLIC_URL env var (set on Railway) or fallback to Railway preview URL
-      const origin = process.env.PUBLIC_URL || 'https://web-production-493046.up.railway.app';
+      // Build public origin for success/cancel URLs and payUrl
+      // Issue #154: Use same host preference as mcp.json (request host → PUBLIC_URL → www.forbotsonly.com)
+      const origin = requestOrigin || process.env.PUBLIC_URL || 'https://www.forbotsonly.com';
       
       // Build success/cancel URLs (use args if provided, otherwise default)
       const successUrl = args.successUrl || `${origin}/?checkout=success&orderId=${order.id}`;
@@ -1118,7 +1137,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
         checkoutUrl: checkoutSession.url,
         livemode: checkoutSession.livemode,
         mode: checkoutSession.livemode ? 'live' : 'test',
-        next_step: 'BROWSER CHECKOUT CREATED (fallback path). For agent demonstrations where complete_payment with Link SPT is available: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT a Link MCP tool) with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for human approval; (3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; (4a) IF response includes shared_payment_token → call complete_payment with sharedPaymentToken + confirmed shippingAddress; (4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, instruct human to complete browser checkout at payUrl — OPEN EXACTLY AS-IS (opens full checkout.stripe.com URL via redirect) and fill card at Stripe Checkout. After payment completes, order status becomes awaiting_approval (manual review before fulfillment). Call get_order with orderId to check status.',
+        next_step: 'CARD-ONLY CHECKOUT CREATED (fallback path). IF you have native RVC: (1) Call native request_virtual_card with amountCents 4000, merchantName "forbotsonly", merchantUrl from this response; (2) Wait for approval; (3) Call Link MCP get_spend_request with include: ["shared_payment_token"]; (4a) IF response includes shared_payment_token → call complete_payment with SPT + shippingAddress (preferred); (4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, instruct human to open payUrl EXACTLY AS-IS (redirects to Stripe Checkout) and fill card. IF no native RVC: instruct human to open payUrl and fill card at Stripe Checkout. After payment, order → awaiting_approval. Call get_order to check status.',
       };
     }
     
@@ -1201,7 +1220,7 @@ async function handleToolCall(toolName: string, args: any, sessionId: string): P
 1. Flat-lay: ${previews[0].previews.flatLayMock.url}
 2. Mark close-up: ${previews[0].previews.markCloseup.url}
 
-After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street in public chat). Then AGENTS SHOULD call complete_payment (API path with Link SPT - preferred) OR create_checkout (browser fallback). AGENT PAYMENT: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP) with amountCents 4000; (2) Wait approval; (3) Call Link MCP get_spend_request to get SPT; (4) Call complete_payment with SPT + shippingAddress.`,
+After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP list_shipping_addresses to get saved address, confirm city/ZIP with human (US-only, never dump full street in public chat). Then AGENTS SHOULD call complete_payment (Link SPT - preferred) OR create_checkout (card-only fallback). AGENT PAYMENT WITH SPT: (1) Call native request_virtual_card with amountCents 4000; (2) Wait approval; (3) Call Link MCP get_spend_request to get SPT; (4) Call complete_payment with SPT + shippingAddress.`,
       };
     }
     
@@ -1233,11 +1252,11 @@ After you attach the images and end your turn, IN YOUR NEXT TURN: Use Link MCP l
       if (!sharedPaymentToken) {
         throw new Error(
           'SHARED PAYMENT TOKEN REQUIRED: complete_payment requires a sharedPaymentToken from Link. ' +
-          'FLOW: (1) Call native request_virtual_card (Cursor spend-approval UI, NOT Link MCP tool) with amountCents 4000, merchantName "forbotsonly"; ' +
+          'FLOW: (1) Call native request_virtual_card with amountCents 4000, merchantName "forbotsonly"; ' +
           '(2) Wait for human approval; ' +
           '(3) Call Link MCP get_spend_request with include: ["shared_payment_token"] (array format) to retrieve SPT; ' +
           '(4a) IF response includes shared_payment_token → pass that SPT to this tool as sharedPaymentToken parameter; ' +
-          '(4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback (browser payment) with EXACT full checkoutUrl (never truncate #) and instruct human to fill card at Stripe Checkout.'
+          '(4b) IF response has credential_type: card but NO shared_payment_token → SPT unavailable, use create_checkout fallback (card-only path) and instruct human to open payUrl.'
         );
       }
       
@@ -1664,13 +1683,7 @@ serve({
     }
     
     if (url.pathname === '/.well-known/mcp.json') {
-      // Derive public origin from request (x-forwarded-* headers or Host header)
-      // Prioritize request host to support multiple domains (www.forbotsonly.com, Railway preview, etc.)
-      const forwardedProto = req.headers.get('x-forwarded-proto') || 'http';
-      const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-      const publicOrigin = forwardedHost 
-        ? `${forwardedProto}://${forwardedHost}`
-        : (process.env.PUBLIC_URL || 'http://localhost:3001');
+      const publicOrigin = getPublicOrigin(req);
       
       return jsonResponse({
         mcpServers: {
@@ -1734,10 +1747,14 @@ serve({
       
       if (body.method === 'tools/call') {
         try {
+          // Extract public origin for tools that need it (e.g., create_checkout payUrl)
+          const publicOrigin = getPublicOrigin(req);
+          
           const result = await handleToolCall(
             body.params.name,
             body.params.arguments || {},
-            sessionId
+            sessionId,
+            publicOrigin
           );
           
           return mcpResponse({
