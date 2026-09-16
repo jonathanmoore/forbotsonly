@@ -3,9 +3,18 @@
  *
  * The store's tool surface lives on the server (POST /mcp, JSON-RPC 2.0). This
  * module mirrors that same surface into the page via the in-page WebMCP API
- * (`navigator.modelContext`), so browser-resident agents — and the Chrome
+ * (`document.modelContext`), so browser-resident agents — and the Chrome
  * DevTools "Application → WebMCP" panel — can see and call the tools without
  * knowing the JSON-RPC envelope.
+ *
+ * ## Expect this to be inert
+ *
+ * WebMCP is an origin trial in Chrome 149 / Edge 150 and on no stable channel.
+ * `document.modelContext` only exists behind the `chrome://flags` WebMCP flag or
+ * with a per-origin trial token in a `<meta http-equiv="origin-trial">` tag —
+ * set `VITE_WEBMCP_ORIGIN_TRIAL_TOKEN` at build time to ship one. With neither,
+ * the detect below returns and this file does nothing. That silence is the
+ * expected state, not a fault; agents still get the full surface over /mcp.
  *
  * There is no second source of truth: tool names, descriptions, and schemas are
  * fetched from `tools/list` at runtime and every `execute` proxies straight
@@ -121,9 +130,31 @@ function toModelContextTool(tool: McpToolDefinition) {
   };
 }
 
+/**
+ * Ship the origin-trial token, if this build was given one.
+ *
+ * Injected from script rather than hardcoded in index.html because the token is
+ * per-origin and expires; Chrome honours a meta tag added before the feature is
+ * first touched. Vite inlines the env value at build time, so with no token
+ * configured this compiles down to nothing.
+ */
+function applyOriginTrialToken(): void {
+  const token = import.meta.env?.VITE_WEBMCP_ORIGIN_TRIAL_TOKEN;
+  if (!token) return;
+  const meta = document.createElement('meta');
+  meta.httpEquiv = 'origin-trial';
+  meta.content = token;
+  document.head.appendChild(meta);
+}
+
 async function registerWebMcpTools(): Promise<void> {
-  const modelContext = (navigator as any).modelContext;
-  if (!modelContext) return; // Browser has no in-page WebMCP support; /mcp still serves agents.
+  applyOriginTrialToken();
+
+  // The API hangs off `document`, not `navigator`. Chrome's DevTools WebMCP panel
+  // reads the former; navigator is checked only in case a build moves it back.
+  const modelContext =
+    (document as any).modelContext ?? (navigator as any).modelContext;
+  if (!modelContext) return; // No in-page WebMCP support; /mcp still serves agents.
 
   sessionId = loadSessionId();
 
@@ -139,7 +170,13 @@ async function registerWebMcpTools(): Promise<void> {
   // registerTool announces tools one at a time (what the DevTools panel lists);
   // provideContext is the batch form on builds that only implement that.
   if (typeof modelContext.registerTool === 'function') {
-    for (const pageTool of pageTools) modelContext.registerTool(pageTool);
+    // Returns a promise that rejects with NotAllowedError when the WebMCP
+    // permission is off — a normal answer, not an error worth surfacing.
+    await Promise.all(
+      pageTools.map((pageTool) =>
+        Promise.resolve(modelContext.registerTool(pageTool)).catch(() => {}),
+      ),
+    );
   } else if (typeof modelContext.provideContext === 'function') {
     modelContext.provideContext({ tools: pageTools });
   } else {
