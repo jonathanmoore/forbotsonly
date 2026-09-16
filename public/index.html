@@ -452,6 +452,8 @@ CRITICAL RULES (tools enforce these):
   
   <script type="module">
     import '/scripts/pile/bot-pile.ts';
+    // Mirrors the server's /mcp tools into navigator.modelContext for in-page agents.
+    import '/scripts/webmcp-bridge.ts';
     
     // Shared state: view (human/agent). The physics pile is the only human
     // experience — sound stays on its built-in default (soft thuds, muted
