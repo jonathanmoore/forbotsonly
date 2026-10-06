@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>forbotsonly store (Checkout form sandbox)</title>
+  <!-- Agent test store: shop, cart, and a stock Stripe Checkout form. Plain HTML: no canvas, WebGL,
+       or animation, so agent failures here are Stripe's, not the page's. See docs/HABANERO-AGENT-SANDBOX-PLAN.md -->
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
+      color: #111;
+      background: #fff;
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    a { color: inherit; }
+    header a { text-decoration: none; font-weight: 700; }
+    main { max-width: 64rem; margin: 0 auto; padding: 1.5rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    h2 { font-size: 1.25rem; margin: 0 0 1rem; }
+    .note { color: #555; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 1.5rem; }
+    .card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; background: #f4f4f4; }
+    .card h3, .card p { font-size: 1rem; margin: 0; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    button, select { font: inherit; }
+    select { padding: 0.4rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; }
+    .primary {
+      padding: 0.6rem 1rem;
+      border: 0;
+      border-radius: 4px;
+      background: #111;
+      color: #fff;
+      cursor: pointer;
+    }
+    .primary:disabled { background: #999; cursor: default; }
+    .link { background: none; border: 0; padding: 0; color: #111; text-decoration: underline; cursor: pointer; }
+    .cart-line { display: flex; gap: 1rem; align-items: center; padding: 1rem 0; border-bottom: 1px solid #e5e5e5; }
+    .cart-line img { width: 5rem; height: 5rem; object-fit: cover; border-radius: 4px; background: #f4f4f4; }
+    .cart-line .details { flex: 1; }
+    .summary-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
+    .totals { display: flex; justify-content: space-between; padding: 1rem 0; font-weight: 700; }
+    .checkout-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 18rem); gap: 2rem; align-items: start; }
+    @media (max-width: 48rem) { .checkout-layout { grid-template-columns: 1fr; } }
+    #status { min-height: 1.5em; }
+    #config { color: #777; font-size: 0.8rem; margin-top: 2rem; }
+  </style>
+  <script type="module" src="/sandbox/main.ts"></script>
+</head>
+<body>
+  <header>
+    <a href="/sandbox" data-view-link="shop">forbotsonly store</a>
+    <a href="/sandbox/cart" data-view-link="cart" id="cart-link">Cart (0)</a>
+  </header>
+
+  <main>
+    <section id="shop-view" hidden>
+      <h1>Shop</h1>
+      <p class="note">Agents: buy the tee and size your operator asks for, shipped to the US address they give you. Don't make up an address.</p>
+      <div class="grid" id="product-grid"></div>
+      <p id="shop-status" role="status"></p>
+    </section>
+
+    <section id="cart-view" hidden>
+      <h1>Cart</h1>
+      <div id="cart-lines"></div>
+      <div class="totals"><span>Subtotal</span><span id="cart-subtotal">$0</span></div>
+      <div class="row">
+        <button type="button" class="primary" id="checkout-button">Checkout</button>
+        <a href="/sandbox" data-view-link="shop">Continue shopping</a>
+      </div>
+    </section>
+
+    <section id="checkout-view" hidden>
+      <h1>Checkout</h1>
+      <div class="checkout-layout">
+        <div>
+          <p id="status" role="status"></p>
+          <div id="checkout-form">
+            <!-- Checkout form is mounted here -->
+          </div>
+        </div>
+        <aside>
+          <h2>Order summary</h2>
+          <div id="summary-lines"></div>
+          <div class="totals"><span>Subtotal</span><span id="summary-subtotal">$0</span></div>
+          <a href="/sandbox/cart" id="back-to-cart">Back to cart</a>
+        </aside>
+      </div>
+    </section>
+
+    <p id="config"></p>
+  </main>
+</body>
+</html>
