@@ -34,7 +34,8 @@ import {
   listOrdersByStatus,
 } from './store';
 import { getProduct, listProducts, getStripePriceId, isValidSize, AVAILABLE_SIZES } from './products';
-import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment, createPaymentIntentWithSPT } from './stripe';
+import { createCheckoutSession, isStripeConfigured, getCheckoutSession, refundPayment, createPaymentIntentWithSPT, createSandboxCheckoutSession, getSandboxSessionStatus, getPublishableKey, constructWebhookEventAsync } from './stripe';
+import { handleSandboxWebhook, parseSandboxCart, SANDBOX_PAGES } from './sandbox';
 import { createProdigiClient } from './prodigi';
 import { isValidMarkShape, isValidMarkColor, normalizeMarkShape, normalizeMarkColor, getShapeAssetFilename, getColorAssetFilename, DEFAULT_MARK, MARK_SHAPES, MARK_COLORS, CHARACTER_PICKER_SHAPES, SHAPE_ALIASES, COLOR_ALIASES, type AgentIdentity, type Order, type Cart } from './types';
 
@@ -1618,6 +1619,13 @@ async function handleWebhook(req: Request): Promise<Response> {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature');
   
+  // Agent sandbox sessions (metadata.sandbox) stop here, verified, before any store logic:
+  // never store fulfillment, never Prodigi. Without this they'd hit the orderId 400 and Stripe would retry.
+  const sandboxResult = await handleSandboxWebhook(body, () => constructWebhookEventAsync(body, signature));
+  if (sandboxResult) {
+    return jsonResponse(sandboxResult.body, sandboxResult.status);
+  }
+
   let event: any;
   
   // Verify signature if STRIPE_WEBHOOK_SECRET is configured
@@ -2034,6 +2042,63 @@ serve({
       return errorResponse('Method not allowed', 405);
     }
     
+    // POST /api/sandbox/checkout-session - Checkout form session for the agent sandbox page.
+    // Body: { items: [{ product, size, quantity }] }. Price stays server-side; returns only the client
+    // secret and publishable key.
+    if (url.pathname === '/api/sandbox/checkout-session') {
+      if (req.method !== 'POST') {
+        return errorResponse('Method not allowed', 405);
+      }
+
+      const priceId = getStripePriceId();
+      if (!isStripeConfigured() || !priceId) {
+        return errorResponse('Stripe is not configured (STRIPE_SECRET_KEY / STRIPE_PRICE_ID)', 503);
+      }
+
+      let body: any = null;
+      try {
+        body = await req.json();
+      } catch {
+        // Falls through to parseSandboxCart's "Cart is empty"
+      }
+      const cart = parseSandboxCart(body, AVAILABLE_SIZES);
+      if ('error' in cart) {
+        return errorResponse(cart.error, 400);
+      }
+
+      try {
+        const returnUrl = `${getPublicOrigin(req)}/sandbox/complete?session_id={CHECKOUT_SESSION_ID}`;
+        const session = await createSandboxCheckoutSession(priceId, cart.quantity, cart.items, returnUrl);
+        if (!session) {
+          return errorResponse('Stripe is not configured', 503);
+        }
+        console.log(`[Sandbox] Created ${session.uiMode} session ${session.id} (${cart.items}, livemode ${session.livemode})`);
+        return jsonResponse({ clientSecret: session.clientSecret, publishableKey: getPublishableKey() });
+      } catch (err: any) {
+        console.error('[Sandbox] Checkout Session create failed:', err.message);
+        return errorResponse(err.message, 500);
+      }
+    }
+
+    // GET /api/sandbox/session-status?session_id=cs_... - for /sandbox/complete
+    if (url.pathname === '/api/sandbox/session-status' && req.method === 'GET') {
+      const sessionId = url.searchParams.get('session_id') ?? '';
+      if (!sessionId.startsWith('cs_')) {
+        return errorResponse('Invalid session_id', 400);
+      }
+
+      try {
+        const status = await getSandboxSessionStatus(sessionId);
+        if (!status) {
+          return errorResponse('Sandbox session not found', 404);
+        }
+        return jsonResponse(status);
+      } catch (err: any) {
+        console.error('[Sandbox] Session status failed:', err.message);
+        return errorResponse(err.message, err.statusCode === 404 ? 404 : 500);
+      }
+    }
+
     if (url.pathname === '/webhook/stripe') {
       if (req.method !== 'POST') {
         return errorResponse('Method not allowed', 405);
@@ -2111,7 +2176,7 @@ serve({
     if (req.method === 'GET') {
       try {
         // Try dist/ first (production build), then public/ (runtime fallback)
-        let filePath = url.pathname === '/' ? '/index.html' : url.pathname;
+        let filePath = SANDBOX_PAGES[url.pathname] ?? (url.pathname === '/' ? '/index.html' : url.pathname);
         let distPath = `./dist${filePath}`;
         let publicPath = `./public${filePath}`;
         

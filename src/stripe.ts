@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { SANDBOX_METADATA_VALUE } from './sandbox';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
@@ -10,6 +11,18 @@ let stripe: Stripe | null = null;
 if (STRIPE_SECRET_KEY) {
   stripe = new Stripe(STRIPE_SECRET_KEY, {
     apiVersion: '2025-02-24.acacia',
+  });
+}
+
+// Agent sandbox only (/sandbox, Checkout form). ui_mode: 'form' needs 2026-03-25.dahlia or later, and Dahlia
+// also renames the other ui_mode values, so it can't share the stable client above. Pinned to the version
+// Stripe Press uses so the sandbox mirrors it. stripe@17's types stop at acacia, hence the casts below.
+export const SANDBOX_API_VERSION = '2026-04-22.dahlia';
+let sandboxStripe: Stripe | null = null;
+
+if (STRIPE_SECRET_KEY) {
+  sandboxStripe = new Stripe(STRIPE_SECRET_KEY, {
+    apiVersion: SANDBOX_API_VERSION as Stripe.LatestApiVersion,
   });
 }
 
@@ -58,6 +71,94 @@ export async function createCheckoutSession(
 export async function getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
   if (!stripe) return null;
   return await stripe.checkout.sessions.retrieve(sessionId);
+}
+
+/**
+ * Create a Checkout form (ui_mode: 'form') session for the agent sandbox.
+ * Price is fixed here; the cart (validated by parseSandboxCart) supplies quantity and the item summary. No orderId
+ * in metadata: the webhook routes on metadata.sandbox and must never reach store fulfillment or Prodigi.
+ */
+export async function createSandboxCheckoutSession(
+  priceId: string,
+  quantity: number,
+  items: string,
+  returnUrl: string
+): Promise<{ id: string; uiMode: string; clientSecret: string; livemode: boolean } | null> {
+  if (!sandboxStripe) {
+    return null;
+  }
+
+  const params = {
+    ui_mode: 'form',
+    mode: 'payment',
+    line_items: [
+      {
+        price: priceId,
+        quantity,
+      },
+    ],
+    shipping_address_collection: {
+      allowed_countries: ['US'], // HARD RULE: US orders only
+    },
+    return_url: returnUrl,
+    integration_identifier: 'forbotsonly_habanero_sandbox',
+    metadata: { sandbox: SANDBOX_METADATA_VALUE, items },
+  };
+
+  const session = await sandboxStripe.checkout.sessions.create(
+    params as unknown as Stripe.Checkout.SessionCreateParams
+  );
+
+  if (!session.client_secret) {
+    throw new Error(`Checkout Session ${session.id} has no client_secret (ui_mode: ${session.ui_mode})`);
+  }
+
+  return {
+    id: session.id,
+    uiMode: session.ui_mode ?? '',
+    clientSecret: session.client_secret,
+    livemode: session.livemode,
+  };
+}
+
+/**
+ * Status of a sandbox session for /sandbox/complete. Returns null for sessions that aren't
+ * sandbox sessions, so this can't be used to read store orders' customer details.
+ */
+export async function getSandboxSessionStatus(sessionId: string): Promise<{
+  status: string | null;
+  payment_status: string;
+  customer_email: string | null;
+} | null> {
+  if (!sandboxStripe) return null;
+
+  const session = await sandboxStripe.checkout.sessions.retrieve(sessionId);
+  if (session.metadata?.sandbox !== SANDBOX_METADATA_VALUE) return null;
+
+  return {
+    status: session.status,
+    payment_status: session.payment_status,
+    customer_email: session.customer_details?.email ?? null,
+  };
+}
+
+/**
+ * Verify a webhook signature and return the event. Used by the sandbox webhook branch.
+ * Must be async: under Bun, stripe resolves to its worker build, whose SubtleCrypto provider
+ * throws on the sync constructEvent().
+ */
+export async function constructWebhookEventAsync(body: string, signature: string | null): Promise<Stripe.Event> {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!sandboxStripe) throw new Error('Stripe not configured');
+  if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET is not set');
+  if (!signature) throw new Error('Missing stripe-signature header');
+  return await sandboxStripe.webhooks.constructEventAsync(body, signature, secret);
+}
+
+/** Expire an unused sandbox session (used by scripts/habanero-ping.ts to clean up). */
+export async function expireSandboxCheckoutSession(sessionId: string): Promise<void> {
+  if (!sandboxStripe) return;
+  await sandboxStripe.checkout.sessions.expire(sessionId);
 }
 
 export async function refundPayment(paymentIntentId: string): Promise<{ refundId: string; status: string }> {
